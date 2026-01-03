@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\Wollie\\\\Desktop\\\\Vilo\\\\ViloNew\" /b)",
+      "Bash(mkdir:*)",
+      "Bash(dir \"C:\\\\Users\\\\Wollie\\\\Desktop\\\\Vilo\\\\ViloNew\\\\frontend\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\Wollie\\\\Desktop\\\\Vilo\\\\ViloNew\\\\frontend\\\\src\")",
+      "Bash(dir:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(cat:*)",
+      "Bash(npm run build:*)",
+      "Bash(dir /b \"C:\\\\Users\\\\Wollie\\\\Desktop\\\\Vilo\\\\ViloNew\")",
+      "Bash(findstr:*)",
+      "Bash(npm install:*)",
+      "Bash(claude mcp add TestSprite --env API_KEY=sk-user-O1E9X4csQJPGDWt5cJR6RpG9d9qvVhUlk2ol83B0-W1udJlqxQgsybLq-Pi9IGaVMtnHXPO162vBM2I3DoYwjdLdoQ4acgx68olB-g1Bpjdgx6ZytACKLsn9lL2Cya0a7hU -- npx @testsprite/testsprite-mcp@latest)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm --version:*)",
+      "Bash(node --version)",
+      "Bash(npm config list:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

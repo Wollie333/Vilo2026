@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vilo - Final Logo Package</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(145deg, #030806 0%, #0a1510 50%, #051209 100%);
+      min-height: 100vh;
+      padding: 60px 20px;
+    }
+    h1 {
+      color: #fff;
+      text-align: center;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 32px;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      color: #4a7c6a;
+      text-align: center;
+      margin-bottom: 60px;
+      font-size: 14px;
+    }
+    .hero {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 80px;
+    }
+    .hero-logo {
+      width: 200px;
+      height: 200px;
+      filter: drop-shadow(0 20px 40px rgba(16, 185, 129, 0.2));
+    }
+    .section-title {
+      color: #10B981;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .grid {
+      display: flex;
+      justify-content: center;
+      gap: 50px;
+      flex-wrap: wrap;
+      max-width: 900px;
+      margin: 0 auto 80px;
+    }
+    .logo-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo-container {
+      width: 100px;
+      height: 100px;
+    }
+    .logo-container svg { width: 100%; height: 100%; }
+    .label {
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .desc {
+      color: #4a7c6a;
+      font-size: 11px;
+    }
+    .brand-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 80px;
+    }
+    .brand-text {
+      font-size: 48px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -1px;
+    }
+    .brand-logo {
+      width: 60px;
+      height: 60px;
+    }
+    .footer {
+      text-align: center;
+      color: #3d5c4f;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Vilo</h1>
+  <p class="subtitle">Final Logo Package - Booking Management System</p>
+
+  <!-- Hero Logo -->
+  <div class="hero">
+    <svg class="hero-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bgHero" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#10B981"/>
+          <stop offset="100%" style="stop-color:#064E3B"/>
+        </linearGradient>
+        <linearGradient id="shineHero" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:white;stop-opacity:0"/>
+          <stop offset="40%" style="stop-color:white;stop-opacity:0"/>
+          <stop offset="50%" style="stop-color:white;stop-opacity:0.22"/>
+          <stop offset="60%" style="stop-color:white;stop-opacity:0"/>
+          <stop offset="100%" style="stop-color:white;stop-opacity:0"/>
+        </linearGradient>
+        <clipPath id="clipHero">
+          <rect width="100" height="100" rx="22"/>
+        </clipPath>
+        <style>
+          @keyframes shineHero {
+            0% { transform: translateX(-100%) translateY(-100%); }
+            15% { transform: translateX(100%) translateY(100%); }
+            100% { transform: translateX(100%) translateY(100%); }
+          }
+          .shine-hero { animation: shineHero 4s ease-in-out infinite; }
+        </style>
+      </defs>
+      <rect width="100" height="100" rx="22" fill="url(#bgHero)"/>
+      <path d="M50 76L20 32H36L50 56L64 32H80L50 76Z" fill="white" opacity="0.4"/>
+      <path d="M50 66L26 32H38L50 50L62 32H74L50 66Z" fill="white" opacity="0.7"/>
+      <path d="M50 56L32 32H40L50 46L60 32H68L50 56Z" fill="white"/>
+      <g clip-path="url(#clipHero)">
+        <rect class="shine-hero" x="-50" y="-50" width="200" height="200" fill="url(#shineHero)"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Brand Lockup -->
+  <div class="brand-row">
+    <svg class="brand-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bgBrand" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#10B981"/>
+          <stop offset="100%" style="stop-color:#064E3B"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="22" fill="url(#bgBrand)"/>
+      <path d="M50 76L20 32H36L50 56L64 32H80L50 76Z" fill="white" opacity="0.4"/>
+      <path d="M50 66L26 32H38L50 50L62 32H74L50 66Z" fill="white" opacity="0.7"/>
+      <path d="M50 56L32 32H40L50 46L60 32H68L50 56Z" fill="white"/>
+    </svg>
+    <span class="brand-text">Vilo</span>
+  </div>
+
+  <!-- Variations -->
+  <p class="section-title">Logo Variations</p>
+  <div class="grid">
+
+    <!-- Static -->
+    <div class="logo-item">
+      <div class="logo-container">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#10B981"/>
+              <stop offset="100%" style="stop-color:#064E3B"/>
+            </linearGradient>
+          </defs>
+          <rect width="100" height="100" rx="22" fill="url(#bg1)"/>
+          <path d="M50 76L20 32H36L50 56L64 32H80L50 76Z" fill="white" opacity="0.4"/>
+          <path d="M50 66L26 32H38L50 50L62 32H74L50 66Z" fill="white" opacity="0.7"/>
+          <path d="M50 56L32 32H40L50 46L60 32H68L50 56Z" fill="white"/>
+        </svg>
+      </div>
+      <span class="label">Static</span>
+      <span class="desc">Favicons, print, small sizes</span>
+    </div>
+
+    <!-- Glossy 3s -->
+    <div class="logo-item">
+      <div class="logo-container">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#10B981"/>
+              <stop offset="100%" style="stop-color:#064E3B"/>
+            </linearGradient>
+            <linearGradient id="shine2" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:white;stop-opacity:0"/>
+              <stop offset="40%" style="stop-color:white;stop-opacity:0"/>
+              <stop offset="50%" style="stop-color:white;stop-opacity:0.22"/>
+              <stop offset="60%" style="stop-color:white;stop-opacity:0"/>
+              <stop offset="100%" style="stop-color:white;stop-opacity:0"/>
+            </linearGradient>
+            <clipPath id="clip2"><rect width="100" height="100" rx="22"/></clipPath>
+            <style>
+              @keyframes shine2 {
+                0% { transform: translateX(-100%) translateY(-100%); }
+                20% { transform: translateX(100%) translateY(100%); }
+                100% { transform: translateX(100%) translateY(100%); }
+              }
+              .shine2 { animation: shine2 3s ease-in-out infinite; }
+            </style>
+          </defs>
+          <rect width="100" height="100" rx="22" fill="url(#bg2)"/>
+          <path d="M50 76L20 32H36L50 56L64 32H80L50 76Z" fill="white" opacity="0.4"/>
+          <path d="M50 66L26 32H38L50 50L62 32H74L50 66Z" fill="white" opacity="0.7"/>
+          <path d="M50 56L32 32H40L50 46L60 32H68L50 56Z" fill="white"/>
+          <g clip-path="url(#clip2)">
+            <rect class="shine2" x="-50" y="-50" width="200" height="200" fill="url(#shine2)"/>
+          </g>
+        </svg>
+      </div>
+      <span class="label">Glossy (3s)</span>
+      <span class="desc">Buttons, nav, general use</span>
+    </div>
+
+    <!-- Glossy Slow -->
+    <div class="logo-item">
+      <div class="logo-container">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#10B981"/>
+              <stop offset="100%" style="stop-color:#064E3B"/>
+            </linearGradient>
+            <linearGradient id="shine3" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:white;stop-opacity:0"/>
+              <stop offset="40%" style="stop-color:white;stop-opacity:0"/>
+              <stop offset="50%" style="stop-color:white;stop-opacity:0.22"/>
+              <stop offset="60%" style="stop-color:white;stop-opacity:0"/>
+              <stop offset="100%" style="stop-color:white;stop-opacity:0"/>
+            </linearGradient>
+            <clipPath id="clip3"><rect width="100" height="100" rx="22"/></clipPath>
+            <style>
+              @keyframes shine3 {
+                0% { transform: translateX(-100%) translateY(-100%); }
+                10% { transform: translateX(100%) translateY(100%); }
+                100% { transform: translateX(100%) translateY(100%); }
+              }
+              .shine3 { animation: shine3 6s ease-in-out infinite; }
+            </style>
+          </defs>
+          <rect width="100" height="100" rx="22" fill="url(#bg3)"/>
+          <path d="M50 76L20 32H36L50 56L64 32H80L50 76Z" fill="white" opacity="0.4"/>
+          <path d="M50 66L26 32H38L50 50L62 32H74L50 66Z" fill="white" opacity="0.7"/>
+          <path d="M50 56L32 32H40L50 46L60 32H68L50 56Z" fill="white"/>
+          <g clip-path="url(#clip3)">
+            <rect class="shine3" x="-50" y="-50" width="200" height="200" fill="url(#shine3)"/>
+          </g>
+        </svg>
+      </div>
+      <span class="label">Glossy (6s)</span>
+      <span class="desc">Hero, premium, dashboard</span>
+    </div>
+
+  </div>
+
+  <p class="footer">Vilo - Enterprise Booking Management</p>
+
+</body>
+</html>
