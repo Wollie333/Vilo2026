@@ -10,3 +10,5 @@ export { NavigationShowcase } from './NavigationShowcase';
 export { DataDisplayShowcase } from './DataDisplayShowcase';
 export { FeedbackShowcase } from './FeedbackShowcase';
 export { FormControlsShowcase } from './FormControlsShowcase';
+export { NotificationsShowcase } from './NotificationsShowcase';
+export { IntegrationCardShowcase } from './IntegrationCardShowcase';

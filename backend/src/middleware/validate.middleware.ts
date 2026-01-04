@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema, ZodError } from 'zod';
+import { ZodSchema, ZodError, ZodType, ZodTypeDef } from 'zod';
 import { AppError } from '../utils/errors';
 
 /**
@@ -54,8 +54,11 @@ export const validateBody = <T>(schema: ZodSchema<T>) => {
 
 /**
  * Middleware factory to validate query parameters against a Zod schema
+ * Uses ZodType to support schemas with defaults and transforms
  */
-export const validateQuery = <T>(schema: ZodSchema<T>) => {
+export const validateQuery = <TOutput, TDef extends ZodTypeDef = ZodTypeDef, TInput = TOutput>(
+  schema: ZodType<TOutput, TDef, TInput>
+) => {
   return async (
     req: Request,
     _res: Response,

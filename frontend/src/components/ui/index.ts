@@ -15,6 +15,9 @@ export type { ThemeToggleProps } from './ThemeToggle';
 export { Input } from './Input';
 export type { InputProps } from './Input';
 
+export { PasswordInput } from './PasswordInput';
+export type { PasswordInputProps } from './PasswordInput';
+
 export { Alert } from './Alert';
 export type { AlertProps } from './Alert';
 
@@ -142,3 +145,14 @@ export type {
   FilterCardFieldProps,
   FilterCardActionsProps,
 } from './FilterCard';
+
+export { Toast, ToastContainer } from './Toast';
+export type { ToastProps, ToastContainerProps, ToastData, ToastAction } from './Toast';
+
+export { IntegrationCard } from './IntegrationCard';
+export type {
+  IntegrationCardProps,
+  IntegrationCardHeaderProps,
+  IntegrationCardContentProps,
+  IntegrationStatus,
+} from './IntegrationCard';

@@ -15,7 +15,8 @@ export type PermissionResource =
   | 'analytics'
   | 'reports'
   | 'settings'
-  | 'audit_logs';
+  | 'audit_logs'
+  | 'notifications';
 
 /**
  * Format permission key from resource and action

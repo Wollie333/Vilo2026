@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { NotificationProvider } from '@/context/NotificationContext';
 import { ProtectedRoute, PublicRoute, AdminRoute, SuperAdminRoute } from '@/routes';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
 import { Dashboard } from '@/pages/Dashboard';
@@ -19,9 +20,11 @@ import {
   RoleManagementPage,
   CreateRolePage,
   AuditLogPage,
+  BillingSettingsPage,
   AdminDashboardPage,
 } from '@/pages/admin';
 import { ProfilePage } from '@/pages/profile';
+import { NotificationsPage } from '@/pages/notifications';
 import {
   DesignSystemOverview,
   ButtonsShowcase,
@@ -35,6 +38,8 @@ import {
   DataDisplayShowcase,
   FeedbackShowcase,
   FormControlsShowcase,
+  NotificationsShowcase,
+  IntegrationCardShowcase,
 } from '@/pages/design-system';
 
 const PendingApprovalPage = () => (
@@ -65,7 +70,8 @@ function App() {
       <ScrollToTop />
       <ThemeProvider>
         <AuthProvider>
-          <Routes>
+          <NotificationProvider>
+            <Routes>
             {/* Public routes */}
             <Route
               path="/login"
@@ -117,6 +123,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <NotificationsPage />
                 </ProtectedRoute>
               }
             />
@@ -185,6 +199,14 @@ function App() {
               element={
                 <SuperAdminRoute>
                   <AuditLogPage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/billing"
+              element={
+                <SuperAdminRoute>
+                  <BillingSettingsPage />
                 </SuperAdminRoute>
               }
             />
@@ -286,11 +308,28 @@ function App() {
                 </AdminRoute>
               }
             />
+            <Route
+              path="/design-system/notifications"
+              element={
+                <AdminRoute>
+                  <NotificationsShowcase />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/design-system/integration-card"
+              element={
+                <AdminRoute>
+                  <IntegrationCardShowcase />
+                </AdminRoute>
+              }
+            />
 
             {/* Default redirect */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+            </Routes>
+          </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

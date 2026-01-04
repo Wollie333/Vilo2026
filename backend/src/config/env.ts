@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const envSchema = z.object({
-  PORT: z.string().default('3000'),
+  PORT: z.string().default('3001'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL'),
   SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
@@ -13,6 +13,11 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'), // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: z.string().default('100'),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+  // Email Configuration (optional - for notification emails)
+  EMAIL_PROVIDER: z.enum(['none', 'supabase', 'resend', 'sendgrid']).default('none'),
+  EMAIL_FROM: z.string().email().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  SENDGRID_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

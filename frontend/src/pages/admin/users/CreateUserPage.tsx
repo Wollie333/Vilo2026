@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout';
-import { Button, Input, Alert } from '@/components/ui';
+import { Button, Input, Alert, Card, Select, Checkbox, PhoneInput, PasswordInput } from '@/components/ui';
 import { usersService, rolesService } from '@/services';
 import type { Role } from '@/types/auth.types';
 
@@ -123,7 +123,7 @@ export const CreateUserPage: React.FC = () => {
         </div>
 
         {/* Form Card */}
-        <div className="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <Card variant="elevated" className="p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
             New User Details
           </h2>
@@ -136,100 +136,71 @@ export const CreateUserPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email <span className="text-red-500">*</span>
-              </label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
-                fullWidth
-                error={validationErrors.email}
-              />
-            </div>
+            <Input
+              type="email"
+              label="Email *"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              fullWidth
+              error={validationErrors.email}
+            />
 
             {/* Full Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Full Name <span className="text-red-500">*</span>
-              </label>
-              <Input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="John Doe"
-                fullWidth
-                error={validationErrors.fullName}
-              />
-            </div>
+            <Input
+              type="text"
+              label="Full Name *"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="John Doe"
+              fullWidth
+              error={validationErrors.fullName}
+            />
 
             {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Phone
-              </label>
-              <Input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 (555) 123-4567"
-                fullWidth
-              />
-            </div>
+            <PhoneInput
+              label="Phone"
+              value={phone}
+              onChange={setPhone}
+              fullWidth
+            />
 
             {/* Password */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimum 8 characters"
-                  fullWidth
-                  error={validationErrors.password}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Confirm Password <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
-                  fullWidth
-                  error={validationErrors.confirmPassword}
-                />
-              </div>
+              <PasswordInput
+                label="Password *"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                fullWidth
+                error={validationErrors.password}
+              />
+              <PasswordInput
+                label="Confirm Password *"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
+                fullWidth
+                error={validationErrors.confirmPassword}
+              />
             </div>
 
             {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Initial Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as 'active' | 'pending')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="active">Active (can log in immediately)</option>
-                <option value="pending">Pending (requires approval)</option>
-              </select>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Active users can log in immediately. Pending users need admin approval.
-              </p>
-            </div>
+            <Select
+              label="Initial Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'pending')}
+              options={[
+                { value: 'active', label: 'Active (can log in immediately)' },
+                { value: 'pending', label: 'Pending (requires approval)' },
+              ]}
+              hint="Active users can log in immediately. Pending users need admin approval."
+              fullWidth
+            />
 
             {/* Roles */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Assign Roles
               </label>
               {isLoadingRoles ? (
@@ -237,33 +208,23 @@ export const CreateUserPage: React.FC = () => {
               ) : roles.length === 0 ? (
                 <div className="text-gray-500 dark:text-gray-400 text-sm">No roles available</div>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-md p-3">
+                <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-md p-3">
                   {roles.map((role) => (
-                    <label
+                    <div
                       key={role.id}
-                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded"
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedRoles.includes(role.id)}
-                        onChange={() => handleRoleToggle(role.id)}
-                        className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                        onCheckedChange={() => handleRoleToggle(role.id)}
+                        label={role.display_name}
+                        description={role.description || undefined}
                       />
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          {role.display_name}
-                        </div>
-                        {role.description && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {role.description}
-                          </div>
-                        )}
-                      </div>
-                    </label>
+                    </div>
                   ))}
                 </div>
               )}
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Select one or more roles to assign to this user. You can change roles later.
               </p>
             </div>
@@ -278,22 +239,16 @@ export const CreateUserPage: React.FC = () => {
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Creating...
-                  </>
-                ) : (
-                  'Create User'
-                )}
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isLoading}
+              >
+                {isLoading ? 'Creating...' : 'Create User'}
               </Button>
             </div>
           </form>
-        </div>
+        </Card>
       </div>
     </AuthenticatedLayout>
   );

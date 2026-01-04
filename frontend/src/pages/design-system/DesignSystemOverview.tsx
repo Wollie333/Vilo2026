@@ -94,6 +94,12 @@ export function DesignSystemOverview() {
       href: '/design-system/colors',
       count: 50,
     },
+    {
+      title: 'Integration Card',
+      description: 'Expandable cards for payment integrations',
+      href: '/design-system/integration-card',
+      count: 1,
+    },
   ];
 
   return (

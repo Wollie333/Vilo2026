@@ -3,3 +3,7 @@ export { authService } from './auth.service';
 export { usersService } from './users.service';
 export { rolesService } from './roles.service';
 export { auditService } from './audit.service';
+export { billingService } from './billing.service';
+export { notificationService } from './notification.service';
+export { notificationPreferencesService } from './notification-preferences.service';
+export { paymentService } from './payment.service';

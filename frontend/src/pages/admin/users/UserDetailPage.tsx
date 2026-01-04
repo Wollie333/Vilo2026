@@ -20,6 +20,7 @@ import {
   TabsTrigger,
   TabsContent,
   Skeleton,
+  EmptyState,
 } from '@/components/ui';
 import { ActivityItem } from '@/components/features/ActivityItem';
 import { usersService, rolesService } from '@/services';
@@ -1150,15 +1151,12 @@ export const UserDetailPage: React.FC = () => {
               </Button>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <PropertyIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No properties assigned to this user yet.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Properties this user owns or manages will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<PropertyIcon />}
+                title="No properties assigned to this user yet."
+                description="Properties this user owns or manages will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );
@@ -1170,15 +1168,12 @@ export const UserDetailPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Rooms</h3>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <RoomIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No rooms found for this user's properties.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Rooms from assigned properties will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<RoomIcon />}
+                title="No rooms found for this user's properties."
+                description="Rooms from assigned properties will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );
@@ -1193,15 +1188,12 @@ export const UserDetailPage: React.FC = () => {
               </Button>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <TeamIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No team members yet.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Team members this user has invited will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<TeamIcon />}
+                title="No team members yet."
+                description="Team members this user has invited will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );
@@ -1214,15 +1206,12 @@ export const UserDetailPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Customers</h3>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <CustomerIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No customers found.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Customers who have booked with this user will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<CustomerIcon />}
+                title="No customers found."
+                description="Customers who have booked with this user will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );
@@ -1234,15 +1223,12 @@ export const UserDetailPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Bookings</h3>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <BookingIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No bookings found.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Bookings for this user's properties will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<BookingIcon />}
+                title="No bookings found."
+                description="Bookings for this user's properties will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );
@@ -1254,15 +1240,12 @@ export const UserDetailPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Reviews</h3>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <ReviewIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No reviews yet.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Reviews for this user's properties will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<ReviewIcon />}
+                title="No reviews yet."
+                description="Reviews for this user's properties will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );
@@ -1274,15 +1257,12 @@ export const UserDetailPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Refunds</h3>
             </Card.Header>
             <Card.Body>
-              <div className="text-center py-8">
-                <RefundIcon />
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No refunds processed.
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  Refund requests and history will appear here.
-                </p>
-              </div>
+              <EmptyState
+                icon={<RefundIcon />}
+                title="No refunds processed."
+                description="Refund requests and history will appear here."
+                size="sm"
+              />
             </Card.Body>
           </Card>
         );

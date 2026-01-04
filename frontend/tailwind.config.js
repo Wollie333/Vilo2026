@@ -109,6 +109,53 @@ export default {
         'lg': '0.5rem',     // 8px
         'xl': '0.75rem',    // 12px
       },
+      // Toast animations
+      keyframes: {
+        'toast-slide-in-right': {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        'toast-slide-in-left': {
+          '0%': { transform: 'translateX(-100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        'toast-slide-in-top': {
+          '0%': { transform: 'translateY(-100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        'toast-slide-in-bottom': {
+          '0%': { transform: 'translateY(100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        'toast-slide-out-right': {
+          '0%': { transform: 'translateX(0)', opacity: '1' },
+          '100%': { transform: 'translateX(100%)', opacity: '0' },
+        },
+        'toast-slide-out-left': {
+          '0%': { transform: 'translateX(0)', opacity: '1' },
+          '100%': { transform: 'translateX(-100%)', opacity: '0' },
+        },
+        // Accordion animations
+        'accordion-down': {
+          from: { height: '0', opacity: '0' },
+          to: { height: 'var(--accordion-content-height)', opacity: '1' },
+        },
+        'accordion-up': {
+          from: { height: 'var(--accordion-content-height)', opacity: '1' },
+          to: { height: '0', opacity: '0' },
+        },
+      },
+      animation: {
+        'toast-in-right': 'toast-slide-in-right 0.3s ease-out',
+        'toast-in-left': 'toast-slide-in-left 0.3s ease-out',
+        'toast-in-top': 'toast-slide-in-top 0.3s ease-out',
+        'toast-in-bottom': 'toast-slide-in-bottom 0.3s ease-out',
+        'toast-out-right': 'toast-slide-out-right 0.2s ease-in forwards',
+        'toast-out-left': 'toast-slide-out-left 0.2s ease-in forwards',
+        // Accordion animations
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
+      },
     },
   },
   plugins: [],
