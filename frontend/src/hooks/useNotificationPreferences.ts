@@ -22,9 +22,12 @@ export function useNotificationPreferences(): UseNotificationPreferencesReturn {
 
   /**
    * Fetch all preferences from API
+   * @param silent - If true, don't show loading state (used for error recovery)
    */
-  const fetchPreferences = useCallback(async () => {
-    setIsLoading(true);
+  const fetchPreferences = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -35,7 +38,9 @@ export function useNotificationPreferences(): UseNotificationPreferencesReturn {
       const message = err instanceof Error ? err.message : 'Failed to load preferences';
       setError(message);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -72,12 +77,16 @@ export function useNotificationPreferences(): UseNotificationPreferencesReturn {
           channel,
           enabled,
         });
+        // Success - clear any previous error
+        setError(null);
       } catch (err) {
         // Revert optimistic update on error
         const message = err instanceof Error ? err.message : 'Failed to update preference';
         setError(message);
-        // Refetch to restore correct state
-        await fetchPreferences();
+        // Silently refetch to restore correct state (no loading spinner)
+        await fetchPreferences(true);
+        // Re-throw so caller can handle (e.g., show toast)
+        throw err;
       } finally {
         setIsSaving(false);
       }
@@ -99,6 +108,8 @@ export function useNotificationPreferences(): UseNotificationPreferencesReturn {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to reset preferences';
       setError(message);
+      // Re-throw so caller can handle (e.g., show toast)
+      throw err;
     } finally {
       setIsSaving(false);
     }

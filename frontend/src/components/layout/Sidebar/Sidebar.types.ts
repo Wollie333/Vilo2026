@@ -30,4 +30,6 @@ export interface SidebarProps {
   onItemClick?: (item: NavItem) => void;
   /** Custom logo component */
   logo?: ReactNode;
+  /** Property selector component to display above navigation */
+  propertySelector?: ReactNode;
 }

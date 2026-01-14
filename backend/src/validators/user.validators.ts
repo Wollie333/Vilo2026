@@ -64,7 +64,7 @@ export const createUserSchema = z.object({
   fullName: z.string().min(1, 'Full name is required').max(255),
   phone: z.string().max(50).optional(),
   status: z.enum(['active', 'pending']).default('active'),
-  roleIds: z.array(z.string().uuid()).optional(),
+  userTypeId: z.string().uuid('Invalid user type ID').optional(),
 });
 
 export type UserIdParam = z.infer<typeof userIdParamSchema>;

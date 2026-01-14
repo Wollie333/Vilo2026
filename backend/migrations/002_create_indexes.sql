@@ -4,10 +4,10 @@
 -- Run this in Supabase SQL Editor after 001
 -- =====================================================
 
--- User profiles indexes
-CREATE INDEX idx_user_profiles_email ON public.user_profiles(email);
-CREATE INDEX idx_user_profiles_status ON public.user_profiles(status);
-CREATE INDEX idx_user_profiles_created_at ON public.user_profiles(created_at DESC);
+-- Users table indexes
+CREATE INDEX idx_users_email ON public.users(email);
+CREATE INDEX idx_users_status ON public.users(status);
+CREATE INDEX idx_users_created_at ON public.users(created_at DESC);
 
 -- User roles indexes
 CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);

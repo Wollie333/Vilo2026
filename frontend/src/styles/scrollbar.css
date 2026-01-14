@@ -1,0 +1,92 @@
+/**
+ * Custom Scrollbar Styles
+ * Reusable scrollbar styling for consistent design across the app
+ */
+
+/* Styled Scrollbar - Vertical */
+.styled-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af #f3f4f6;
+}
+
+.styled-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 9999px;
+  margin: 4px;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+}
+
+.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Dark mode */
+.dark .styled-scrollbar {
+  scrollbar-color: #4b5563 rgba(31, 41, 55, 0.5);
+}
+
+.dark .styled-scrollbar::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.5);
+}
+
+.dark .styled-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-color: #1f2937;
+}
+
+.dark .styled-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Styled Scrollbar - Horizontal */
+.styled-scrollbar-horizontal {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af #f3f4f6;
+}
+
+.styled-scrollbar-horizontal::-webkit-scrollbar {
+  height: 8px;
+}
+
+.styled-scrollbar-horizontal::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 9999px;
+  margin: 4px;
+}
+
+.styled-scrollbar-horizontal::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+}
+
+.styled-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Dark mode */
+.dark .styled-scrollbar-horizontal {
+  scrollbar-color: #4b5563 rgba(31, 41, 55, 0.5);
+}
+
+.dark .styled-scrollbar-horizontal::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.5);
+}
+
+.dark .styled-scrollbar-horizontal::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-color: #1f2937;
+}
+
+.dark .styled-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}

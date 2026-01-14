@@ -98,7 +98,7 @@ export function TabsTrigger({
     pills: `
       px-4 py-2 rounded-full
       ${isActive
-        ? 'bg-primary text-brand-black'
+        ? 'bg-primary text-white'
         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-card'
       }
     `,

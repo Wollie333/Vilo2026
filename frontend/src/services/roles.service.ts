@@ -16,7 +16,7 @@ export interface UpdateRoleData {
 
 class RolesService {
   async listRoles(): Promise<Role[]> {
-    const response = await api.get<{ roles: Role[] }>('/api/roles');
+    const response = await api.get<{ roles: Role[] }>('/roles');
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch roles');
     }
@@ -24,7 +24,7 @@ class RolesService {
   }
 
   async getRole(id: string): Promise<RoleWithPermissions> {
-    const response = await api.get<{ role: RoleWithPermissions }>(`/api/roles/${id}`);
+    const response = await api.get<{ role: RoleWithPermissions }>(`/roles/${id}`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch role');
     }
@@ -32,7 +32,7 @@ class RolesService {
   }
 
   async listPermissions(): Promise<Permission[]> {
-    const response = await api.get<{ permissions: Permission[] }>('/api/roles/permissions');
+    const response = await api.get<{ permissions: Permission[] }>('/roles/permissions');
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch permissions');
     }
@@ -40,7 +40,7 @@ class RolesService {
   }
 
   async createRole(data: CreateRoleData): Promise<Role> {
-    const response = await api.post<{ role: Role }>('/api/roles', data);
+    const response = await api.post<{ role: Role }>('/roles', data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to create role');
     }
@@ -48,7 +48,7 @@ class RolesService {
   }
 
   async updateRole(id: string, data: UpdateRoleData): Promise<Role> {
-    const response = await api.patch<{ role: Role }>(`/api/roles/${id}`, data);
+    const response = await api.patch<{ role: Role }>(`/roles/${id}`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update role');
     }
@@ -56,7 +56,7 @@ class RolesService {
   }
 
   async deleteRole(id: string): Promise<void> {
-    const response = await api.delete(`/api/roles/${id}`);
+    const response = await api.delete(`/roles/${id}`);
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to delete role');
     }

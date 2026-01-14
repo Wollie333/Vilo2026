@@ -1,27 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout';
-import { Button, Badge, Spinner, Alert, Input, ConfirmDialog } from '@/components/ui';
+import { Button, Badge, Spinner, Alert, Input, ConfirmDialog, SaveStatus } from '@/components/ui';
 import { rolesService } from '@/services';
-import { useAutoSave, useImmediateSave } from '@/hooks';
+import { useImmediateSave } from '@/hooks';
 import type { Role, Permission } from '@/types/auth.types';
-
-// Save status indicator component
-const SaveStatusIndicator = ({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) => {
-  if (status === 'idle') return null;
-
-  return (
-    <span className={`text-xs font-medium ${
-      status === 'saving' ? 'text-gray-500 dark:text-gray-400' :
-      status === 'saved' ? 'text-green-600 dark:text-green-400' :
-      'text-red-600 dark:text-red-400'
-    }`}>
-      {status === 'saving' && 'Saving...'}
-      {status === 'saved' && '✓ Saved'}
-      {status === 'error' && 'Save failed'}
-    </span>
-  );
-};
 
 // Inline editable role card component
 const RoleCard: React.FC<{
@@ -37,19 +20,11 @@ const RoleCard: React.FC<{
   });
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Auto-save for role fields
-  const fieldAutoSave = useAutoSave<typeof formData>({
-    saveField: async (field, value) => {
-      await rolesService.updateRole(role.id, {
-        [field === 'display_name' ? 'displayName' : field]: value,
-      });
-      onUpdate();
-    },
-    debounceMs: 500,
-  });
-
-  // Immediate save for permissions
+  // Immediate save for permissions (kept per user preference)
   const permissionsSave = useImmediateSave<{ permissions: string[] }>(
     async (_field, value) => {
       await rolesService.updateRole(role.id, {
@@ -77,11 +52,34 @@ const RoleCard: React.FC<{
 
   const handleFieldChange = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    fieldAutoSave.handleChange(field, value);
+    setHasChanges(true);
+    setSaveError(null);
   };
 
-  const handleFieldBlur = (field: keyof typeof formData, value: string) => {
-    fieldAutoSave.handleBlur(field, value);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await rolesService.updateRole(role.id, {
+        displayName: formData.display_name,
+        description: formData.description,
+      });
+      setHasChanges(false);
+      onUpdate();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      display_name: role.display_name,
+      description: role.description || '',
+    });
+    setHasChanges(false);
+    setSaveError(null);
   };
 
   const togglePermission = async (permissionId: string) => {
@@ -121,13 +119,11 @@ const RoleCard: React.FC<{
                   <Input
                     value={formData.display_name}
                     onChange={(e) => handleFieldChange('display_name', e.target.value)}
-                    onBlur={(e) => handleFieldBlur('display_name', e.target.value)}
                     className="text-lg font-medium"
                     fullWidth
                   />
                 </div>
               )}
-              <SaveStatusIndicator status={fieldAutoSave.saveStatus} />
             </div>
 
             {/* Description - Inline Editable */}
@@ -135,7 +131,6 @@ const RoleCard: React.FC<{
               <Input
                 value={formData.description}
                 onChange={(e) => handleFieldChange('description', e.target.value)}
-                onBlur={(e) => handleFieldBlur('description', e.target.value)}
                 placeholder="Add a description..."
                 fullWidth
               />
@@ -148,6 +143,31 @@ const RoleCard: React.FC<{
             <p className="text-xs text-gray-400 dark:text-gray-500">
               ID: {role.name} | Priority: {role.priority}
             </p>
+
+            {/* Save/Cancel Buttons for role text fields */}
+            {!role.is_system_role && hasChanges && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSave}
+                  isLoading={isSaving}
+                >
+                  Save Changes
+                </Button>
+                {saveError && (
+                  <span className="text-xs text-red-600 dark:text-red-400">{saveError}</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -179,7 +199,7 @@ const RoleCard: React.FC<{
             <h4 className="font-medium text-gray-900 dark:text-white">
               Permissions
             </h4>
-            <SaveStatusIndicator status={permissionsSave.saveStatus} />
+            <SaveStatus status={permissionsSave.saveStatus} />
           </div>
 
           {isLoadingPermissions ? (

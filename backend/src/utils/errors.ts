@@ -9,6 +9,7 @@ const STATUS_CODES: Record<ApiErrorCode, number> = {
   RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
   BAD_REQUEST: 400,
+  PAYMENT_LOCK: 423,
 };
 
 export class AppError extends Error {

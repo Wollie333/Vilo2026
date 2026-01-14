@@ -15,7 +15,7 @@ import type {
 } from '@/types/notification.types';
 
 class NotificationPreferencesService {
-  private basePath = '/api/notification-preferences';
+  private basePath = '/notification-preferences';
 
   /**
    * Get all notification preferences for current user, grouped by type

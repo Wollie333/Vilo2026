@@ -4,7 +4,7 @@ import * as authService from '../services/auth.service';
 
 /**
  * POST /api/auth/signup
- * Register a new user (pending approval)
+ * Register a new user and auto-login
  */
 export const signUp = async (
   req: Request,
@@ -17,7 +17,16 @@ export const signUp = async (
       userAgent: req.headers['user-agent'],
     });
 
-    sendSuccess(res, result, 201);
+    // Return tokens in same format as login for auto-login
+    sendSuccess(res, {
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+      },
+      accessToken: result.session.access_token,
+      refreshToken: result.session.refresh_token,
+      expiresAt: result.session.expires_at,
+    }, 201);
   } catch (error) {
     next(error);
   }
@@ -185,6 +194,58 @@ export const getMe = async (
 
     sendSuccess(res, { user });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/check-email
+ * Check if email already exists
+ */
+export const checkEmail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      throw new Error('Email is required');
+    }
+
+    const exists = await authService.checkEmailExists(email);
+
+    sendSuccess(res, { exists });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/register-guest
+ * Register a guest user (for booking flow)
+ */
+export const registerGuest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    console.log('📝 [Register Guest] Request body:', req.body);
+    const result = await authService.registerGuest(req.body);
+
+    sendSuccess(res, {
+      user: {
+        id: result.user_id,
+        email: result.email,
+        user_type: result.user_type,
+      },
+      accessToken: result.access_token,
+      refreshToken: result.refresh_token,
+    }, 201);
+  } catch (error) {
+    console.error('❌ [Register Guest] Error:', error);
     next(error);
   }
 };

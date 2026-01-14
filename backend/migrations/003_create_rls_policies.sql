@@ -9,7 +9,7 @@ ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_properties ENABLE ROW LEVEL SECURITY;
@@ -114,7 +114,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Get user's account status
 CREATE OR REPLACE FUNCTION public.get_user_status()
 RETURNS user_status AS $$
-    SELECT status FROM public.user_profiles WHERE id = auth.uid();
+    SELECT status FROM public.users WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER;
 
 -- =====================================================
@@ -211,32 +211,32 @@ CREATE POLICY "Only super admins can delete properties"
     USING (public.is_super_admin());
 
 -- =====================================================
--- USER_PROFILES TABLE POLICIES
+-- USERS TABLE POLICIES
 -- =====================================================
 
 CREATE POLICY "Users can view own profile"
-    ON public.user_profiles FOR SELECT
+    ON public.users FOR SELECT
     TO authenticated
     USING (id = auth.uid());
 
 CREATE POLICY "Admins can view all profiles"
-    ON public.user_profiles FOR SELECT
+    ON public.users FOR SELECT
     TO authenticated
     USING (public.has_permission('users', 'read'));
 
 CREATE POLICY "Users can update own profile"
-    ON public.user_profiles FOR UPDATE
+    ON public.users FOR UPDATE
     TO authenticated
     USING (id = auth.uid())
     WITH CHECK (id = auth.uid());
 
 CREATE POLICY "Admins can update any profile"
-    ON public.user_profiles FOR UPDATE
+    ON public.users FOR UPDATE
     TO authenticated
     USING (public.has_permission('users', 'update'));
 
 CREATE POLICY "Service role can insert profiles"
-    ON public.user_profiles FOR INSERT
+    ON public.users FOR INSERT
     TO service_role
     WITH CHECK (TRUE);
 

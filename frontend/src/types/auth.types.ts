@@ -38,11 +38,18 @@ export interface UserProfile {
   phone: string | null;
   avatar_url: string | null;
   timezone: string;
+  bio: string | null;
+  linkedin_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  twitter_url: string | null;
+  youtube_url: string | null;
   address_street: string | null;
   address_city: string | null;
   address_state: string | null;
   address_postal_code: string | null;
   address_country: string | null;
+  default_currency: string;
   company_name: string | null;
   vat_number: string | null;
   company_registration: string | null;
@@ -53,6 +60,7 @@ export interface UserProfile {
   approved_by: string | null;
   last_login_at: string | null;
   last_active_at: string | null;
+  onboarding_completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +81,7 @@ export interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitializing: boolean;
   error: string | null;
 }
 

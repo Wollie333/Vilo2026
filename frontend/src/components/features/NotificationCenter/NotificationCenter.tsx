@@ -88,7 +88,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-md"
+        className="relative p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-md"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={isOpen}
         aria-haspopup="true"

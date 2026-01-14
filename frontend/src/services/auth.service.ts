@@ -14,7 +14,9 @@ export interface LoginResponse {
 
 export interface SignUpResponse {
   user: { id: string; email: string };
-  message: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
 }
 
 export interface MeResponse {
@@ -23,11 +25,13 @@ export interface MeResponse {
 
 export const authService = {
   /**
-   * Sign up a new user
+   * Sign up a new user and auto-login
    */
   async signUp(data: SignUpData): Promise<SignUpResponse | null> {
-    const response = await api.post<SignUpResponse>('/api/auth/signup', data);
+    const response = await api.post<SignUpResponse>('/auth/signup', data);
     if (response.success && response.data) {
+      // Set tokens for auto-login (same as login)
+      api.setTokens(response.data.accessToken, response.data.refreshToken);
       return response.data;
     }
     throw new Error(response.error?.message || 'Sign up failed');
@@ -37,7 +41,7 @@ export const authService = {
    * Log in with email and password
    */
   async login(credentials: LoginCredentials): Promise<LoginResponse | null> {
-    const response = await api.post<LoginResponse>('/api/auth/login', credentials);
+    const response = await api.post<LoginResponse>('/auth/login', credentials);
     if (response.success && response.data) {
       api.setTokens(response.data.accessToken, response.data.refreshToken);
       return response.data;
@@ -50,7 +54,7 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      await api.post('/api/auth/logout');
+      await api.post('/auth/logout');
     } catch {
       // Ignore errors - still clear tokens
     }
@@ -61,7 +65,7 @@ export const authService = {
    * Get current user profile
    */
   async getCurrentUser(): Promise<UserWithRoles | null> {
-    const response = await api.get<MeResponse>('/api/auth/me');
+    const response = await api.get<MeResponse>('/auth/me');
     if (response.success && response.data) {
       return response.data.user;
     }
@@ -72,7 +76,7 @@ export const authService = {
    * Request password reset
    */
   async forgotPassword(email: string): Promise<void> {
-    const response = await api.post('/api/auth/forgot-password', { email });
+    const response = await api.post('/auth/forgot-password', { email });
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to send reset email');
     }
@@ -82,7 +86,7 @@ export const authService = {
    * Reset password with token
    */
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const response = await api.post('/api/auth/reset-password', {
+    const response = await api.post('/auth/reset-password', {
       token,
       newPassword,
     });

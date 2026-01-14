@@ -45,13 +45,13 @@ export const togglePreference = async (
 ): Promise<void> => {
   try {
     const { template_id, channel, enabled } = req.body;
-    const preference = await preferencesService.togglePreference(
+    await preferencesService.togglePreference(
       req.user!.id,
       template_id,
       channel,
       enabled
     );
-    sendSuccess(res, { preference, message: 'Preference updated successfully' });
+    sendSuccess(res, { updated: 1, message: 'Preference updated successfully' });
   } catch (error) {
     next(error);
   }

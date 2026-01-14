@@ -15,7 +15,7 @@ import type {
 } from '@/types/notification.types';
 
 class NotificationService {
-  private basePath = '/api/notifications';
+  private basePath = '/notifications';
 
   /**
    * Get user's notifications with pagination and filtering

@@ -119,7 +119,19 @@ export function ModalsShowcase() {
       >
         <div className="space-y-4">
           <Input label="Full Name" placeholder="Enter your name" fullWidth />
-          <Input label="Email" type="email" placeholder="you@example.com" fullWidth />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Email
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <Input type="email" placeholder="you@example.com" className="pl-10" fullWidth />
+            </div>
+          </div>
           <Input label="Bio" placeholder="Tell us about yourself" fullWidth />
         </div>
       </Modal>

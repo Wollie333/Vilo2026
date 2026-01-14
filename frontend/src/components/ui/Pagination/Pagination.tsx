@@ -131,7 +131,7 @@ export function Pagination({
             className={`
               ${buttonBase} ${sizeClasses[size]} px-3
               ${isCurrentPage
-                ? 'bg-primary text-brand-black font-semibold'
+                ? 'bg-primary text-white font-semibold'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-card'
               }
             `}

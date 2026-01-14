@@ -20,7 +20,7 @@ DECLARE
     v_property_id UUID;
 BEGIN
     -- Update user status to active
-    UPDATE public.user_profiles
+    UPDATE public.users
     SET
         status = 'active',
         approved_at = NOW(),
@@ -86,7 +86,7 @@ CREATE OR REPLACE FUNCTION public.suspend_user(
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-    UPDATE public.user_profiles
+    UPDATE public.users
     SET
         status = 'suspended',
         updated_at = NOW()
@@ -131,7 +131,7 @@ CREATE OR REPLACE FUNCTION public.reactivate_user(
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-    UPDATE public.user_profiles
+    UPDATE public.users
     SET
         status = 'active',
         updated_at = NOW()
@@ -289,7 +289,7 @@ BEGIN
             WHERE upr.user_id = up.id
         ), '[]'::json)
     ) INTO v_result
-    FROM public.user_profiles up
+    FROM public.users up
     WHERE up.id = p_user_id;
 
     RETURN v_result;

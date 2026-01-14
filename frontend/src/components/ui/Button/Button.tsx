@@ -2,7 +2,7 @@ import { ButtonProps } from './Button.types';
 
 const variantStyles = {
   primary:
-    'bg-primary text-brand-black hover:bg-primary-500 focus:ring-primary-400',
+    'bg-primary text-white hover:bg-primary-500 focus:ring-primary-400',
   secondary:
     'bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-dark-card dark:text-white dark:hover:bg-dark-card-hover',
   outline:

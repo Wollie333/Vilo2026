@@ -5,7 +5,7 @@
 
 -- ============================================================================
 -- USER TYPES TABLE
--- Classification of users: super_admin, saas_customer, team_member, client
+-- Classification of users: super_admin, saas_team_member, saas_customer, team_member, client
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.user_types (
@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_subscription_limits_key ON public.subscription_li
 
 CREATE TABLE IF NOT EXISTS public.user_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   subscription_type_id UUID NOT NULL REFERENCES public.subscription_types(id),
   billing_status_id UUID NOT NULL REFERENCES public.billing_statuses(id),
   started_at TIMESTAMPTZ DEFAULT NOW(),
@@ -121,17 +121,17 @@ CREATE INDEX IF NOT EXISTS idx_user_subscriptions_active ON public.user_subscrip
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_expires ON public.user_subscriptions(expires_at) WHERE expires_at IS NOT NULL;
 
 -- ============================================================================
--- ALTER USER PROFILES TABLE
+-- ALTER USERS TABLE
 -- Add user_type_id and parent_user_id columns
 -- ============================================================================
 
-ALTER TABLE public.user_profiles
+ALTER TABLE public.users
 ADD COLUMN IF NOT EXISTS user_type_id UUID REFERENCES public.user_types(id),
-ADD COLUMN IF NOT EXISTS parent_user_id UUID REFERENCES public.user_profiles(id);
+ADD COLUMN IF NOT EXISTS parent_user_id UUID REFERENCES public.users(id);
 
 -- Index for user type and parent lookups
-CREATE INDEX IF NOT EXISTS idx_user_profiles_user_type ON public.user_profiles(user_type_id);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_parent ON public.user_profiles(parent_user_id);
+CREATE INDEX IF NOT EXISTS idx_users_user_type ON public.users(user_type_id);
+CREATE INDEX IF NOT EXISTS idx_users_parent ON public.users(parent_user_id);
 
 -- ============================================================================
 -- UPDATE TRIGGERS FOR updated_at
@@ -327,9 +327,10 @@ CREATE POLICY user_subscriptions_delete_policy ON public.user_subscriptions
 INSERT INTO public.user_types (name, display_name, description, is_system_type, can_have_subscription, can_have_team, sort_order)
 VALUES
   ('super_admin', 'Super Administrator', 'Platform administrators with full system access. No subscription required.', true, false, false, 1),
-  ('saas_customer', 'SaaS Customer', 'Paying customers who own and manage properties. Can have subscriptions and invite team members.', true, true, true, 2),
-  ('team_member', 'Team Member', 'Staff members invited by SaaS customers. Inherits subscription limits from parent account.', true, false, false, 3),
-  ('client', 'Client', 'End users who book properties. Limited portal access for viewing bookings.', true, false, false, 4)
+  ('saas_team_member', 'SaaS Team Member', 'Internal platform team members who help manage the SaaS. Assigned specific roles by administrators.', true, false, false, 2),
+  ('saas_customer', 'SaaS Customer', 'Paying customers who own and manage properties. Can have subscriptions and invite team members.', true, true, true, 3),
+  ('team_member', 'Team Member', 'Staff members invited by SaaS customers. Inherits subscription limits from parent account.', true, false, false, 4),
+  ('client', 'Client', 'End users who book properties. Limited portal access for viewing bookings.', true, false, false, 5)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
@@ -510,7 +511,7 @@ DECLARE
 BEGIN
   -- Check if user is a team member (use parent's subscription)
   SELECT parent_user_id INTO v_parent_user_id
-  FROM public.user_profiles
+  FROM public.users
   WHERE id = p_user_id;
 
   v_effective_user_id := COALESCE(v_parent_user_id, p_user_id);

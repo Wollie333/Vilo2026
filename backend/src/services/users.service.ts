@@ -1,6 +1,5 @@
 import { getAdminClient } from '../config/supabase';
 import { AppError } from '../utils/errors';
-import { auditUserAction, auditRoleAction } from './audit.service';
 import {
   UserWithRoles,
   UserListParams,
@@ -93,12 +92,8 @@ export const listUsers = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to fetch users');
   }
 
-  // Enrich with roles and permissions
-  const users: UserWithRoles[] = [];
-  for (const profile of profiles || []) {
-    const enriched = await enrichUserProfile(profile);
-    users.push(enriched);
-  }
+  // Batch enrich with roles and permissions (optimized to avoid N+1 queries)
+  const users = await batchEnrichUserProfiles(profiles || []);
 
   const total = count || 0;
 
@@ -147,6 +142,7 @@ export const createUser = async (
       full_name: data.fullName,
       phone: data.phone || null,
       status: data.status || 'active',
+      user_type_id: data.userTypeId || null,
       email_verified_at: new Date().toISOString(),
       approved_at: data.status === 'active' ? new Date().toISOString() : null,
       approved_by: data.status === 'active' ? actorId : null,
@@ -160,26 +156,8 @@ export const createUser = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to update user profile');
   }
 
-  // Assign roles if provided
-  if (data.roleIds && data.roleIds.length > 0) {
-    const roleAssignments = data.roleIds.map((roleId) => ({
-      user_id: userId,
-      role_id: roleId,
-      assigned_by: actorId,
-    }));
-
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .insert(roleAssignments);
-
-    if (roleError) {
-      console.error('Failed to assign roles:', roleError);
-      // Don't throw - user is created, roles can be assigned later
-    }
-  }
-
-  // Audit log
-  await auditUserAction('user.created', userId, actorId, null, { email: data.email, fullName: data.fullName });
+  // NOTE: Roles are no longer assigned here - permissions come from user_type_permissions
+  // based on the user_type_id set above
 
   return getUser(userId);
 };
@@ -213,7 +191,6 @@ export const updateUser = async (
 ): Promise<UserWithRoles> => {
   const supabase = getAdminClient();
 
-  // Get current data for audit
   const { data: oldProfile, error: fetchError } = await supabase
     .from('users')
     .select('*')
@@ -239,9 +216,6 @@ export const updateUser = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to update user');
   }
 
-  // Audit log
-  await auditUserAction('user.updated', userId, actorId, oldProfile, data as Record<string, unknown>);
-
   return enrichUserProfile(newProfile);
 };
 
@@ -254,7 +228,6 @@ export const deleteUser = async (
 ): Promise<void> => {
   const supabase = getAdminClient();
 
-  // Get current data for audit
   const { data: profile, error: fetchError } = await supabase
     .from('users')
     .select('*')
@@ -278,8 +251,100 @@ export const deleteUser = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to delete user');
   }
 
-  // Audit log
-  await auditUserAction('user.deleted', userId, actorId, profile, null);
+};
+
+/**
+ * Hard delete user (permanent deletion)
+ * WARNING: This permanently removes the user and all their data
+ */
+export const hardDeleteUser = async (
+  userId: string,
+  actorId: string
+): Promise<void> => {
+  const supabase = getAdminClient();
+
+  const { data: profile, error: fetchError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (fetchError || !profile) {
+    throw new AppError('NOT_FOUND', 'User not found');
+  }
+
+  // Prevent deletion of super admin users
+  const { data: userType } = await supabase
+    .from('user_types')
+    .select('name')
+    .eq('id', profile.user_type_id)
+    .single();
+
+  if (userType?.name === 'super_admin') {
+    throw new AppError('FORBIDDEN', 'Cannot delete super admin users');
+  }
+
+  // Delete all related records to avoid FK constraint violations
+  // Order matters - delete child records first
+
+  // 1. Delete room payment rule assignments (where user is assigner)
+  await supabase
+    .from('room_payment_rule_assignments')
+    .delete()
+    .eq('assigned_by', userId);
+
+  // 2. Delete room assignments (where user is assigner)
+  await supabase
+    .from('room_assignments')
+    .delete()
+    .eq('assigned_by', userId);
+
+  // 3. Delete user subscriptions
+  await supabase
+    .from('user_subscriptions')
+    .delete()
+    .eq('user_id', userId);
+
+  // 4. Delete user permissions
+  await supabase
+    .from('user_permissions')
+    .delete()
+    .eq('user_id', userId);
+
+  // 5. Delete company team memberships
+  await supabase
+    .from('company_team_members')
+    .delete()
+    .eq('user_id', userId);
+
+  // 7. Delete checkouts
+  await supabase
+    .from('checkouts')
+    .delete()
+    .eq('user_id', userId);
+
+  // 8. Delete user's properties (will cascade to rooms, bookings, etc.)
+  await supabase
+    .from('properties')
+    .delete()
+    .eq('owner_id', userId);
+
+  // 9. Delete user's companies (will cascade to related records)
+  await supabase
+    .from('companies')
+    .delete()
+    .eq('owner_id', userId);
+
+  // 10. Hard delete user from database
+  const { error: deleteError } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', userId);
+
+  if (deleteError) {
+    throw new AppError('INTERNAL_ERROR', `Failed to delete user: ${deleteError.message}`);
+  }
+
 };
 
 /**
@@ -352,9 +417,6 @@ export const approveUser = async (
     await supabase.from('user_properties').insert(propertyAssignments);
   }
 
-  // Audit log
-  await auditUserAction('user.approved', userId, actorId, { status: 'pending' }, { status: 'active' });
-
   return getUser(userId);
 };
 
@@ -379,7 +441,6 @@ export const assignRoles = async (
     throw new AppError('NOT_FOUND', 'User not found');
   }
 
-  // Get current roles for audit
   const { data: oldRoles } = await supabase
     .from('user_roles')
     .select('role_id')
@@ -415,15 +476,6 @@ export const assignRoles = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to assign roles');
   }
 
-  // Audit log
-  await auditUserAction(
-    'role.assigned',
-    userId,
-    actorId,
-    { roles: oldRoles?.map((r) => r.role_id) },
-    { roles: data.roleIds }
-  );
-
   return getUser(userId);
 };
 
@@ -448,7 +500,6 @@ export const assignPermissions = async (
     throw new AppError('NOT_FOUND', 'User not found');
   }
 
-  // Get current permissions for audit
   const { data: oldPerms } = await supabase
     .from('user_permissions')
     .select('permission_id, override_type')
@@ -481,16 +532,6 @@ export const assignPermissions = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to assign permissions');
   }
 
-  // Audit log
-  const action = data.permissions[0]?.overrideType === 'grant' ? 'permission.granted' : 'permission.denied';
-  await auditUserAction(
-    action,
-    userId,
-    actorId,
-    { permissions: oldPerms },
-    { permissions: data.permissions }
-  );
-
   return getUser(userId);
 };
 
@@ -515,7 +556,6 @@ export const assignProperties = async (
     throw new AppError('NOT_FOUND', 'User not found');
   }
 
-  // Get current properties for audit
   const { data: oldProps } = await supabase
     .from('user_properties')
     .select('property_id')
@@ -545,15 +585,6 @@ export const assignProperties = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to assign properties');
   }
 
-  // Audit log
-  await auditUserAction(
-    'property.assigned',
-    userId,
-    actorId,
-    { properties: oldProps?.map((p) => p.property_id) },
-    { properties: data.propertyIds }
-  );
-
   return getUser(userId);
 };
 
@@ -578,7 +609,6 @@ export const suspendUser = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to suspend user');
   }
 
-  await auditUserAction('user.suspended', userId, actorId, { status: 'active' }, { status: 'suspended' });
 
   return getUser(userId);
 };
@@ -604,10 +634,73 @@ export const reactivateUser = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to reactivate user');
   }
 
-  await auditUserAction('user.activated', userId, actorId, null, { status: 'active' });
 
   return getUser(userId);
 };
+
+/**
+ * Helper: Batch enrich user profiles with roles, permissions, and properties
+ * Optimized to use batch queries instead of N+1 queries
+ */
+async function batchEnrichUserProfiles(profiles: any[]): Promise<UserWithRoles[]> {
+  if (profiles.length === 0) return [];
+
+  const supabase = getAdminClient();
+  const userIds = profiles.map(p => p.id);
+
+  // Batch fetch all roles for all users (1 query instead of N)
+  const { data: allUserRoles } = await supabase
+    .from('user_roles')
+    .select(`
+      user_id,
+      role:roles (
+        *,
+        permissions:role_permissions (
+          permission:permissions (*)
+        )
+      )
+    `)
+    .in('user_id', userIds);
+
+  // Batch fetch all direct permissions (1 query instead of N)
+  const { data: allDirectPermissions } = await supabase
+    .from('user_permissions')
+    .select(`
+      user_id,
+      *,
+      permission:permissions (*)
+    `)
+    .in('user_id', userIds)
+    .or('expires_at.is.null,expires_at.gt.now()');
+
+  // Batch fetch all user properties (1 query instead of N)
+  const { data: allUserProperties } = await supabase
+    .from('user_properties')
+    .select('*')
+    .in('user_id', userIds);
+
+  // Map results to each user
+  return profiles.map(profile => {
+    const userRoles = (allUserRoles || []).filter((ur: any) => ur.user_id === profile.id);
+    const directPerms = (allDirectPermissions || []).filter((dp: any) => dp.user_id === profile.id);
+    const userProps = (allUserProperties || []).filter((up: any) => up.user_id === profile.id);
+
+    const roles = userRoles.map((ur: any) => ({
+      ...ur.role,
+      permissions: (ur.role?.permissions || []).map((rp: any) => rp.permission),
+    }));
+
+    const effectivePermissions = calculateEffectivePermissions(roles, directPerms);
+
+    return {
+      ...profile,
+      roles,
+      directPermissions: directPerms,
+      effectivePermissions,
+      properties: userProps,
+    };
+  });
+}
 
 /**
  * Helper: Enrich user profile with roles, permissions, and properties
@@ -731,9 +824,6 @@ export const uploadAvatar = async (
   if (updateError) {
     throw new AppError('INTERNAL_ERROR', 'Failed to update avatar URL');
   }
-
-  // Audit log
-  await auditUserAction('user.avatar_updated', userId, actorId, { avatar_url: profile.avatar_url }, { avatar_url: avatarUrl });
 
   return avatarUrl;
 };

@@ -69,7 +69,7 @@ COMMENT ON COLUMN notification_templates.message_template IS 'Message body with 
 
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   notification_type_id UUID REFERENCES notification_types(id) ON DELETE SET NULL,
   template_id UUID REFERENCES notification_templates(id) ON DELETE SET NULL,
 

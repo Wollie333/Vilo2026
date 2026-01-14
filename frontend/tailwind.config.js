@@ -22,6 +22,8 @@ export default {
           800: '#065F46',
           900: '#064E3B',
         },
+        // Semantic active state color (darker green for better visibility)
+        'primary-active': '#047857',
         // Brand neutrals
         brand: {
           black: '#101011',
@@ -34,6 +36,8 @@ export default {
           card: '#1f1f20',
           'card-hover': '#2a2a2b',
           border: '#2e2e30',
+          text: '#FFFFFF',
+          'text-secondary': '#9CA3AF',
         },
         // Semantic colors (with light/dark variants)
         success: {
@@ -144,6 +148,35 @@ export default {
           from: { height: 'var(--accordion-content-height)', opacity: '1' },
           to: { height: '0', opacity: '0' },
         },
+        // Feature page animations
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in-down': {
+          '0%': { opacity: '0', transform: 'translateY(-20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'scale-in': {
+          '0%': { opacity: '0', transform: 'scale(0.9)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'pulse-slow': {
+          '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+          '50%': { opacity: '0.8', transform: 'scale(1.05)' },
+        },
+        'bounce-subtle': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        'shimmer': {
+          '0%': { backgroundPosition: '-1000px 0' },
+          '100%': { backgroundPosition: '1000px 0' },
+        },
       },
       animation: {
         'toast-in-right': 'toast-slide-in-right 0.3s ease-out',
@@ -155,6 +188,14 @@ export default {
         // Accordion animations
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        // Feature page animations
+        'fade-in-up': 'fade-in-up 0.6s ease-out',
+        'fade-in-down': 'fade-in-down 0.6s ease-out',
+        'fade-in': 'fade-in 0.8s ease-out',
+        'scale-in': 'scale-in 0.5s ease-out',
+        'pulse-slow': 'pulse-slow 3s ease-in-out infinite',
+        'bounce-subtle': 'bounce-subtle 2s ease-in-out infinite',
+        'shimmer': 'shimmer 2s linear infinite',
       },
     },
   },

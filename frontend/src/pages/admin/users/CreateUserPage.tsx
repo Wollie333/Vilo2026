@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout';
-import { Button, Input, Alert, Card, Select, Checkbox, PhoneInput, PasswordInput } from '@/components/ui';
-import { usersService, rolesService } from '@/services';
-import type { Role } from '@/types/auth.types';
+import { Button, Input, Alert, Card, Select, PhoneInput, PasswordInput } from '@/components/ui';
+import { usersService, billingService } from '@/services';
+import type { UserType } from '@/types/billing.types';
 
 export const CreateUserPage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,30 +15,38 @@ export const CreateUserPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState<'active' | 'pending'>('active');
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedUserTypeId, setSelectedUserTypeId] = useState<string>('');
 
-  // Roles data
-  const [roles, setRoles] = useState<Role[]>([]);
+  // Data for dropdowns
+  const [userTypes, setUserTypes] = useState<UserType[]>([]);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingRoles, setIsLoadingRoles] = useState(true);
+  const [isLoadingUserTypes, setIsLoadingUserTypes] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  // Fetch roles on mount
+  // Fetch user types on mount
   useEffect(() => {
-    const fetchRoles = async () => {
+    const fetchUserTypes = async () => {
       try {
-        const rolesData = await rolesService.listRoles();
-        setRoles(rolesData);
+        const userTypesData = await billingService.listUserTypes();
+        setUserTypes(userTypesData);
+        // Default to "client" user type
+        const clientType = userTypesData.find((ut) => ut.name === 'client');
+        if (clientType) {
+          setSelectedUserTypeId(clientType.id);
+        } else if (userTypesData.length > 0) {
+          setSelectedUserTypeId(userTypesData[0].id);
+        }
       } catch (err) {
-        console.error('Failed to load roles:', err);
+        console.error('Failed to load user types:', err);
       } finally {
-        setIsLoadingRoles(false);
+        setIsLoadingUserTypes(false);
       }
     };
-    fetchRoles();
+
+    fetchUserTypes();
   }, []);
 
   const validateForm = (): boolean => {
@@ -85,7 +93,7 @@ export const CreateUserPage: React.FC = () => {
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
         status,
-        roleIds: selectedRoles.length > 0 ? selectedRoles : undefined,
+        userTypeId: selectedUserTypeId || undefined,
       });
 
       navigate('/admin/users', {
@@ -96,14 +104,6 @@ export const CreateUserPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleRoleToggle = (roleId: string) => {
-    setSelectedRoles((prev) =>
-      prev.includes(roleId)
-        ? prev.filter((id) => id !== roleId)
-        : [...prev, roleId]
-    );
   };
 
   return (
@@ -136,15 +136,27 @@ export const CreateUserPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email */}
-            <Input
-              type="email"
-              label="Email *"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              fullWidth
-              error={validationErrors.email}
-            />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="pl-10"
+                  fullWidth
+                  error={validationErrors.email}
+                />
+              </div>
+            </div>
 
             {/* Full Name */}
             <Input
@@ -194,40 +206,26 @@ export const CreateUserPage: React.FC = () => {
                 { value: 'active', label: 'Active (can log in immediately)' },
                 { value: 'pending', label: 'Pending (requires approval)' },
               ]}
-              hint="Active users can log in immediately. Pending users need admin approval."
+              helperText="Active users can log in immediately. Pending users need admin approval."
               fullWidth
             />
 
-            {/* Roles */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Assign Roles
-              </label>
-              {isLoadingRoles ? (
-                <div className="text-gray-500 dark:text-gray-400 text-sm">Loading roles...</div>
-              ) : roles.length === 0 ? (
-                <div className="text-gray-500 dark:text-gray-400 text-sm">No roles available</div>
-              ) : (
-                <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-md p-3">
-                  {roles.map((role) => (
-                    <div
-                      key={role.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded"
-                    >
-                      <Checkbox
-                        checked={selectedRoles.includes(role.id)}
-                        onCheckedChange={() => handleRoleToggle(role.id)}
-                        label={role.display_name}
-                        description={role.description || undefined}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Select one or more roles to assign to this user. You can change roles later.
-              </p>
-            </div>
+            {/* User Type */}
+            {isLoadingUserTypes ? (
+              <div className="text-gray-500 dark:text-gray-400 text-sm">Loading user types...</div>
+            ) : userTypes.length > 0 && (
+              <Select
+                label="User Type"
+                value={selectedUserTypeId}
+                onChange={(e) => setSelectedUserTypeId(e.target.value)}
+                options={userTypes.map((ut) => ({
+                  value: ut.id,
+                  label: ut.display_name,
+                }))}
+                helperText="Permissions are automatically assigned based on the selected user type."
+                fullWidth
+              />
+            )}
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">

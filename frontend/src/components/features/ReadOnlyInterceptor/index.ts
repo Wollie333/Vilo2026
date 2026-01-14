@@ -1,0 +1,1 @@
+export { ReadOnlyInterceptor } from './ReadOnlyInterceptor';

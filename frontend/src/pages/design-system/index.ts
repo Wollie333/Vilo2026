@@ -12,3 +12,6 @@ export { FeedbackShowcase } from './FeedbackShowcase';
 export { FormControlsShowcase } from './FormControlsShowcase';
 export { NotificationsShowcase } from './NotificationsShowcase';
 export { IntegrationCardShowcase } from './IntegrationCardShowcase';
+export { LayoutsShowcase } from './LayoutsShowcase';
+export { DatePickersShowcase } from './DatePickersShowcase';
+export { RatesCalendarShowcase } from './RatesCalendarShowcase';

@@ -27,5 +27,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/pending-approval" replace />;
   }
 
+  // Check if user needs to complete onboarding
+  const isOnboardingPage = location.pathname === '/onboarding';
+  const hasCompletedOnboarding = user?.onboarding_completed_at !== null;
+
+  // Redirect to onboarding if not completed (unless already there)
+  if (!isOnboardingPage && !hasCompletedOnboarding) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return <>{children}</>;
 };

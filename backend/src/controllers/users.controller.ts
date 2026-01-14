@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import * as usersService from '../services/users.service';
-import { getAuditLogs } from '../services/audit.service';
 
 /**
  * POST /api/users
@@ -95,6 +94,23 @@ export const deleteUser = async (
   try {
     await usersService.deleteUser(req.params.id, req.user!.id);
     sendSuccess(res, { message: 'User deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/users/:id/hard
+ * Permanently delete user (hard delete)
+ */
+export const hardDeleteUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    await usersService.hardDeleteUser(req.params.id, req.user!.id);
+    sendSuccess(res, { message: 'User permanently deleted' });
   } catch (error) {
     next(error);
   }
@@ -247,35 +263,3 @@ export const uploadAvatar = async (
   }
 };
 
-/**
- * GET /api/users/:id/activity
- * Get user activity history from audit logs
- */
-export const getUserActivity = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-
-    const result = await getAuditLogs({
-      entityId: id,
-      page,
-      limit,
-    });
-
-    sendSuccess(res, result, 200, {
-      pagination: {
-        page: result.page,
-        limit: result.limit,
-        total: result.total,
-        totalPages: result.totalPages,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};

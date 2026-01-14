@@ -1,0 +1,24 @@
+{
+  "passed": 1,
+  "failed": 1,
+  "tests": [
+    {
+      "id": "ENV-001",
+      "name": "Backend server is running",
+      "passed": false,
+      "expected": "Server responds",
+      "actual": "Status 401",
+      "error": null,
+      "timestamp": "2026-01-09T14:57:03.783Z"
+    },
+    {
+      "id": "ENV-002",
+      "name": "Authentication required for protected routes",
+      "passed": true,
+      "expected": "Status 401 Unauthorized",
+      "actual": "Status 401",
+      "error": null,
+      "timestamp": "2026-01-09T14:57:03.786Z"
+    }
+  ]
+}

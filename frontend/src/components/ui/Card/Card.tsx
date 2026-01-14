@@ -10,6 +10,9 @@ const variantStyles = {
   bordered:
     'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border',
   elevated: 'bg-white dark:bg-dark-card shadow-sm border border-gray-100 dark:border-dark-border',
+  highlight: 'bg-white dark:bg-dark-card border-2 border-primary shadow-sm',
+  feature: 'bg-gradient-to-br from-white to-gray-50 dark:from-dark-card dark:to-dark-sidebar border border-gray-200 dark:border-dark-border shadow-sm',
+  gradient: 'bg-gradient-to-br from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/20 border border-primary/20',
 };
 
 const paddingStyles = {
@@ -23,15 +26,27 @@ function CardComponent({
   children,
   variant = 'bordered',
   padding = 'none',
+  interactive = false,
+  selected = false,
   className = '',
   ...props
 }: CardProps) {
+  const interactiveStyles = interactive
+    ? 'transition-all duration-200 cursor-pointer hover:shadow-md hover:border-primary/50 hover:-translate-y-0.5'
+    : '';
+
+  const selectedStyles = selected
+    ? 'ring-2 ring-primary ring-offset-2 border-primary'
+    : '';
+
   return (
     <div
       className={`
         rounded-md overflow-hidden
         ${variantStyles[variant]}
         ${paddingStyles[padding]}
+        ${interactiveStyles}
+        ${selectedStyles}
         ${className}
       `}
       {...props}

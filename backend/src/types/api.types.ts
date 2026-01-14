@@ -6,7 +6,8 @@ export type ApiErrorCode =
   | 'CONFLICT'
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
-  | 'BAD_REQUEST';
+  | 'BAD_REQUEST'
+  | 'PAYMENT_LOCK';
 
 export interface ApiError {
   code: ApiErrorCode;

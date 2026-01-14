@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
+import { SubscriptionProvider } from '@/context/SubscriptionContext';
+import { PropertyProvider } from '@/context/PropertyContext';
+import { ChatProvider } from '@/context/ChatContext';
 import { ProtectedRoute, PublicRoute, AdminRoute, SuperAdminRoute } from '@/routes';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
 import { Dashboard } from '@/pages/Dashboard';
@@ -11,20 +14,85 @@ import {
   ForgotPasswordPage,
   ResetPasswordPage,
   VerifyEmailPage,
+  PlanSignupPage,
 } from '@/pages/auth';
+import { OnboardingPage } from '@/pages/onboarding';
 import {
   UserListPage,
   UserDetailPage,
   CreateUserPage,
   PendingApprovalsPage,
-  RoleManagementPage,
-  CreateRolePage,
-  AuditLogPage,
   BillingSettingsPage,
-  AdminDashboardPage,
+  RefundListPage,
+  RefundDetailPage,
+  CreditMemoListPage,
 } from '@/pages/admin';
+import {
+  CreditNoteListPage,
+  IssueCreditNotePage,
+} from '@/pages/admin/credit-notes';
 import { ProfilePage } from '@/pages/profile';
 import { NotificationsPage } from '@/pages/notifications';
+import { ChatPage } from '@/pages/chat';
+import {
+  CompanyListPage,
+  CompanyDetailPage,
+  CreateCompanyPage,
+} from '@/pages/companies';
+import {
+  PropertyListPage,
+  PropertyDetailPage,
+  CreatePropertyPage,
+} from '@/pages/properties';
+import {
+  RoomListPage,
+  RoomDetailPage,
+  CreateRoomPage,
+  PaymentRulesManagementPage,
+  PaymentRuleDetailPage,
+  CreatePaymentRulePage,
+  EditPaymentRulePage,
+} from '@/pages/rooms';
+import {
+  PromoCodesListPage,
+  PromoCodeFormPage,
+} from '@/pages/promo-codes';
+import {
+  BookingDetailPage,
+  EditBookingPage,
+  CreateBookingPage,
+  CalendarPage,
+  PaymentProofUploadPage,
+  GuestBookingStatusPage,
+} from '@/pages/bookings';
+import {
+  GuestCheckoutPage,
+  ConfirmationPage,
+} from '@/pages/discovery';
+import {
+  DirectoryHomePage,
+  SearchResultsPage,
+  CategoriesPage,
+  PublicPropertyDetailPage,
+  WishlistPage,
+} from '@/pages/directory';
+import { BookingWizardPage } from '@/pages/booking-wizard';
+import { ForHostsPage } from '@/pages/ForHostsPage';
+import { ListYourPropertyPage } from '@/pages/ListYourPropertyPage';
+import { AllFeaturesPage } from '@/pages/AllFeaturesPage';
+import { FeaturePageRouter } from '@/pages/features';
+import {
+  PortalBookingsPage,
+  PortalBookingDetailPage,
+} from '@/pages/portal';
+import { LegalPage, CreateCancellationPolicyPage, EditCancellationPolicyPage } from '@/pages/legal';
+import { AddonsPage, CreateAddonPage, EditAddonPage } from '@/pages/addons';
+import { MyRefundsPage, RefundDetailPage as GuestRefundDetailPage } from '@/pages/refunds';
+import { WriteReviewPage, ReviewListPage } from '@/pages/reviews';
+import { BookingManagementPage } from '@/pages/booking-management';
+import { PricingPage } from '@/pages/pricing';
+import { CheckoutPage, CheckoutCallbackPage } from '@/pages/checkout';
+import { FailedCheckoutsPage } from '@/pages/analytics';
 import {
   DesignSystemOverview,
   ButtonsShowcase,
@@ -40,6 +108,9 @@ import {
   FormControlsShowcase,
   NotificationsShowcase,
   IntegrationCardShowcase,
+  LayoutsShowcase,
+  DatePickersShowcase,
+  RatesCalendarShowcase,
 } from '@/pages/design-system';
 
 const PendingApprovalPage = () => (
@@ -71,8 +142,24 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <NotificationProvider>
-            <Routes>
-            {/* Public routes */}
+            <SubscriptionProvider>
+              <PropertyProvider>
+                <Routes>
+            {/* PUBLIC DIRECTORY ROUTES (Root domain) */}
+            <Route path="/" element={<DirectoryHomePage />} />
+            <Route path="/search" element={<SearchResultsPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/for-hosts" element={<ForHostsPage />} />
+            <Route path="/list-your-property" element={<ListYourPropertyPage />} />
+            <Route path="/for-hosts/features" element={<AllFeaturesPage />} />
+            <Route path="/for-hosts/feature/:slug" element={<FeaturePageRouter />} />
+            <Route path="/accommodation/:slug" element={<PublicPropertyDetailPage />} />
+            <Route path="/accommodation/:slug/book" element={<BookingWizardPage />} />
+            <Route path="/accommodation/:slug/checkout" element={<GuestCheckoutPage />} />
+            {/* Wishlist disabled for now */}
+            {/* <Route path="/wishlist" element={<WishlistPage />} /> */}
+
+            {/* Public Auth routes */}
             <Route
               path="/login"
               element={
@@ -109,9 +196,59 @@ function App() {
             <Route path="/pending-approval" element={<PendingApprovalPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-            {/* Protected routes */}
+            {/* Public pricing page */}
+            <Route path="/pricing" element={<PricingPage />} />
+
+            {/* Plan signup page (public - with plan context) */}
             <Route
-              path="/dashboard"
+              path="/signup/:planId"
+              element={
+                <PublicRoute>
+                  <PlanSignupPage />
+                </PublicRoute>
+              }
+            />
+
+            {/* Onboarding wizard (requires authentication) */}
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <OnboardingPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Checkout routes (require authentication) */}
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout/callback"
+              element={
+                <ProtectedRoute>
+                  <CheckoutCallbackPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* PROPERTY MANAGEMENT ROUTES (Authenticated users) */}
+            {/* Redirect /manage to /manage/dashboard */}
+            <Route
+              path="/manage"
+              element={
+                <ProtectedRoute>
+                  <Navigate to="/manage/dashboard" replace />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
@@ -119,7 +256,7 @@ function App() {
               }
             />
             <Route
-              path="/profile"
+              path="/manage/profile"
               element={
                 <ProtectedRoute>
                   <ProfilePage />
@@ -127,7 +264,7 @@ function App() {
               }
             />
             <Route
-              path="/notifications"
+              path="/manage/notifications"
               element={
                 <ProtectedRoute>
                   <NotificationsPage />
@@ -135,15 +272,358 @@ function App() {
               }
             />
 
-            {/* Admin routes */}
+            {/* Chat routes */}
             <Route
-              path="/admin"
+              path="/manage/chat"
               element={
-                <AdminRoute>
-                  <AdminDashboardPage />
-                </AdminRoute>
+                <ProtectedRoute>
+                  <ChatProvider>
+                    <ChatPage />
+                  </ChatProvider>
+                </ProtectedRoute>
               }
             />
+            <Route
+              path="/manage/chat/:conversationId"
+              element={
+                <ProtectedRoute>
+                  <ChatProvider>
+                    <ChatPage />
+                  </ChatProvider>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Business routes */}
+            <Route
+              path="/manage/companies"
+              element={
+                <ProtectedRoute>
+                  <CompanyListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/companies/new"
+              element={
+                <ProtectedRoute>
+                  <CreateCompanyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/companies/:id"
+              element={
+                <ProtectedRoute>
+                  <CompanyDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/properties"
+              element={
+                <ProtectedRoute>
+                  <PropertyListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/properties/new"
+              element={
+                <ProtectedRoute>
+                  <CreatePropertyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/properties/:id"
+              element={
+                <ProtectedRoute>
+                  <PropertyDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Room routes */}
+            <Route
+              path="/manage/rooms"
+              element={
+                <ProtectedRoute>
+                  <RoomListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/new"
+              element={
+                <ProtectedRoute>
+                  <CreateRoomPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/payment-rules"
+              element={
+                <ProtectedRoute>
+                  <PaymentRulesManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/payment-rules/new"
+              element={
+                <ProtectedRoute>
+                  <CreatePaymentRulePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/payment-rules/:id"
+              element={
+                <ProtectedRoute>
+                  <PaymentRuleDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/payment-rules/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EditPaymentRulePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/promo-codes"
+              element={
+                <ProtectedRoute>
+                  <PromoCodesListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/promo-codes/new"
+              element={
+                <ProtectedRoute>
+                  <PromoCodeFormPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/promo-codes/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <PromoCodeFormPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/rooms/:id"
+              element={
+                <ProtectedRoute>
+                  <RoomDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Booking routes */}
+            {/* Redirect old bookings route to new booking management */}
+            <Route
+              path="/manage/bookings"
+              element={<Navigate to="/manage/booking-management" replace />}
+            />
+            <Route
+              path="/bookings/new"
+              element={
+                <ProtectedRoute>
+                  <CreateBookingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookings/calendar"
+              element={
+                <ProtectedRoute>
+                  <CalendarPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookings/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EditBookingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookings/:id/upload-proof"
+              element={
+                <ProtectedRoute>
+                  <PaymentProofUploadPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookings/:id"
+              element={
+                <ProtectedRoute>
+                  <BookingDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Refunds routes */}
+            <Route
+              path="/refunds"
+              element={
+                <ProtectedRoute>
+                  <MyRefundsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/refunds/:id"
+              element={
+                <ProtectedRoute>
+                  <GuestRefundDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Review routes */}
+            <Route
+              path="/manage/reviews"
+              element={
+                <ProtectedRoute>
+                  <ReviewListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviews/write"
+              element={
+                <ProtectedRoute>
+                  <WriteReviewPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reviews/write/:bookingId"
+              element={
+                <ProtectedRoute>
+                  <WriteReviewPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Discovery (Guest checkout) routes */}
+            <Route
+              path="/discovery/:slug/checkout"
+              element={<GuestCheckoutPage />}
+            />
+            <Route
+              path="/discovery/confirmation/:id"
+              element={<ConfirmationPage />}
+            />
+
+            {/* Portal (Guest booking management) routes */}
+            <Route
+              path="/portal/bookings"
+              element={
+                <ProtectedRoute>
+                  <PortalBookingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal/bookings/:id"
+              element={
+                <ProtectedRoute>
+                  <GuestBookingStatusPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Guest booking status page - also accessible via /guest/bookings/:id */}
+            <Route
+              path="/guest/bookings/:id"
+              element={
+                <ProtectedRoute>
+                  <GuestBookingStatusPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/manage/booking-management"
+              element={
+                <ProtectedRoute>
+                  <BookingManagementPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Analytics routes */}
+            <Route
+              path="/manage/analytics/failed-checkouts"
+              element={
+                <ProtectedRoute>
+                  <FailedCheckoutsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/manage/addons"
+              element={
+                <ProtectedRoute>
+                  <AddonsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/addons/new"
+              element={
+                <ProtectedRoute>
+                  <CreateAddonPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/addons/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EditAddonPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/legal"
+              element={
+                <ProtectedRoute>
+                  <LegalPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/legal/cancellation-policies/new"
+              element={
+                <ProtectedRoute>
+                  <CreateCancellationPolicyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/legal/cancellation-policies/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EditCancellationPolicyPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin routes */}
             <Route
               path="/admin/users"
               element={
@@ -179,35 +659,55 @@ function App() {
 
             {/* Super Admin routes */}
             <Route
-              path="/admin/roles"
-              element={
-                <SuperAdminRoute>
-                  <RoleManagementPage />
-                </SuperAdminRoute>
-              }
-            />
-            <Route
-              path="/admin/roles/new"
-              element={
-                <SuperAdminRoute>
-                  <CreateRolePage />
-                </SuperAdminRoute>
-              }
-            />
-            <Route
-              path="/admin/audit"
-              element={
-                <SuperAdminRoute>
-                  <AuditLogPage />
-                </SuperAdminRoute>
-              }
-            />
-            <Route
               path="/admin/billing"
               element={
                 <SuperAdminRoute>
                   <BillingSettingsPage />
                 </SuperAdminRoute>
+              }
+            />
+
+            {/* Refund Management routes - Admin Only */}
+            <Route
+              path="/admin/refunds"
+              element={
+                <AdminRoute>
+                  <RefundListPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/refunds/:id"
+              element={
+                <AdminRoute>
+                  <RefundDetailPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/credit-memos"
+              element={
+                <AdminRoute>
+                  <CreditMemoListPage />
+                </AdminRoute>
+              }
+            />
+
+            {/* Credit Note routes - Admin Only */}
+            <Route
+              path="/admin/credit-notes"
+              element={
+                <AdminRoute>
+                  <CreditNoteListPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/credit-notes/issue"
+              element={
+                <AdminRoute>
+                  <IssueCreditNotePage />
+                </AdminRoute>
               }
             />
 
@@ -324,11 +824,36 @@ function App() {
                 </AdminRoute>
               }
             />
+            <Route
+              path="/design-system/layouts"
+              element={
+                <AdminRoute>
+                  <LayoutsShowcase />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/design-system/date-pickers"
+              element={
+                <AdminRoute>
+                  <DatePickersShowcase />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/design-system/rates-calendar"
+              element={
+                <AdminRoute>
+                  <RatesCalendarShowcase />
+                </AdminRoute>
+              }
+            />
 
-            {/* Default redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            {/* Catch-all - redirect unknown routes to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </PropertyProvider>
+            </SubscriptionProvider>
           </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -17,12 +17,15 @@ export interface ModalProps {
   showCloseButton?: boolean;
   /** Footer content */
   footer?: ReactNode;
+  /** Custom className for header */
+  headerClassName?: string;
 }
 
 export interface ModalHeaderProps {
   children: ReactNode;
   onClose?: () => void;
   showCloseButton?: boolean;
+  className?: string;
 }
 
 export interface ModalBodyProps {

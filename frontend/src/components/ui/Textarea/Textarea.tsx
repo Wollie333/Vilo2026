@@ -6,6 +6,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
   helperText?: string;
   resize?: 'none' | 'vertical' | 'horizontal' | 'both';
   size?: 'sm' | 'md' | 'lg';
+  /** Whether the textarea should take full width. Defaults to true. */
   fullWidth?: boolean;
 }
 
@@ -17,7 +18,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       helperText,
       resize = 'vertical',
       size = 'md',
-      fullWidth = false,
+      fullWidth = true,
       disabled,
       className = '',
       id,
@@ -28,9 +29,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
 
     const sizeClasses = {
-      sm: 'text-xs px-2.5 py-1.5 min-h-[60px]',
-      md: 'text-sm px-3 py-2 min-h-[80px]',
-      lg: 'text-base px-4 py-3 min-h-[100px]',
+      sm: 'text-sm px-3 py-2 min-h-[100px]',
+      md: 'text-sm px-4 py-3 min-h-[140px]',
+      lg: 'text-base px-4 py-3 min-h-[180px]',
     };
 
     const resizeClasses = {
@@ -45,7 +46,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={textareaId}
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+            className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             {label}
           </label>

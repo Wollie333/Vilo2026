@@ -1,16 +1,13 @@
-import React from 'react';
-import type { DateRangePickerProps } from './DateRangePicker.types';
+/**
+ * DateRangePicker Component
+ *
+ * Modern date range picker using DatePickerModal
+ */
 
-const CalendarIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-    />
-  </svg>
-);
+import React, { useState } from 'react';
+import { Calendar } from 'lucide-react';
+import { DatePickerModal } from '../DatePickerModal';
+import type { DateRangePickerProps } from './DateRangePicker.types';
 
 export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   value,
@@ -24,17 +21,39 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   minDate,
   maxDate,
 }) => {
-  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({
-      ...value,
-      startDate: e.target.value || null,
-    });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingField, setEditingField] = useState<'start' | 'end'>('start');
+
+  const handleDateSelect = (checkIn: Date, checkOut?: Date) => {
+    if (checkOut) {
+      // Range selected
+      onChange({
+        startDate: checkIn.toISOString().split('T')[0],
+        endDate: checkOut.toISOString().split('T')[0],
+      });
+    } else {
+      // Single date selected based on which field was clicked
+      if (editingField === 'start') {
+        onChange({
+          ...value,
+          startDate: checkIn.toISOString().split('T')[0],
+        });
+      } else {
+        onChange({
+          ...value,
+          endDate: checkIn.toISOString().split('T')[0],
+        });
+      }
+    }
+    setIsModalOpen(false);
   };
 
-  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({
-      ...value,
-      endDate: e.target.value || null,
+  const formatDisplayDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
     });
   };
 
@@ -42,21 +61,12 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     onChange({ startDate: null, endDate: null });
   };
 
-  const inputClasses = `
-    w-full pl-9 pr-3 py-2 text-sm
-    border rounded-md
-    bg-white dark:bg-dark-bg
-    text-gray-900 dark:text-white
-    ${error
-      ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-      : 'border-gray-300 dark:border-gray-600 focus:ring-primary focus:border-primary'
+  const openModal = (field: 'start' | 'end') => {
+    if (!disabled) {
+      setEditingField(field);
+      setIsModalOpen(true);
     }
-    ${disabled
-      ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60'
-      : ''
-    }
-    focus:outline-none focus:ring-2
-  `;
+  };
 
   return (
     <div className="w-full">
@@ -66,70 +76,35 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
         </label>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-        {/* Start date */}
-        <div className="flex-1 w-full">
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {startLabel}
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <CalendarIcon />
-            </span>
-            <input
-              type="date"
-              value={value.startDate || ''}
-              onChange={handleStartChange}
-              disabled={disabled}
-              min={minDate}
-              max={value.endDate || maxDate}
-              className={inputClasses}
-            />
-          </div>
-        </div>
-
-        {/* Separator */}
-        <span className="hidden sm:block text-gray-400 mt-5">-</span>
-
-        {/* End date */}
-        <div className="flex-1 w-full">
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            {endLabel}
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <CalendarIcon />
-            </span>
-            <input
-              type="date"
-              value={value.endDate || ''}
-              onChange={handleEndChange}
-              disabled={disabled}
-              min={value.startDate || minDate}
-              max={maxDate}
-              className={inputClasses}
-            />
-          </div>
-        </div>
-
-        {/* Clear button */}
-        {(value.startDate || value.endDate) && !disabled && (
-          <button
-            type="button"
-            onClick={clearDates}
-            className="mt-5 px-2 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            title="Clear dates"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        )}
+      <div className="relative h-full">
+        <button
+          type="button"
+          onClick={() => openModal('start')}
+          disabled={disabled}
+          className={`
+            w-full h-full px-4 py-2 pr-10 text-left
+            border rounded-lg text-sm
+            transition-all whitespace-nowrap overflow-hidden text-ellipsis
+            ${
+              error
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-primary'
+            }
+            ${
+              disabled
+                ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60'
+                : 'bg-white dark:bg-dark-bg cursor-pointer hover:border-gray-400 dark:hover:border-gray-500'
+            }
+            ${value.startDate || value.endDate ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}
+          `}
+        >
+          {value.startDate && value.endDate
+            ? `${formatDisplayDate(value.startDate)} - ${formatDisplayDate(value.endDate)}`
+            : value.startDate
+            ? formatDisplayDate(value.startDate)
+            : 'Select dates'}
+        </button>
+        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400 pointer-events-none" />
       </div>
 
       {/* Helper text / Error */}
@@ -138,6 +113,19 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
           {error || helperText}
         </p>
       )}
+
+      {/* Date Picker Modal */}
+      <DatePickerModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onDateSelect={handleDateSelect}
+        mode="range"
+        initialCheckIn={value.startDate ? new Date(value.startDate) : undefined}
+        initialCheckOut={value.endDate ? new Date(value.endDate) : undefined}
+        minDate={minDate ? new Date(minDate) : new Date()}
+        maxDate={maxDate ? new Date(maxDate) : undefined}
+        title={label || 'Select Date Range'}
+      />
     </div>
   );
 };

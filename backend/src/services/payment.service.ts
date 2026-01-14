@@ -1,6 +1,7 @@
 import { getAdminClient } from '../config/supabase';
 import { AppError } from '../utils/errors';
 import { createAuditLog } from './audit.service';
+import { logger } from '../utils/logger';
 import {
   PaymentIntegration,
   PaymentProvider,
@@ -100,14 +101,13 @@ export const updateIntegration = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to update payment integration');
   }
 
-  // Audit log
   await createAuditLog({
     actor_id: actorId,
     action: 'payment_integration.update',
     entity_type: 'payment_integration',
     entity_id: data.id,
-    old_data: existing,
-    new_data: data,
+    old_data: existing as unknown as Record<string, unknown>,
+    new_data: data as unknown as Record<string, unknown>,
   });
 
   return data;
@@ -134,7 +134,7 @@ export const testConnection = async (
         result = await testPayPalConnection(integration.config as PayPalConfig, integration.environment);
         break;
       case 'eft':
-        result = testEFTConnection(integration.config);
+        result = testEFTConnection(integration.config as Record<string, unknown>);
         break;
       default:
         throw new AppError('BAD_REQUEST', 'Unknown payment provider');
@@ -150,13 +150,12 @@ export const testConnection = async (
       })
       .eq('provider', provider);
 
-    // Audit log
     await createAuditLog({
       actor_id: actorId,
       action: 'payment_integration.test_connection',
       entity_type: 'payment_integration',
       entity_id: integration.id,
-      new_data: { result },
+      new_data: { result } as Record<string, unknown>,
     });
 
     return result;
@@ -247,7 +246,7 @@ async function testPayPalConnection(config: PayPalConfig, environment: string): 
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json().catch(() => ({})) as { error_description?: string };
       return {
         success: false,
         message: errorData.error_description || 'Invalid PayPal credentials',
@@ -266,6 +265,95 @@ async function testPayPalConnection(config: PayPalConfig, environment: string): 
     };
   }
 }
+
+/**
+ * Get PayPal OAuth access token
+ * Helper function for PayPal API calls
+ */
+async function getPayPalAccessToken(clientId: string, clientSecret: string, environment: string): Promise<string> {
+  const baseUrl = environment === 'live'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  const response = await fetch(`${baseUrl}/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+
+  if (!response.ok) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to get PayPal access token');
+  }
+
+  const data = await response.json() as { access_token: string };
+  return data.access_token;
+}
+
+/**
+ * Verify PayPal webhook signature
+ * https://developer.paypal.com/api/rest/webhooks/rest/
+ */
+export const verifyPayPalWebhookSignature = async (
+  webhookId: string,
+  headers: Record<string, string>,
+  body: any
+): Promise<boolean> => {
+  try {
+    const integration = await getIntegration('paypal');
+    if (!integration?.is_enabled) {
+      throw new AppError('BAD_REQUEST', 'PayPal integration not enabled');
+    }
+
+    const { client_id, client_secret } = integration.config as PayPalConfig;
+    if (!client_id || !client_secret) {
+      throw new AppError('INTERNAL_ERROR', 'PayPal credentials not configured');
+    }
+
+    const accessToken = await getPayPalAccessToken(client_id, client_secret, integration.environment);
+
+    const verificationUrl = integration.environment === 'live'
+      ? 'https://api-m.paypal.com/v1/notifications/verify-webhook-signature'
+      : 'https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature';
+
+    const verificationPayload = {
+      transmission_id: headers['paypal-transmission-id'],
+      transmission_time: headers['paypal-transmission-time'],
+      cert_url: headers['paypal-cert-url'],
+      auth_algo: headers['paypal-auth-algo'],
+      transmission_sig: headers['paypal-transmission-sig'],
+      webhook_id: webhookId,
+      webhook_event: body,
+    };
+
+    const response = await fetch(verificationUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(verificationPayload),
+    });
+
+    if (!response.ok) {
+      logger.error('PayPal webhook verification failed', {
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return false;
+    }
+
+    const result = await response.json() as { verification_status: string };
+    return result.verification_status === 'SUCCESS';
+  } catch (error) {
+    logger.error('PayPal webhook verification error', { error });
+    return false;
+  }
+};
 
 /**
  * Test EFT configuration (just validate required fields)
@@ -296,4 +384,316 @@ export const generateWebhookURLs = (baseUrl: string): { paystack: string; paypal
     paystack: `${baseUrl}/api/webhooks/paystack`,
     paypal: `${baseUrl}/api/webhooks/paypal`,
   };
+};
+
+// ============================================================================
+// REFUND API METHODS
+// ============================================================================
+
+/**
+ * Process refund via Paystack
+ */
+export const refundPaystackTransaction = async (
+  gatewayReference: string,
+  amount: number,
+  currency: string,
+  reason?: string
+): Promise<{
+  success: boolean;
+  refund_id?: string;
+  status?: string;
+  message?: string;
+  error?: string;
+}> => {
+  try {
+    // Get Paystack integration config
+    const integration = await getIntegration('paystack');
+
+    if (!integration.is_enabled) {
+      return {
+        success: false,
+        error: 'Paystack integration is not enabled',
+      };
+    }
+
+    const config = integration.config as PaystackConfig;
+    const secretKey = config.secret_key;
+
+    if (!secretKey) {
+      return {
+        success: false,
+        error: 'Paystack secret key not configured',
+      };
+    }
+
+    // Convert amount to kobo (Paystack uses lowest currency unit)
+    const amountInKobo = Math.round(amount * 100);
+
+    // Call Paystack Refund API
+    const response = await fetch('https://api.paystack.co/refund', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        transaction: gatewayReference,
+        amount: amountInKobo,
+        currency,
+        customer_note: reason || 'Refund processed',
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.status) {
+      return {
+        success: false,
+        error: result.message || 'Paystack refund failed',
+      };
+    }
+
+    return {
+      success: true,
+      refund_id: result.data?.id?.toString() || result.data?.refund_reference,
+      status: result.data?.status || 'pending',
+      message: result.message || 'Refund initiated successfully',
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to process Paystack refund',
+    };
+  }
+};
+
+/**
+ * Get Paystack refund status
+ */
+export const getPaystackRefundStatus = async (
+  refundId: string
+): Promise<{
+  success: boolean;
+  status?: string;
+  error?: string;
+}> => {
+  try {
+    const integration = await getIntegration('paystack');
+    const config = integration.config as PaystackConfig;
+    const secretKey = config.secret_key;
+
+    if (!secretKey) {
+      return {
+        success: false,
+        error: 'Paystack secret key not configured',
+      };
+    }
+
+    const response = await fetch(`https://api.paystack.co/refund/${refundId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.status) {
+      return {
+        success: false,
+        error: result.message || 'Failed to get refund status',
+      };
+    }
+
+    return {
+      success: true,
+      status: result.data?.status || 'unknown',
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to get Paystack refund status',
+    };
+  }
+};
+
+/**
+ * Process refund via PayPal
+ */
+export const refundPayPalTransaction = async (
+  captureId: string,
+  amount: number,
+  currency: string,
+  reason?: string
+): Promise<{
+  success: boolean;
+  refund_id?: string;
+  status?: string;
+  message?: string;
+  error?: string;
+}> => {
+  try {
+    // Get PayPal integration config
+    const integration = await getIntegration('paypal');
+
+    if (!integration.is_enabled) {
+      return {
+        success: false,
+        error: 'PayPal integration is not enabled',
+      };
+    }
+
+    const config = integration.config as PayPalConfig;
+    const { client_id, client_secret } = config;
+
+    if (!client_id || !client_secret) {
+      return {
+        success: false,
+        error: 'PayPal credentials not configured',
+      };
+    }
+
+    // Determine API base URL based on environment
+    const baseUrl =
+      integration.environment === 'live'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
+
+    // Get OAuth token
+    const authResponse = await fetch(`${baseUrl}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(`${client_id}:${client_secret}`).toString('base64')}`,
+      },
+      body: 'grant_type=client_credentials',
+    });
+
+    if (!authResponse.ok) {
+      return {
+        success: false,
+        error: 'Failed to authenticate with PayPal',
+      };
+    }
+
+    const authData = (await authResponse.json()) as { access_token: string };
+    const accessToken = authData.access_token;
+
+    // Process refund
+    const refundResponse = await fetch(`${baseUrl}/v2/payments/captures/${captureId}/refund`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        amount: {
+          value: amount.toFixed(2),
+          currency_code: currency,
+        },
+        note_to_payer: reason || 'Refund processed',
+      }),
+    });
+
+    if (!refundResponse.ok) {
+      const errorData = await refundResponse.json().catch(() => ({}));
+      return {
+        success: false,
+        error: (errorData as any).message || 'PayPal refund failed',
+      };
+    }
+
+    const refundData = (await refundResponse.json()) as {
+      id: string;
+      status: string;
+    };
+
+    return {
+      success: true,
+      refund_id: refundData.id,
+      status: refundData.status,
+      message: 'Refund processed successfully',
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to process PayPal refund',
+    };
+  }
+};
+
+/**
+ * Get PayPal refund status
+ */
+export const getPayPalRefundStatus = async (
+  refundId: string
+): Promise<{
+  success: boolean;
+  status?: string;
+  error?: string;
+}> => {
+  try {
+    const integration = await getIntegration('paypal');
+    const config = integration.config as PayPalConfig;
+    const { client_id, client_secret } = config;
+
+    if (!client_id || !client_secret) {
+      return {
+        success: false,
+        error: 'PayPal credentials not configured',
+      };
+    }
+
+    const baseUrl =
+      integration.environment === 'live'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
+
+    // Get OAuth token
+    const authResponse = await fetch(`${baseUrl}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(`${client_id}:${client_secret}`).toString('base64')}`,
+      },
+      body: 'grant_type=client_credentials',
+    });
+
+    if (!authResponse.ok) {
+      return {
+        success: false,
+        error: 'Failed to authenticate with PayPal',
+      };
+    }
+
+    const authData = (await authResponse.json()) as { access_token: string };
+    const accessToken = authData.access_token;
+
+    // Get refund details
+    const response = await fetch(`${baseUrl}/v2/payments/refunds/${refundId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: 'Failed to get refund status',
+      };
+    }
+
+    const refundData = (await response.json()) as { status: string };
+
+    return {
+      success: true,
+      status: refundData.status,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || 'Failed to get PayPal refund status',
+    };
+  }
 };

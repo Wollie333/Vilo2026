@@ -1,6 +1,5 @@
 import { getAdminClient } from '../config/supabase';
 import { AppError } from '../utils/errors';
-import { auditRoleAction } from './audit.service';
 import { Role, RoleWithPermissions, Permission } from '../types/user.types';
 
 /**
@@ -136,13 +135,6 @@ export const createRole = async (
     }
   }
 
-  // Audit log
-  await auditRoleAction('role.created', role.id, actorId, null, {
-    name: data.name,
-    displayName: data.displayName,
-    permissionIds: data.permissionIds,
-  });
-
   return getRole(role.id);
 };
 
@@ -226,9 +218,6 @@ export const updateRole = async (
     }
   }
 
-  // Audit log
-  await auditRoleAction('role.updated', roleId, actorId, currentRole, data);
-
   return getRole(roleId);
 };
 
@@ -287,8 +276,6 @@ export const deleteRole = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to delete role');
   }
 
-  // Audit log
-  await auditRoleAction('role.deleted', roleId, actorId, role, null);
 };
 
 /**

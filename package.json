@@ -7,13 +7,27 @@
     "dev:backend": "npm run dev -w backend",
     "dev:frontend": "npm run dev -w frontend",
     "build": "npm run build -w backend && npm run build -w frontend",
-    "install:all": "npm install && npm install -w backend && npm install -w frontend"
+    "install:all": "npm install && npm install -w backend && npm install -w frontend",
+    "test:all": "npm run test:backend && npm run test:frontend && npm run test:e2e",
+    "test:backend": "npm run test -w backend",
+    "test:frontend": "npm run test -w frontend",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui"
   },
   "workspaces": [
     "backend",
     "frontend"
   ],
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@playwright/test": "^1.40.0",
+    "concurrently": "^8.2.2",
+    "playwright": "^1.40.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3"
   }
 }

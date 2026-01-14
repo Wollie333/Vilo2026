@@ -35,11 +35,18 @@ export interface UserProfile {
   phone: string | null;
   avatar_url: string | null;
   timezone: string;
+  bio: string | null;
+  linkedin_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  twitter_url: string | null;
+  youtube_url: string | null;
   address_street: string | null;
   address_city: string | null;
   address_state: string | null;
   address_postal_code: string | null;
   address_country: string | null;
+  default_currency: string;
   company_name: string | null;
   preferences: Record<string, unknown>;
   status: UserStatus;
@@ -115,11 +122,18 @@ export interface UpdateUserRequest {
   phone?: string;
   avatar_url?: string;
   timezone?: string;
+  bio?: string;
+  linkedin_url?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  twitter_url?: string;
+  youtube_url?: string;
   address_street?: string;
   address_city?: string;
   address_state?: string;
   address_postal_code?: string;
   address_country?: string;
+  default_currency?: string;
   company_name?: string;
   preferences?: Record<string, unknown>;
 }

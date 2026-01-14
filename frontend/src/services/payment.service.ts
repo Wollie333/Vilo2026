@@ -8,7 +8,7 @@ import type {
 } from '@/types/payment.types';
 
 class PaymentService {
-  private basePath = '/api/payment-integrations';
+  private basePath = '/payment-integrations';
 
   /**
    * List all payment integrations

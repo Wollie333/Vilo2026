@@ -102,7 +102,7 @@ export function TablePagination({
                   transition-colors
                   ${
                     currentPage === pageNum
-                      ? 'bg-primary text-brand-black'
+                      ? 'bg-primary text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-card'
                   }
                 `}

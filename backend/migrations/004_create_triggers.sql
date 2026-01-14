@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Create user profile with pending status
-    INSERT INTO public.user_profiles (
+    INSERT INTO public.users (
         id,
         email,
         full_name,
@@ -64,7 +64,7 @@ CREATE OR REPLACE FUNCTION public.handle_email_confirmed()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.email_confirmed_at IS NOT NULL AND OLD.email_confirmed_at IS NULL THEN
-        UPDATE public.user_profiles
+        UPDATE public.users
         SET
             email_verified_at = NEW.email_confirmed_at,
             updated_at = NOW()
@@ -104,7 +104,7 @@ CREATE OR REPLACE FUNCTION public.handle_user_login()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.last_sign_in_at IS DISTINCT FROM OLD.last_sign_in_at THEN
-        UPDATE public.user_profiles
+        UPDATE public.users
         SET
             last_login_at = NEW.last_sign_in_at,
             last_active_at = NOW(),
@@ -149,9 +149,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON public.user_profiles;
-CREATE TRIGGER update_user_profiles_updated_at
-    BEFORE UPDATE ON public.user_profiles
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at();
 

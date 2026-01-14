@@ -66,8 +66,8 @@ function NavItemComponent({
           transition-colors duration-200
           ${
             isActive || hasActiveChild
-              ? 'bg-primary/10 text-primary dark:bg-primary/20'
-              : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-card'
+              ? 'bg-primary/10 text-primary-700 dark:bg-primary/20'
+              : 'text-gray-700 hover:bg-primary-100 dark:text-gray-300 dark:hover:bg-primary dark:hover:text-black'
           }
         `}
         title={isCollapsed ? item.label : undefined}
@@ -79,7 +79,7 @@ function NavItemComponent({
               {item.label}
             </span>
             {item.badge && (
-              <span className="px-2 py-0.5 text-xs font-medium bg-primary text-brand-black rounded-full">
+              <span className="px-2 py-0.5 text-xs font-medium bg-primary text-white rounded-full">
                 {item.badge}
               </span>
             )}
@@ -104,8 +104,8 @@ function NavItemComponent({
                 transition-colors duration-200
                 ${
                   child.id === activeItemId
-                    ? 'text-primary'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                    ? 'text-primary-700'
+                    : 'text-gray-600 hover:bg-primary-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-primary dark:hover:text-black'
                 }
               `}
             >
@@ -125,6 +125,7 @@ export function Sidebar({
   activeItemId,
   onItemClick,
   logo,
+  propertySelector,
 }: SidebarProps) {
   // Track which items are expanded - persists across navigation
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
@@ -199,7 +200,7 @@ export function Sidebar({
             {/* Toggle button - only when expanded */}
             <button
               onClick={onToggleCollapse}
-              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-dark-card text-gray-500"
+              className="p-1 rounded-md hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black text-gray-500"
               aria-label="Collapse sidebar"
               title="Collapse sidebar"
             >
@@ -221,8 +222,29 @@ export function Sidebar({
         )}
       </div>
 
+      {/* Property Selector Section */}
+      {propertySelector && !isCollapsed && (
+        <div className="px-2.5 py-3 border-b border-gray-200 dark:border-dark-border">
+          {propertySelector}
+        </div>
+      )}
+
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-2.5">
+      <nav className="flex-1 overflow-y-auto p-2.5
+        [&::-webkit-scrollbar]:w-2
+        [&::-webkit-scrollbar-track]:bg-gray-100
+        [&::-webkit-scrollbar-track]:rounded-full
+        [&::-webkit-scrollbar-track]:m-1
+        dark:[&::-webkit-scrollbar-track]:bg-gray-800/50
+        [&::-webkit-scrollbar-thumb]:bg-gray-400
+        [&::-webkit-scrollbar-thumb]:rounded-full
+        [&::-webkit-scrollbar-thumb]:border-2
+        [&::-webkit-scrollbar-thumb]:border-white
+        dark:[&::-webkit-scrollbar-thumb]:bg-gray-600
+        dark:[&::-webkit-scrollbar-thumb]:border-dark-sidebar
+        hover:[&::-webkit-scrollbar-thumb]:bg-gray-500
+        dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500
+      ">
         {groupedItems.map((group, idx) => (
           <div key={idx} className={idx > 0 ? 'mt-5' : ''}>
             {/* Section header */}

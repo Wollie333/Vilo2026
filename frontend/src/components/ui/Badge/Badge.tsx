@@ -4,7 +4,7 @@ import type { BadgeProps } from './Badge.types';
 const variantStyles = {
   default: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
   primary: 'bg-primary/10 text-primary dark:bg-primary/20',
-  success: 'bg-success/10 text-success dark:bg-success/20',
+  success: 'bg-primary text-white',
   warning: 'bg-warning/10 text-warning dark:bg-warning/20',
   error: 'bg-error/10 text-error dark:bg-error/20',
   info: 'bg-info/10 text-info dark:bg-info/20',

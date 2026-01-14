@@ -79,7 +79,7 @@ export const shouldSendNotification = async (
 // ============================================================================
 
 /**
- * Toggle a single preference (upsert)
+ * Toggle a single preference (upsert) - optimized for speed
  */
 export const togglePreference = async (
   userId: string,
@@ -89,32 +89,73 @@ export const togglePreference = async (
 ): Promise<NotificationPreference> => {
   const supabase = getAdminClient();
 
-  // Build the upsert parameters
-  const emailEnabled = channel === 'email' ? enabled : null;
-  const inAppEnabled = channel === 'in_app' ? enabled : null;
-  const pushEnabled = channel === 'push' ? enabled : null;
+  // Build the column name for the channel
+  const channelColumn = channel === 'email' ? 'email_enabled'
+    : channel === 'in_app' ? 'in_app_enabled'
+    : 'push_enabled';
 
-  // Use the database function for upsert
-  const { data, error } = await supabase.rpc('upsert_notification_preference', {
-    p_user_id: userId,
-    p_template_id: templateId,
-    p_email_enabled: emailEnabled,
-    p_in_app_enabled: inAppEnabled,
-    p_push_enabled: pushEnabled,
-  });
+  // First, try to update existing preference
+  const { data: existingData, error: updateError } = await supabase
+    .from('notification_preferences')
+    .update({
+      [channelColumn]: enabled,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('template_id', templateId)
+    .select()
+    .single();
 
-  if (error) {
+  // If record exists and was updated, return it
+  if (existingData && !updateError) {
+    return existingData as NotificationPreference;
+  }
+
+  // If no record exists (PGRST116 = no rows returned), insert new one
+  if (updateError?.code === 'PGRST116') {
+    const { data: insertData, error: insertError } = await supabase
+      .from('notification_preferences')
+      .insert({
+        user_id: userId,
+        template_id: templateId,
+        email_enabled: channel === 'email' ? enabled : true,
+        in_app_enabled: channel === 'in_app' ? enabled : true,
+        push_enabled: channel === 'push' ? enabled : true,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      logger.error('Failed to insert notification preference', {
+        error: insertError.message,
+        errorCode: insertError.code,
+        errorDetails: insertError.details,
+        userId,
+        templateId,
+        channel,
+        enabled,
+      });
+      throw new AppError('INTERNAL_ERROR', `Failed to create notification preference: ${insertError.message}`);
+    }
+
+    return insertData as NotificationPreference;
+  }
+
+  // Other errors
+  if (updateError) {
     logger.error('Failed to toggle notification preference', {
-      error,
+      error: updateError.message,
+      errorCode: updateError.code,
+      errorDetails: updateError.details,
       userId,
       templateId,
       channel,
       enabled,
     });
-    throw new AppError('INTERNAL_ERROR', 'Failed to update notification preference');
+    throw new AppError('INTERNAL_ERROR', `Failed to update notification preference: ${updateError.message}`);
   }
 
-  return data as NotificationPreference;
+  return existingData as NotificationPreference;
 };
 
 /**

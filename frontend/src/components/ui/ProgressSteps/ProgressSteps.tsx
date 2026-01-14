@@ -87,9 +87,9 @@ function StepIndicator({
 
   const statusClasses = {
     completed:
-      'bg-primary text-brand-black ring-2 ring-primary/20',
+      'bg-primary text-white ring-2 ring-primary/20',
     current:
-      'bg-primary text-brand-black ring-4 ring-primary/30 shadow-md',
+      'bg-primary text-white ring-4 ring-primary/30 shadow-md',
     upcoming:
       'bg-gray-200 text-gray-500 dark:bg-dark-border dark:text-gray-400',
   };

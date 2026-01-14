@@ -10,6 +10,7 @@ export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement
   label?: string;
   error?: string;
   hint?: string;
+  helperText?: string; // Alias for hint
   options: SelectOption[];
   placeholder?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -28,6 +29,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       label,
       error,
       hint,
+      helperText,
       options,
       placeholder,
       size = 'md',
@@ -39,6 +41,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     },
     ref
   ) => {
+    // Support both hint and helperText (helperText takes precedence)
+    const hintText = helperText || hint;
     const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
 
     return (
@@ -114,8 +118,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {error && (
           <p className="mt-1 text-xs text-error">{error}</p>
         )}
-        {hint && !error && (
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>
+        {hintText && !error && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hintText}</p>
         )}
       </div>
     );

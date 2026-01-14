@@ -13,15 +13,9 @@ import {
   idParamSchema,
   createUserTypeSchema,
   updateUserTypeSchema,
-  createBillingStatusSchema,
-  updateBillingStatusSchema,
   createSubscriptionTypeSchema,
   updateSubscriptionTypeSchema,
   subscriptionTypeListQuerySchema,
-  createSubscriptionLimitSchema,
-  updateSubscriptionLimitSchema,
-  bulkUpdateLimitsSchema,
-  subscriptionTypeLimitsParamSchema,
   createUserSubscriptionSchema,
   updateUserSubscriptionSchema,
   cancelSubscriptionSchema,
@@ -32,7 +26,29 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// ============================================================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================================================
+
+// List subscription types - public for pricing page
+router.get(
+  '/subscription-types',
+  validateQuery(subscriptionTypeListQuerySchema),
+  billingController.listSubscriptionTypes
+);
+
+// Get single subscription type - public for pricing/checkout
+router.get(
+  '/subscription-types/:id',
+  validateParams(idParamSchema),
+  billingController.getSubscriptionType
+);
+
+// ============================================================================
+// AUTHENTICATED ROUTES
+// ============================================================================
+
+// All routes below require authentication
 router.use(authenticate);
 router.use(loadUserProfile);
 
@@ -47,7 +63,16 @@ router.get(
 );
 
 // ============================================================================
-// USER TYPES
+// MY BILLING - User's own billing info (no special permissions needed)
+// ============================================================================
+
+router.get('/my-billing', billingController.getMyBillingInfo);
+
+// Get current user's subscription access status (for paywall/read-only mode)
+router.get('/my-subscription-access', billingController.getMySubscriptionAccess);
+
+// ============================================================================
+// USER TYPES (MEMBER TYPES)
 // ============================================================================
 
 // List user types - authenticated users can view
@@ -89,66 +114,111 @@ router.delete(
 );
 
 // ============================================================================
-// BILLING STATUSES
+// USER TYPE PERMISSIONS
 // ============================================================================
 
-// List billing statuses - authenticated users can view
+// List all available permissions
 router.get(
-  '/statuses',
-  billingController.listBillingStatuses
+  '/permissions',
+  billingController.listPermissions
 );
 
-// Get single billing status
+// Get all permissions grouped by category (for subscription plan editor)
 router.get(
-  '/statuses/:id',
+  '/permissions-by-category',
+  billingController.getPermissionsByCategory
+);
+
+// List all user types with their permissions
+router.get(
+  '/user-types-with-permissions',
+  billingController.listUserTypesWithPermissions
+);
+
+// Get permissions for a user type
+router.get(
+  '/user-types/:id/permissions',
   validateParams(idParamSchema),
-  billingController.getBillingStatus
+  billingController.getUserTypePermissions
 );
 
-// Create billing status - super admin only
+// Update all permissions for a user type (replace) - super admin only
+router.put(
+  '/user-types/:id/permissions',
+  validateParams(idParamSchema),
+  requireSuperAdmin(),
+  billingController.updateUserTypePermissions
+);
+
+// Add a permission to a user type - super admin only
 router.post(
-  '/statuses',
-  validateBody(createBillingStatusSchema),
-  requireSuperAdmin(),
-  billingController.createBillingStatus
-);
-
-// Update billing status - super admin only
-router.patch(
-  '/statuses/:id',
+  '/user-types/:id/permissions',
   validateParams(idParamSchema),
-  validateBody(updateBillingStatusSchema),
   requireSuperAdmin(),
-  billingController.updateBillingStatus
+  billingController.assignPermissionToUserType
 );
 
-// Delete billing status - super admin only
+// Remove a permission from a user type - super admin only
 router.delete(
-  '/statuses/:id',
+  '/user-types/:id/permissions/:permissionId',
+  requireSuperAdmin(),
+  billingController.removePermissionFromUserType
+);
+
+// Apply a permission template to a user type - super admin only
+router.post(
+  '/user-types/:id/apply-template',
   validateParams(idParamSchema),
   requireSuperAdmin(),
-  billingController.deleteBillingStatus
+  billingController.applyTemplateToUserType
 );
 
 // ============================================================================
-// SUBSCRIPTION TYPES
+// PERMISSION TEMPLATES
 // ============================================================================
 
-// List subscription types - authenticated users can view
+// List all permission templates
 router.get(
-  '/subscription-types',
-  validateQuery(subscriptionTypeListQuerySchema),
-  billingController.listSubscriptionTypes
+  '/permission-templates',
+  billingController.listPermissionTemplates
 );
 
-// Get single subscription type with limits
+// Get single permission template with permissions
 router.get(
-  '/subscription-types/:id',
+  '/permission-templates/:id',
   validateParams(idParamSchema),
-  billingController.getSubscriptionType
+  billingController.getPermissionTemplate
 );
 
-// Create subscription type - super admin only
+// Create permission template - super admin only
+router.post(
+  '/permission-templates',
+  requireSuperAdmin(),
+  billingController.createPermissionTemplate
+);
+
+// Update permission template - super admin only
+router.patch(
+  '/permission-templates/:id',
+  validateParams(idParamSchema),
+  requireSuperAdmin(),
+  billingController.updatePermissionTemplate
+);
+
+// Delete permission template - super admin only
+router.delete(
+  '/permission-templates/:id',
+  validateParams(idParamSchema),
+  requireSuperAdmin(),
+  billingController.deletePermissionTemplate
+);
+
+// ============================================================================
+// SUBSCRIPTION TYPES (with embedded JSONB limits)
+// Note: GET routes are public and defined above the auth middleware
+// ============================================================================
+
+// Create subscription type (with limits) - super admin only
 router.post(
   '/subscription-types',
   validateBody(createSubscriptionTypeSchema),
@@ -156,7 +226,7 @@ router.post(
   billingController.createSubscriptionType
 );
 
-// Update subscription type - super admin only
+// Update subscription type (including limits) - super admin only
 router.patch(
   '/subscription-types/:id',
   validateParams(idParamSchema),
@@ -173,53 +243,8 @@ router.delete(
   billingController.deleteSubscriptionType
 );
 
-// Get limits for a subscription type
-router.get(
-  '/subscription-types/:subscriptionTypeId/limits',
-  validateParams(subscriptionTypeLimitsParamSchema),
-  billingController.getSubscriptionLimits
-);
-
-// Bulk update limits for a subscription type - super admin only
-router.put(
-  '/subscription-types/:subscriptionTypeId/limits',
-  validateParams(subscriptionTypeLimitsParamSchema),
-  validateBody(bulkUpdateLimitsSchema),
-  requireSuperAdmin(),
-  billingController.bulkUpdateLimits
-);
-
 // ============================================================================
-// SUBSCRIPTION LIMITS (Individual)
-// ============================================================================
-
-// Create subscription limit - super admin only
-router.post(
-  '/limits',
-  validateBody(createSubscriptionLimitSchema),
-  requireSuperAdmin(),
-  billingController.createSubscriptionLimit
-);
-
-// Update subscription limit - super admin only
-router.patch(
-  '/limits/:id',
-  validateParams(idParamSchema),
-  validateBody(updateSubscriptionLimitSchema),
-  requireSuperAdmin(),
-  billingController.updateSubscriptionLimit
-);
-
-// Delete subscription limit - super admin only
-router.delete(
-  '/limits/:id',
-  validateParams(idParamSchema),
-  requireSuperAdmin(),
-  billingController.deleteSubscriptionLimit
-);
-
-// ============================================================================
-// USER SUBSCRIPTIONS
+// USER SUBSCRIPTIONS (with status field)
 // ============================================================================
 
 // List user subscriptions - requires users:read permission
@@ -290,6 +315,28 @@ router.post(
   validateParams(userIdParamSchema),
   validateBody(checkLimitSchema),
   billingController.checkUserLimit
+);
+
+// ============================================================================
+// SUBSCRIPTION TYPE PERMISSIONS (NEW)
+// ============================================================================
+
+// Get subscription type permissions
+router.get(
+  '/subscription-types/:id/permissions',
+  authenticate,
+  loadUserProfile,
+  requirePermission('settings', 'read'),
+  billingController.getSubscriptionTypePermissions
+);
+
+// Update subscription type permissions
+router.put(
+  '/subscription-types/:id/permissions',
+  authenticate,
+  loadUserProfile,
+  requirePermission('settings', 'manage'),
+  billingController.updateSubscriptionTypePermissions
 );
 
 export default router;

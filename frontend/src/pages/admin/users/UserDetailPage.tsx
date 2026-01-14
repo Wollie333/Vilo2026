@@ -12,7 +12,6 @@ import {
   PhoneInput,
   MaskedInput,
   Card,
-  SaveStatus,
   Checkbox,
   Select,
   Tabs,
@@ -21,29 +20,32 @@ import {
   TabsContent,
   Skeleton,
   EmptyState,
+  SaveStatus,
 } from '@/components/ui';
 import { ActivityItem } from '@/components/features/ActivityItem';
 import { usersService, rolesService } from '@/services';
 import type { ActivityLogEntry } from '@/services/users.service';
-import { useAutoSave, useImmediateSave } from '@/hooks';
+import { useImmediateSave, useHashTab } from '@/hooks';
 import type { UserWithRoles, Role, UserStatus, Permission } from '@/types/auth.types';
 
-// Types
-type ViewType =
-  | 'overview'
-  | 'personal'
-  | 'address'
-  | 'company'
-  | 'properties'
-  | 'rooms'
-  | 'team'
-  | 'customers'
-  | 'bookings'
-  | 'reviews'
-  | 'refunds'
-  | 'roles'
-  | 'permissions'
-  | 'activity';
+// Valid views for hash-based routing
+const USER_VIEWS = [
+  'overview',
+  'personal',
+  'address',
+  'company',
+  'properties',
+  'rooms',
+  'team',
+  'customers',
+  'bookings',
+  'reviews',
+  'refunds',
+  'roles',
+  'permissions',
+  'activity',
+] as const;
+type ViewType = typeof USER_VIEWS[number];
 
 interface NavItem {
   id: ViewType;
@@ -77,6 +79,25 @@ const timezoneOptions = [
   { value: 'Europe/Paris', label: 'Paris' },
   { value: 'Asia/Tokyo', label: 'Tokyo' },
   { value: 'Australia/Sydney', label: 'Sydney' },
+];
+
+// Currency options
+const currencyOptions = [
+  { value: 'ZAR', label: 'ZAR - South African Rand' },
+  { value: 'USD', label: 'USD - US Dollar' },
+  { value: 'EUR', label: 'EUR - Euro' },
+  { value: 'GBP', label: 'GBP - British Pound' },
+  { value: 'AUD', label: 'AUD - Australian Dollar' },
+  { value: 'CAD', label: 'CAD - Canadian Dollar' },
+  { value: 'CHF', label: 'CHF - Swiss Franc' },
+  { value: 'JPY', label: 'JPY - Japanese Yen' },
+  { value: 'CNY', label: 'CNY - Chinese Yuan' },
+  { value: 'INR', label: 'INR - Indian Rupee' },
+  { value: 'NZD', label: 'NZD - New Zealand Dollar' },
+  { value: 'SGD', label: 'SGD - Singapore Dollar' },
+  { value: 'HKD', label: 'HKD - Hong Kong Dollar' },
+  { value: 'MXN', label: 'MXN - Mexican Peso' },
+  { value: 'BRL', label: 'BRL - Brazilian Real' },
 ];
 
 // Icons
@@ -240,12 +261,12 @@ const NavItemButton: React.FC<{
     onClick={onClick}
     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
       isActive
-        ? 'bg-primary/10 text-primary font-medium'
+        ? 'bg-primary/10 text-primary-700 font-medium'
         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-border'
     }`}
   >
     <div className="flex items-center gap-3">
-      <span className={isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}>
+      <span className={isActive ? 'text-primary-700' : 'text-gray-500 dark:text-gray-400'}>
         {item.icon}
       </span>
       <span>{item.label}</span>
@@ -254,7 +275,7 @@ const NavItemButton: React.FC<{
       )}
     </div>
     {isComplete && (
-      <span className="text-primary">
+      <span className="text-primary-700">
         <CheckIcon />
       </span>
     )}
@@ -366,7 +387,7 @@ export const UserDetailPage: React.FC = () => {
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Active view state
-  const [activeView, setActiveView] = useState<ViewType>('overview');
+  const [activeView, setActiveView] = useHashTab(USER_VIEWS, 'overview');
 
   // User data
   const [user, setUser] = useState<UserWithRoles | null>(null);
@@ -395,10 +416,21 @@ export const UserDetailPage: React.FC = () => {
     isOpen: boolean;
   }>({ type: null, isOpen: false });
 
+  // Form save states
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
   // Form data state
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
+    bio: '',
+    default_currency: 'ZAR',
+    linkedin_url: '',
+    facebook_url: '',
+    instagram_url: '',
+    twitter_url: '',
+    youtube_url: '',
     company_name: '',
     vat_number: '',
     company_registration: '',
@@ -416,16 +448,6 @@ export const UserDetailPage: React.FC = () => {
     grants: string[];
     denies: string[];
   }>({ grants: [], denies: [] });
-
-  // Auto-save for profile fields
-  const profileAutoSave = useAutoSave<typeof formData>({
-    saveField: async (field, value) => {
-      if (!id) throw new Error('No user ID');
-      await usersService.updateUser(id, { [field]: value });
-      setUser((prev) => (prev ? { ...prev, [field]: value } : prev));
-    },
-    debounceMs: 500,
-  });
 
   // Immediate save for roles
   const rolesSave = useImmediateSave<{ roles: string[] }>(async (_field, value) => {
@@ -475,6 +497,13 @@ export const UserDetailPage: React.FC = () => {
         setFormData({
           full_name: userData.full_name || '',
           phone: userData.phone || '',
+          bio: userData.bio || '',
+          default_currency: userData.default_currency || 'ZAR',
+          linkedin_url: userData.linkedin_url || '',
+          facebook_url: userData.facebook_url || '',
+          instagram_url: userData.instagram_url || '',
+          twitter_url: userData.twitter_url || '',
+          youtube_url: userData.youtube_url || '',
           company_name: userData.company_name || '',
           vat_number: userData.vat_number || '',
           company_registration: userData.company_registration || '',
@@ -554,13 +583,60 @@ export const UserDetailPage: React.FC = () => {
     }
   };
 
+  // Handle field change (just update state)
   const handleFieldChange = useCallback(
     (field: keyof typeof formData, value: string) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
-      profileAutoSave.handleChange(field, value);
+      setHasChanges(true);
     },
-    [profileAutoSave]
+    []
   );
+
+  // Handle form submission
+  const handleFormSubmit = useCallback(async () => {
+    if (!id) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await usersService.updateUser(id, formData);
+      await refreshUser();
+      setSuccess('User profile updated successfully');
+      setHasChanges(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update user');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [id, formData]);
+
+  // Handle cancel - reset form to user values
+  const handleFormCancel = useCallback(() => {
+    if (user) {
+      setFormData({
+        full_name: user.full_name || '',
+        phone: user.phone || '',
+        bio: user.bio || '',
+        default_currency: user.default_currency || 'ZAR',
+        linkedin_url: user.linkedin_url || '',
+        facebook_url: user.facebook_url || '',
+        instagram_url: user.instagram_url || '',
+        twitter_url: user.twitter_url || '',
+        youtube_url: user.youtube_url || '',
+        company_name: user.company_name || '',
+        vat_number: user.vat_number || '',
+        company_registration: user.company_registration || '',
+        timezone: user.timezone || 'UTC',
+        address_street: user.address_street || '',
+        address_city: user.address_city || '',
+        address_state: user.address_state || '',
+        address_postal_code: user.address_postal_code || '',
+        address_country: user.address_country || '',
+      });
+      setHasChanges(false);
+    }
+  }, [user]);
 
   const handleRoleToggle = useCallback(
     (roleId: string, checked: boolean) => {
@@ -883,9 +959,8 @@ export const UserDetailPage: React.FC = () => {
       case 'personal':
         return (
           <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
+            <Card.Header>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Personal Information</h3>
-              <SaveStatus status={profileAutoSave.saveStatus} />
             </Card.Header>
             <Card.Body>
               <div className="space-y-4">
@@ -896,6 +971,33 @@ export const UserDetailPage: React.FC = () => {
                   placeholder="Enter full name"
                   fullWidth
                 />
+                <Input
+                  label="Bio"
+                  value={formData.bio}
+                  onChange={(e) => handleFieldChange('bio', e.target.value)}
+                  placeholder="Brief description about the user"
+                  fullWidth
+                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <Input
+                      type="email"
+                      value={user?.email || ''}
+                      disabled
+                      helperText="Email cannot be changed"
+                      className="pl-10"
+                      fullWidth
+                    />
+                  </div>
+                </div>
                 <PhoneInput
                   label="Phone Number"
                   value={formData.phone}
@@ -909,6 +1011,76 @@ export const UserDetailPage: React.FC = () => {
                   options={timezoneOptions}
                   fullWidth
                 />
+                <div>
+                  <Select
+                    label="Default Currency"
+                    value={formData.default_currency}
+                    onChange={(e) => handleFieldChange('default_currency', e.target.value)}
+                    options={currencyOptions}
+                    fullWidth
+                  />
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">System-wide default currency for this account</p>
+                </div>
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                    Social Media
+                  </h4>
+                  <div className="space-y-4">
+                    <Input
+                      label="LinkedIn"
+                      value={formData.linkedin_url}
+                      onChange={(e) => handleFieldChange('linkedin_url', e.target.value)}
+                      placeholder="https://linkedin.com/in/username"
+                      fullWidth
+                    />
+                    <Input
+                      label="Facebook"
+                      value={formData.facebook_url}
+                      onChange={(e) => handleFieldChange('facebook_url', e.target.value)}
+                      placeholder="https://facebook.com/username"
+                      fullWidth
+                    />
+                    <Input
+                      label="Instagram"
+                      value={formData.instagram_url}
+                      onChange={(e) => handleFieldChange('instagram_url', e.target.value)}
+                      placeholder="https://instagram.com/username"
+                      fullWidth
+                    />
+                    <Input
+                      label="Twitter/X"
+                      value={formData.twitter_url}
+                      onChange={(e) => handleFieldChange('twitter_url', e.target.value)}
+                      placeholder="https://twitter.com/username"
+                      fullWidth
+                    />
+                    <Input
+                      label="YouTube"
+                      value={formData.youtube_url}
+                      onChange={(e) => handleFieldChange('youtube_url', e.target.value)}
+                      placeholder="https://youtube.com/@channel"
+                      fullWidth
+                    />
+                  </div>
+                </div>
+                {/* Save/Cancel Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+                  <Button
+                    variant="outline"
+                    onClick={handleFormCancel}
+                    disabled={isSaving || !hasChanges}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleFormSubmit}
+                    isLoading={isSaving}
+                    disabled={!hasChanges}
+                  >
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </Card.Body>
           </Card>
@@ -917,9 +1089,8 @@ export const UserDetailPage: React.FC = () => {
       case 'address':
         return (
           <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
+            <Card.Header>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Address</h3>
-              <SaveStatus status={profileAutoSave.saveStatus} />
             </Card.Header>
             <Card.Body>
               <div className="space-y-4">
@@ -962,6 +1133,24 @@ export const UserDetailPage: React.FC = () => {
                     fullWidth
                   />
                 </div>
+                {/* Save/Cancel Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+                  <Button
+                    variant="outline"
+                    onClick={handleFormCancel}
+                    disabled={isSaving || !hasChanges}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleFormSubmit}
+                    isLoading={isSaving}
+                    disabled={!hasChanges}
+                  >
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </Card.Body>
           </Card>
@@ -970,9 +1159,8 @@ export const UserDetailPage: React.FC = () => {
       case 'company':
         return (
           <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
+            <Card.Header>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Company Information</h3>
-              <SaveStatus status={profileAutoSave.saveStatus} />
             </Card.Header>
             <Card.Body>
               <div className="space-y-4">
@@ -999,6 +1187,24 @@ export const UserDetailPage: React.FC = () => {
                   helperText="Format: YYYY/NNNNNN/NN"
                   fullWidth
                 />
+                {/* Save/Cancel Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+                  <Button
+                    variant="outline"
+                    onClick={handleFormCancel}
+                    disabled={isSaving || !hasChanges}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleFormSubmit}
+                    isLoading={isSaving}
+                    disabled={!hasChanges}
+                  >
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </Card.Body>
           </Card>

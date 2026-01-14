@@ -1,6 +1,5 @@
 import { getAdminClient, getAnonClient } from '../config/supabase';
 import { AppError } from '../utils/errors';
-import { auditUserAction } from './audit.service';
 import { SignUpInput, LoginInput, ResetPasswordInput } from '../validators/auth.validators';
 import { UserWithRoles } from '../types/user.types';
 
@@ -11,13 +10,14 @@ interface AuthResult {
 
 /**
  * Sign up a new user
- * Creates Supabase auth user and profile in pending status
+ * Creates Supabase auth user and profile, then auto-logs them in
  */
 export const signUp = async (
   data: SignUpInput,
   request?: { ip?: string; userAgent?: string }
-): Promise<{ user: any; message: string }> => {
+): Promise<AuthResult> => {
   const supabase = getAdminClient();
+  const anonClient = getAnonClient();
 
   // Check if email already exists
   const { data: existingProfile } = await supabase
@@ -30,11 +30,11 @@ export const signUp = async (
     throw new AppError('CONFLICT', 'An account with this email already exists');
   }
 
-  // Create auth user
+  // Create auth user with email auto-confirmed
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: data.email,
     password: data.password,
-    email_confirm: false, // Require email verification
+    email_confirm: true, // Auto-verify email for immediate login
     user_metadata: {
       full_name: data.fullName,
       phone: data.phone,
@@ -49,39 +49,90 @@ export const signUp = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to create user');
   }
 
-  // Profile is created automatically via database trigger
-  // Update with additional fields
+  // Create or update user profile
+  // Using upsert to handle cases where the database trigger doesn't exist
   const { error: profileError } = await supabase
     .from('users')
-    .update({
+    .upsert({
+      id: authData.user.id,
+      email: data.email,
       full_name: data.fullName,
       phone: data.phone || null,
-      status: 'pending', // Require admin approval
-    })
-    .eq('id', authData.user.id);
+      status: 'active', // Allow immediate access
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'id',
+    });
 
   if (profileError) {
-    // Cleanup: delete auth user if profile update fails
+    // Cleanup: delete auth user if profile creation fails
+    console.error('Profile creation error:', profileError);
     await supabase.auth.admin.deleteUser(authData.user.id);
     throw new AppError('INTERNAL_ERROR', 'Failed to create user profile');
   }
 
-  // Audit log
-  await auditUserAction(
-    'user.created',
-    authData.user.id,
-    null, // No actor for self-registration
-    null,
-    { email: data.email, full_name: data.fullName },
-    request
-  );
+  // Auto-assign free user type and subscription
+  try {
+    // Get free user type (customer category)
+    const { data: freeType } = await supabase
+      .from('user_types')
+      .select('id')
+      .eq('name', 'free')
+      .eq('category', 'customer')
+      .single();
 
+    // Get free tier subscription plan
+    const { data: freePlan } = await supabase
+      .from('subscription_types')
+      .select('id')
+      .eq('name', 'free_tier')
+      .single();
+
+    if (!freePlan) {
+      console.error('Free tier subscription plan not found - skipping auto-assignment');
+    } else {
+      // Assign free user type if found
+      if (freeType) {
+        await supabase
+          .from('users')
+          .update({ user_type_id: freeType.id })
+          .eq('id', authData.user.id);
+      }
+
+      // Create free tier subscription
+      await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: authData.user.id,
+          subscription_type_id: freePlan.id,
+          status: 'active',
+          started_at: new Date().toISOString(),
+          is_active: true,
+        });
+
+      console.log(`Auto-assigned free tier subscription to user ${authData.user.id}`);
+    }
+  } catch (err) {
+    // Log error but don't fail signup if free tier assignment fails
+    console.error('Failed to auto-assign free tier:', err);
+  }
+
+  // Sign in the user to get a session for auto-login
+  const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
+    email: data.email,
+    password: data.password,
+  });
+
+  if (signInError || !signInData.session) {
+    // User is created but couldn't auto-login - they can login manually
+    throw new AppError('INTERNAL_ERROR', 'Account created but auto-login failed. Please log in manually.');
+  }
+
+  // Return user and session for auto-login
   return {
-    user: {
-      id: authData.user.id,
-      email: authData.user.email,
-    },
-    message: 'Account created. Please verify your email and wait for admin approval.',
+    user: signInData.user,
+    session: signInData.session,
   };
 };
 
@@ -142,16 +193,6 @@ export const signIn = async (
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', authData.user.id);
 
-  // Audit log
-  await auditUserAction(
-    'user.login',
-    authData.user.id,
-    authData.user.id,
-    null,
-    null,
-    request
-  );
-
   return {
     user: authData.user,
     session: authData.session,
@@ -176,8 +217,6 @@ export const signOut = async (
     console.error('Error signing out:', error);
   }
 
-  // Audit log
-  await auditUserAction('user.logout', userId, userId, null, null, request);
 };
 
 /**
@@ -258,16 +297,6 @@ export const resetPassword = async (
   if (updateError) {
     throw new AppError('BAD_REQUEST', 'Failed to reset password');
   }
-
-  // Audit log
-  await auditUserAction(
-    'user.password_reset',
-    sessionData.user.id,
-    sessionData.user.id,
-    null,
-    null,
-    request
-  );
 };
 
 /**
@@ -294,16 +323,6 @@ export const verifyEmail = async (
     .from('users')
     .update({ email_verified_at: new Date().toISOString() })
     .eq('id', data.user.id);
-
-  // Audit log
-  await auditUserAction(
-    'user.email_verified',
-    data.user.id,
-    data.user.id,
-    null,
-    null,
-    request
-  );
 
   return {
     user: data.user,
@@ -432,3 +451,160 @@ function calculateEffectivePermissions(
 
   return Array.from(permissionSet);
 }
+
+/**
+ * Check if email already exists
+ */
+export const checkEmailExists = async (email: string): Promise<boolean> => {
+  const supabase = getAdminClient();
+
+  const { data: existingProfile } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  return !!existingProfile;
+};
+
+/**
+ * Register a guest user (for booking flow)
+ * Similar to signUp but creates a guest user type and returns credentials
+ */
+export const registerGuest = async (data: {
+  email: string;
+  password: string;
+  full_name: string;
+  phone: string;
+  marketing_consent?: boolean;
+}): Promise<{
+  user_id: string;
+  email: string;
+  user_type: string;
+  access_token: string;
+  refresh_token: string;
+}> => {
+  const supabase = getAdminClient();
+  const anonClient = getAnonClient();
+
+  // Check if email already exists in users table
+  const { data: existingProfile } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', data.email)
+    .single();
+
+  if (existingProfile) {
+    throw new AppError('CONFLICT', 'An account with this email already exists');
+  }
+
+  // Check if email exists in Supabase Auth (from previous failed attempts)
+  console.log(`🔍 Checking for existing auth user: ${data.email}`);
+  const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers();
+
+  if (listError) {
+    console.error('❌ Error listing users:', listError);
+  }
+
+  const existingAuthUser = authUsers?.users?.find(u => u.email === data.email);
+
+  if (existingAuthUser) {
+    console.log(`🔄 Found orphaned auth user for ${data.email}, cleaning up...`);
+    // Delete orphaned auth user from previous failed registration
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(existingAuthUser.id);
+    if (deleteError) {
+      console.error('❌ Error deleting orphaned user:', deleteError);
+    } else {
+      console.log('✅ Orphaned user deleted successfully');
+    }
+  } else {
+    console.log(`✅ No existing auth user found for ${data.email}`);
+  }
+
+  // Create auth user with email auto-confirmed
+  console.log(`🚀 Creating new auth user for ${data.email}...`);
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email: data.email,
+    password: data.password,
+    email_confirm: true, // Auto-verify email for immediate login
+    user_metadata: {
+      full_name: data.full_name,
+      phone: data.phone,
+    },
+  });
+
+  console.log(`📊 createUser result:`, {
+    hasData: !!authData,
+    hasError: !!authError,
+    userId: authData?.user?.id
+  });
+
+  if (authError) {
+    console.error('🔥 [Auth Error Details]:', {
+      message: authError.message,
+      status: authError.status,
+      name: authError.name,
+      fullError: authError,
+    });
+    throw new AppError('BAD_REQUEST', authError.message);
+  }
+
+  if (!authData.user) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to create user');
+  }
+
+  console.log('✅ Auth user created successfully, waiting for trigger to create profile...');
+
+  // Wait briefly for trigger to complete (trigger runs asynchronously)
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  // Verify the trigger created the profile
+  const { data: profile, error: profileError } = await supabase
+    .from('users')
+    .select('id, status, user_type_id')
+    .eq('id', authData.user.id)
+    .single();
+
+  if (profileError || !profile) {
+    console.error('❌ Profile not created by trigger:', profileError);
+    await supabase.auth.admin.deleteUser(authData.user.id);
+    throw new AppError('INTERNAL_ERROR', 'User profile creation failed - trigger did not create profile');
+  }
+
+  console.log('✅ Profile created by trigger:', { userId: profile.id, status: profile.status });
+
+  // Update status to 'active' for immediate access
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      status: 'active',  // Override trigger's 'pending' status
+      marketing_consent: data.marketing_consent || false,
+    })
+    .eq('id', authData.user.id);
+
+  if (updateError) {
+    console.error('⚠️ Profile update error (non-fatal):', updateError);
+    // Don't fail - profile exists, just couldn't update fields
+  } else {
+    console.log('✅ Profile updated to active status');
+  }
+
+  // Sign in the user to get a session for auto-login
+  const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
+    email: data.email,
+    password: data.password,
+  });
+
+  if (signInError || !signInData.session) {
+    throw new AppError('INTERNAL_ERROR', 'Account created but auto-login failed');
+  }
+
+  // Return user credentials and session
+  return {
+    user_id: authData.user.id,
+    email: data.email,
+    user_type: 'guest',
+    access_token: signInData.session.access_token,
+    refresh_token: signInData.session.refresh_token,
+  };
+};

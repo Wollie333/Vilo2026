@@ -107,10 +107,10 @@ CREATE TABLE public.properties (
 COMMENT ON TABLE public.properties IS 'Properties for multi-tenancy isolation';
 
 -- =====================================================
--- 6. USER_PROFILES TABLE (extends auth.users)
+-- 6. USERS TABLE (extends auth.users)
 -- =====================================================
 
-CREATE TABLE public.user_profiles (
+CREATE TABLE public.users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
@@ -144,7 +144,7 @@ CREATE TABLE public.user_profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE public.user_profiles IS 'Extended user profile data linked to Supabase auth.users';
+COMMENT ON TABLE public.users IS 'Extended user profile data linked to Supabase auth.users';
 
 -- =====================================================
 -- 7. USER_ROLES (Many-to-Many)
@@ -152,7 +152,7 @@ COMMENT ON TABLE public.user_profiles IS 'Extended user profile data linked to S
 
 CREATE TABLE public.user_roles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
     property_id UUID REFERENCES public.properties(id) ON DELETE CASCADE,
     assigned_by UUID REFERENCES auth.users(id),
@@ -168,7 +168,7 @@ COMMENT ON TABLE public.user_roles IS 'Assigns roles to users, optionally scoped
 
 CREATE TABLE public.user_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
     override_type permission_override NOT NULL,
     property_id UUID REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -187,7 +187,7 @@ COMMENT ON TABLE public.user_permissions IS 'Direct permission overrides for spe
 
 CREATE TABLE public.user_properties (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
     is_primary BOOLEAN NOT NULL DEFAULT FALSE,
     assigned_by UUID REFERENCES auth.users(id),
@@ -224,7 +224,7 @@ COMMENT ON TABLE public.audit_log IS 'Immutable audit trail for all sensitive op
 
 CREATE TABLE public.user_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     refresh_token_hash VARCHAR(255),
     device_info JSONB DEFAULT '{}',
     ip_address INET,

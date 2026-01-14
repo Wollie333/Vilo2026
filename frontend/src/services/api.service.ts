@@ -41,9 +41,24 @@ class ApiService {
   // HTTP methods
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit & { params?: Record<string, any>; timeout?: number } = {}
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const timeout = options.timeout || 30000; // 30 second default timeout
+
+    // Build URL with query parameters
+    let url = `${this.baseUrl}${endpoint}`;
+    if (options.params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+      const queryString = searchParams.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
     const token = this.getAccessToken();
 
     const headers: HeadersInit = {
@@ -56,23 +71,44 @@ class ApiService {
     }
 
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      const data: ApiResponse<T> = await response.json();
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
 
-      // Handle 401 - try to refresh token
-      if (response.status === 401 && this.getRefreshToken()) {
-        const refreshed = await this.refreshTokens();
-        if (refreshed) {
-          // Retry the request with new token
-          return this.request<T>(endpoint, options);
+        clearTimeout(timeoutId);
+
+        const data: ApiResponse<T> = await response.json();
+
+        // Handle 401 - try to refresh token
+        if (response.status === 401 && this.getRefreshToken()) {
+          const refreshed = await this.refreshTokens();
+          if (refreshed) {
+            // Retry the request with new token
+            return this.request<T>(endpoint, options);
+          }
         }
-      }
 
-      return data;
+        return data;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          return {
+            success: false,
+            error: {
+              code: 'TIMEOUT',
+              message: `Request timed out after ${timeout / 1000} seconds`,
+            },
+          };
+        }
+        throw fetchError;
+      }
     } catch (error) {
       return {
         success: false,
@@ -89,7 +125,7 @@ class ApiService {
     if (!refreshToken) return false;
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+      const response = await fetch(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -114,8 +150,8 @@ class ApiService {
     }
   }
 
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'GET' });
+  async get<T>(endpoint: string, options?: { params?: Record<string, any> }): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { method: 'GET', ...options });
   }
 
   async post<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -139,8 +175,11 @@ class ApiService {
     });
   }
 
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+  async delete<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+      body: body ? JSON.stringify(body) : undefined,
+    });
   }
 
   async upload<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {

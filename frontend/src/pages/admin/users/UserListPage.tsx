@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { AuthenticatedLayout } from '@/components/layout';
@@ -20,7 +20,9 @@ import {
   TablePagination,
   useTableSelection,
   FilterCard,
+  FilterToggleButton,
   Select,
+  Skeleton,
 } from '@/components/ui';
 import { usersService, rolesService } from '@/services';
 import type { UserProfile, UserStatus, Role } from '@/types/auth.types';
@@ -74,7 +76,7 @@ export const UserListPage: React.FC = () => {
   const selection = useTableSelection(users);
 
   // Bulk action state
-  const [bulkAction, setBulkAction] = useState<'suspend' | 'activate' | 'deactivate' | null>(null);
+  const [bulkAction, setBulkAction] = useState<'suspend' | 'activate' | 'deactivate' | 'delete' | null>(null);
   const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
 
   // Quick action state
@@ -83,6 +85,18 @@ export const UserListPage: React.FC = () => {
     action: 'suspend' | 'activate';
   } | null>(null);
   const [isQuickActionLoading, setIsQuickActionLoading] = useState(false);
+
+  // Filter toggle state
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Calculate active filter count
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (search) count++;
+    if (statusFilter) count++;
+    if (roleFilter) count++;
+    return count;
+  }, [search, statusFilter, roleFilter]);
 
   // Fetch roles once
   useEffect(() => {
@@ -175,19 +189,31 @@ export const UserListPage: React.FC = () => {
 
     setIsBulkActionLoading(true);
     try {
-      const newStatus: UserStatus = bulkAction === 'suspend'
-        ? 'suspended'
-        : bulkAction === 'activate'
-          ? 'active'
-          : 'deactivated';
+      if (bulkAction === 'delete') {
+        // Handle hard deletion (permanent)
+        await Promise.all(
+          Array.from(selection.selectedIds).map((userId) =>
+            usersService.hardDeleteUser(userId)
+          )
+        );
+        setSuccess(`Successfully deleted ${selection.selectedCount} user(s) permanently`);
+      } else {
+        // Handle status updates
+        const newStatus: UserStatus = bulkAction === 'suspend'
+          ? 'suspended'
+          : bulkAction === 'activate'
+            ? 'active'
+            : 'deactivated';
 
-      await Promise.all(
-        Array.from(selection.selectedIds).map((userId) =>
-          usersService.updateUser(userId, { status: newStatus })
-        )
-      );
+        await Promise.all(
+          Array.from(selection.selectedIds).map((userId) =>
+            usersService.updateUser(userId, { status: newStatus })
+          )
+        );
 
-      setSuccess(`Successfully ${bulkAction}d ${selection.selectedCount} user(s)`);
+        setSuccess(`Successfully ${bulkAction}d ${selection.selectedCount} user(s)`);
+      }
+
       setBulkAction(null);
       selection.deselectAll();
       await fetchUsers();
@@ -262,6 +288,13 @@ export const UserListPage: React.FC = () => {
           confirmText: 'Deactivate All',
           variant: 'danger' as const,
         };
+      case 'delete':
+        return {
+          title: 'Delete Users',
+          message: `⚠️ WARNING: Are you sure you want to PERMANENTLY DELETE ${selection.selectedCount} user(s)? This action cannot be undone. All user data, subscriptions, and related records will be deleted.`,
+          confirmText: 'Delete All',
+          variant: 'danger' as const,
+        };
       default:
         return { title: '', message: '', confirmText: '', variant: 'info' as const };
     }
@@ -281,6 +314,11 @@ export const UserListPage: React.FC = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <FilterToggleButton
+              isOpen={showFilters}
+              onToggle={() => setShowFilters(!showFilters)}
+              activeFilterCount={activeFilterCount}
+            />
             <Button variant="outline" onClick={exportToCSV}>
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -299,43 +337,45 @@ export const UserListPage: React.FC = () => {
         </div>
 
         {/* Filters */}
-        <FilterCard>
-          <FilterCard.Search
-            value={search}
-            onChange={(val) => {
-              setSearch(val);
-              setCurrentPage(1);
-            }}
-            placeholder="Search by name or email..."
-            debounceMs={300}
-          />
-          <FilterCard.Field>
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as UserStatus | '');
+        {showFilters && (
+          <FilterCard>
+            <FilterCard.Search
+              value={search}
+              onChange={(val) => {
+                setSearch(val);
                 setCurrentPage(1);
               }}
-              options={statusOptions}
+              placeholder="Search by name or email..."
+              debounceMs={300}
             />
-          </FilterCard.Field>
-          <FilterCard.Field>
-            <Select
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              options={[
-                { value: '', label: 'All roles' },
-                ...roles.map((role) => ({
-                  value: role.id,
-                  label: role.display_name,
-                })),
-              ]}
-            />
-          </FilterCard.Field>
-        </FilterCard>
+            <FilterCard.Field>
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as UserStatus | '');
+                  setCurrentPage(1);
+                }}
+                options={statusOptions}
+              />
+            </FilterCard.Field>
+            <FilterCard.Field>
+              <Select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                options={[
+                  { value: '', label: 'All roles' },
+                  ...roles.map((role) => ({
+                    value: role.id,
+                    label: role.display_name,
+                  })),
+                ]}
+              />
+            </FilterCard.Field>
+          </FilterCard>
+        )}
 
         {/* Bulk Actions Toolbar */}
         <TableToolbar
@@ -345,6 +385,7 @@ export const UserListPage: React.FC = () => {
             { label: 'Activate', onClick: () => setBulkAction('activate') },
             { label: 'Suspend', onClick: () => setBulkAction('suspend'), variant: 'warning' },
             { label: 'Deactivate', onClick: () => setBulkAction('deactivate'), variant: 'danger' },
+            { label: 'Delete All', onClick: () => setBulkAction('delete'), variant: 'danger' },
           ]}
         />
 
@@ -362,7 +403,7 @@ export const UserListPage: React.FC = () => {
 
         {/* Users Table */}
         <div className="bg-white dark:bg-dark-card rounded-lg shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
-          <Table loading={isLoading}>
+          <Table>
             <TableHead>
               <TableRow>
                 <TableCheckboxCell
@@ -371,6 +412,7 @@ export const UserListPage: React.FC = () => {
                   onChange={() => selection.isAllSelected ? selection.deselectAll() : selection.selectAll()}
                   ariaLabel="Select all users"
                   asHeader
+                  disabled={isLoading}
                 />
                 <TableHeader
                   sortable
@@ -404,7 +446,37 @@ export const UserListPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {!isLoading && users.length === 0 ? (
+              {isLoading ? (
+                // Skeleton loading rows
+                Array.from({ length: 10 }).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    <TableCell className="w-12">
+                      <Skeleton variant="rectangular" width={18} height={18} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Skeleton variant="circular" width={40} height={40} />
+                        <div className="ml-4 space-y-2">
+                          <Skeleton variant="text" width={120} height={14} />
+                          <Skeleton variant="text" width={160} height={12} />
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="rounded" width={70} height={22} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={80} height={14} />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton variant="text" width={80} height={14} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Skeleton variant="text" width={40} height={14} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12">
                     <p className="text-gray-500 dark:text-gray-400">No users found</p>
@@ -487,7 +559,7 @@ export const UserListPage: React.FC = () => {
                 ))
               )}
             </TableBody>
-            {totalPages > 1 && (
+            {!isLoading && totalPages > 1 && (
               <TableFooter>
                 <TableRow>
                   <TableCell colSpan={6}>

@@ -3,16 +3,9 @@ import type {
   UserType,
   CreateUserTypeData,
   UpdateUserTypeData,
-  BillingStatus,
-  CreateBillingStatusData,
-  UpdateBillingStatusData,
-  SubscriptionTypeWithLimits,
+  SubscriptionType,
   CreateSubscriptionTypeData,
   UpdateSubscriptionTypeData,
-  SubscriptionLimit,
-  CreateSubscriptionLimitData,
-  UpdateSubscriptionLimitData,
-  BulkUpdateLimitsData,
   UserSubscriptionWithDetails,
   CreateUserSubscriptionData,
   UpdateUserSubscriptionData,
@@ -22,7 +15,16 @@ import type {
   LimitCheckResult,
   UserBillingInfo,
   BillingOverview,
+  Permission,
+  PermissionCategory,
+  UserTypeWithPermissions,
+  SubscriptionTypeWithPermissions, // NEW
+  PermissionTemplate,
+  PermissionTemplateWithPermissions,
+  CreatePermissionTemplateData,
+  UpdatePermissionTemplateData,
 } from '@/types/billing.types';
+import type { SubscriptionAccessStatus } from '@/types/subscription-access.types';
 
 class BillingService {
   // ============================================================================
@@ -30,7 +32,7 @@ class BillingService {
   // ============================================================================
 
   async getBillingOverview(): Promise<BillingOverview> {
-    const response = await api.get<{ overview: BillingOverview }>('/api/billing/overview');
+    const response = await api.get<{ overview: BillingOverview }>('/billing/overview');
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch billing overview');
     }
@@ -38,11 +40,11 @@ class BillingService {
   }
 
   // ============================================================================
-  // USER TYPES
+  // USER TYPES (MEMBER TYPES)
   // ============================================================================
 
   async listUserTypes(): Promise<UserType[]> {
-    const response = await api.get<{ userTypes: UserType[] }>('/api/billing/user-types');
+    const response = await api.get<{ userTypes: UserType[] }>('/billing/user-types');
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch user types');
     }
@@ -50,7 +52,7 @@ class BillingService {
   }
 
   async getUserType(id: string): Promise<UserType> {
-    const response = await api.get<{ userType: UserType }>(`/api/billing/user-types/${id}`);
+    const response = await api.get<{ userType: UserType }>(`/billing/user-types/${id}`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch user type');
     }
@@ -58,7 +60,7 @@ class BillingService {
   }
 
   async createUserType(data: CreateUserTypeData): Promise<UserType> {
-    const response = await api.post<{ userType: UserType }>('/api/billing/user-types', data);
+    const response = await api.post<{ userType: UserType }>('/billing/user-types', data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to create user type');
     }
@@ -66,7 +68,7 @@ class BillingService {
   }
 
   async updateUserType(id: string, data: UpdateUserTypeData): Promise<UserType> {
-    const response = await api.patch<{ userType: UserType }>(`/api/billing/user-types/${id}`, data);
+    const response = await api.patch<{ userType: UserType }>(`/billing/user-types/${id}`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update user type');
     }
@@ -74,92 +76,49 @@ class BillingService {
   }
 
   async deleteUserType(id: string): Promise<void> {
-    const response = await api.delete(`/api/billing/user-types/${id}`);
+    const response = await api.delete(`/billing/user-types/${id}`);
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to delete user type');
     }
   }
 
   // ============================================================================
-  // BILLING STATUSES
+  // SUBSCRIPTION TYPES (with embedded JSONB limits)
   // ============================================================================
 
-  async listBillingStatuses(): Promise<BillingStatus[]> {
-    const response = await api.get<{ billingStatuses: BillingStatus[] }>('/api/billing/statuses');
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to fetch billing statuses');
-    }
-    return response.data.billingStatuses;
-  }
-
-  async getBillingStatus(id: string): Promise<BillingStatus> {
-    const response = await api.get<{ billingStatus: BillingStatus }>(`/api/billing/statuses/${id}`);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to fetch billing status');
-    }
-    return response.data.billingStatus;
-  }
-
-  async createBillingStatus(data: CreateBillingStatusData): Promise<BillingStatus> {
-    const response = await api.post<{ billingStatus: BillingStatus }>('/api/billing/statuses', data);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to create billing status');
-    }
-    return response.data.billingStatus;
-  }
-
-  async updateBillingStatus(id: string, data: UpdateBillingStatusData): Promise<BillingStatus> {
-    const response = await api.patch<{ billingStatus: BillingStatus }>(`/api/billing/statuses/${id}`, data);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to update billing status');
-    }
-    return response.data.billingStatus;
-  }
-
-  async deleteBillingStatus(id: string): Promise<void> {
-    const response = await api.delete(`/api/billing/statuses/${id}`);
-    if (!response.success) {
-      throw new Error(response.error?.message || 'Failed to delete billing status');
-    }
-  }
-
-  // ============================================================================
-  // SUBSCRIPTION TYPES
-  // ============================================================================
-
-  async listSubscriptionTypes(params?: SubscriptionTypeListParams): Promise<SubscriptionTypeWithLimits[]> {
+  async listSubscriptionTypes(params?: SubscriptionTypeListParams): Promise<SubscriptionType[]> {
     const queryParams = new URLSearchParams();
     if (params?.is_active !== undefined) queryParams.set('is_active', String(params.is_active));
     if (params?.is_recurring !== undefined) queryParams.set('is_recurring', String(params.is_recurring));
     if (params?.sortBy) queryParams.set('sortBy', params.sortBy);
     if (params?.sortOrder) queryParams.set('sortOrder', params.sortOrder);
 
-    const url = `/api/billing/subscription-types${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    const response = await api.get<{ subscriptionTypes: SubscriptionTypeWithLimits[] }>(url);
+    const url = `/billing/subscription-types${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const response = await api.get<{ subscriptionTypes: SubscriptionType[] }>(url);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch subscription types');
     }
     return response.data.subscriptionTypes;
   }
 
-  async getSubscriptionType(id: string): Promise<SubscriptionTypeWithLimits> {
-    const response = await api.get<{ subscriptionType: SubscriptionTypeWithLimits }>(`/api/billing/subscription-types/${id}`);
+  async getSubscriptionType(id: string): Promise<SubscriptionType> {
+    const response = await api.get<{ subscriptionType: SubscriptionType }>(`/billing/subscription-types/${id}`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch subscription type');
     }
     return response.data.subscriptionType;
   }
 
-  async createSubscriptionType(data: CreateSubscriptionTypeData): Promise<SubscriptionTypeWithLimits> {
-    const response = await api.post<{ subscriptionType: SubscriptionTypeWithLimits }>('/api/billing/subscription-types', data);
+  async createSubscriptionType(data: CreateSubscriptionTypeData): Promise<SubscriptionType> {
+    const response = await api.post<{ subscriptionType: SubscriptionType }>('/billing/subscription-types', data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to create subscription type');
     }
     return response.data.subscriptionType;
   }
 
-  async updateSubscriptionType(id: string, data: UpdateSubscriptionTypeData): Promise<SubscriptionTypeWithLimits> {
-    const response = await api.patch<{ subscriptionType: SubscriptionTypeWithLimits }>(`/api/billing/subscription-types/${id}`, data);
+  async updateSubscriptionType(id: string, data: UpdateSubscriptionTypeData): Promise<SubscriptionType> {
+    const response = await api.patch<{ subscriptionType: SubscriptionType }>(`/billing/subscription-types/${id}`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update subscription type');
     }
@@ -167,62 +126,19 @@ class BillingService {
   }
 
   async deleteSubscriptionType(id: string): Promise<void> {
-    const response = await api.delete(`/api/billing/subscription-types/${id}`);
+    const response = await api.delete(`/billing/subscription-types/${id}`);
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to delete subscription type');
     }
   }
 
   // ============================================================================
-  // SUBSCRIPTION LIMITS
-  // ============================================================================
-
-  async getSubscriptionLimits(subscriptionTypeId: string): Promise<SubscriptionLimit[]> {
-    const response = await api.get<{ limits: SubscriptionLimit[] }>(`/api/billing/subscription-types/${subscriptionTypeId}/limits`);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to fetch subscription limits');
-    }
-    return response.data.limits;
-  }
-
-  async createSubscriptionLimit(data: CreateSubscriptionLimitData): Promise<SubscriptionLimit> {
-    const response = await api.post<{ limit: SubscriptionLimit }>('/api/billing/limits', data);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to create subscription limit');
-    }
-    return response.data.limit;
-  }
-
-  async updateSubscriptionLimit(id: string, data: UpdateSubscriptionLimitData): Promise<SubscriptionLimit> {
-    const response = await api.patch<{ limit: SubscriptionLimit }>(`/api/billing/limits/${id}`, data);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to update subscription limit');
-    }
-    return response.data.limit;
-  }
-
-  async deleteSubscriptionLimit(id: string): Promise<void> {
-    const response = await api.delete(`/api/billing/limits/${id}`);
-    if (!response.success) {
-      throw new Error(response.error?.message || 'Failed to delete subscription limit');
-    }
-  }
-
-  async bulkUpdateLimits(subscriptionTypeId: string, data: BulkUpdateLimitsData): Promise<SubscriptionLimit[]> {
-    const response = await api.put<{ limits: SubscriptionLimit[] }>(`/api/billing/subscription-types/${subscriptionTypeId}/limits`, data);
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Failed to update subscription limits');
-    }
-    return response.data.limits;
-  }
-
-  // ============================================================================
-  // USER SUBSCRIPTIONS
+  // USER SUBSCRIPTIONS (with status field)
   // ============================================================================
 
   async listUserSubscriptions(params?: UserSubscriptionListParams): Promise<UserSubscriptionListResponse> {
     const queryParams = new URLSearchParams();
-    if (params?.billing_status_id) queryParams.set('billing_status_id', params.billing_status_id);
+    if (params?.status) queryParams.set('status', params.status);
     if (params?.subscription_type_id) queryParams.set('subscription_type_id', params.subscription_type_id);
     if (params?.is_active !== undefined) queryParams.set('is_active', String(params.is_active));
     if (params?.expires_before) queryParams.set('expires_before', params.expires_before);
@@ -232,7 +148,7 @@ class BillingService {
     if (params?.sortBy) queryParams.set('sortBy', params.sortBy);
     if (params?.sortOrder) queryParams.set('sortOrder', params.sortOrder);
 
-    const url = `/api/billing/subscriptions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `/billing/subscriptions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await api.get<UserSubscriptionListResponse>(url);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch user subscriptions');
@@ -241,7 +157,7 @@ class BillingService {
   }
 
   async getUserSubscription(userId: string): Promise<UserSubscriptionWithDetails | null> {
-    const response = await api.get<{ subscription: UserSubscriptionWithDetails | null }>(`/api/billing/subscriptions/user/${userId}`);
+    const response = await api.get<{ subscription: UserSubscriptionWithDetails | null }>(`/billing/subscriptions/user/${userId}`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch user subscription');
     }
@@ -249,7 +165,7 @@ class BillingService {
   }
 
   async createUserSubscription(data: CreateUserSubscriptionData): Promise<UserSubscriptionWithDetails> {
-    const response = await api.post<{ subscription: UserSubscriptionWithDetails }>('/api/billing/subscriptions', data);
+    const response = await api.post<{ subscription: UserSubscriptionWithDetails }>('/billing/subscriptions', data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to create user subscription');
     }
@@ -257,7 +173,7 @@ class BillingService {
   }
 
   async updateUserSubscription(userId: string, data: UpdateUserSubscriptionData): Promise<UserSubscriptionWithDetails> {
-    const response = await api.patch<{ subscription: UserSubscriptionWithDetails }>(`/api/billing/subscriptions/user/${userId}`, data);
+    const response = await api.patch<{ subscription: UserSubscriptionWithDetails }>(`/billing/subscriptions/user/${userId}`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update user subscription');
     }
@@ -265,7 +181,7 @@ class BillingService {
   }
 
   async cancelUserSubscription(userId: string, reason?: string): Promise<void> {
-    const response = await api.post(`/api/billing/subscriptions/user/${userId}/cancel`, { cancellation_reason: reason });
+    const response = await api.post(`/billing/subscriptions/user/${userId}/cancel`, { cancellation_reason: reason });
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to cancel subscription');
     }
@@ -275,8 +191,36 @@ class BillingService {
   // USER BILLING INFO
   // ============================================================================
 
+  /**
+   * Get current user's billing info (for profile page)
+   * No special permissions required
+   */
+  async getMyBillingInfo(): Promise<UserBillingInfo> {
+    const response = await api.get<{ billingInfo: UserBillingInfo }>('/billing/my-billing');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch billing info');
+    }
+    return response.data.billingInfo;
+  }
+
+  /**
+   * Get current user's subscription access status (for paywall/read-only mode)
+   * No special permissions required
+   */
+  async getMySubscriptionAccess(): Promise<SubscriptionAccessStatus> {
+    const response = await api.get<{ accessStatus: SubscriptionAccessStatus }>('/billing/my-subscription-access');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch subscription access');
+    }
+    return response.data.accessStatus;
+  }
+
+  /**
+   * Get billing info for a specific user (admin endpoint)
+   * Requires users:read permission
+   */
   async getUserBillingInfo(userId: string): Promise<UserBillingInfo> {
-    const response = await api.get<{ billingInfo: UserBillingInfo }>(`/api/billing/users/${userId}/billing-info`);
+    const response = await api.get<{ billingInfo: UserBillingInfo }>(`/billing/users/${userId}/billing-info`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch user billing info');
     }
@@ -284,14 +228,14 @@ class BillingService {
   }
 
   async assignUserType(userId: string, userTypeId: string): Promise<void> {
-    const response = await api.post(`/api/billing/users/${userId}/user-type`, { user_type_id: userTypeId });
+    const response = await api.post(`/billing/users/${userId}/user-type`, { user_type_id: userTypeId });
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to assign user type');
     }
   }
 
   async checkUserLimit(userId: string, limitKey: string, currentCount: number = 0): Promise<LimitCheckResult> {
-    const response = await api.post<{ limitCheck: LimitCheckResult }>(`/api/billing/users/${userId}/check-limit`, {
+    const response = await api.post<{ limitCheck: LimitCheckResult }>(`/billing/users/${userId}/check-limit`, {
       limit_key: limitKey,
       current_count: currentCount,
     });
@@ -299,6 +243,157 @@ class BillingService {
       throw new Error(response.error?.message || 'Failed to check user limit');
     }
     return response.data.limitCheck;
+  }
+
+  // ============================================================================
+  // USER TYPE PERMISSIONS
+  // ============================================================================
+
+  async listPermissions(): Promise<Permission[]> {
+    const response = await api.get<{ permissions: Permission[] }>('/billing/permissions');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch permissions');
+    }
+    return response.data.permissions;
+  }
+
+  /**
+   * Get all permissions grouped by category (for subscription plan editor)
+   */
+  async getPermissionsByCategory(): Promise<PermissionCategory[]> {
+    const response = await api.get<{ categories: PermissionCategory[] }>('/billing/permissions-by-category');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch permission categories');
+    }
+    return response.data.categories;
+  }
+
+  async listUserTypesWithPermissions(): Promise<UserTypeWithPermissions[]> {
+    const response = await api.get<{ userTypes: UserTypeWithPermissions[] }>('/billing/user-types-with-permissions');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch user types with permissions');
+    }
+    return response.data.userTypes;
+  }
+
+  async getUserTypePermissions(userTypeId: string): Promise<Permission[]> {
+    const response = await api.get<{ permissions: Permission[] }>(`/billing/user-types/${userTypeId}/permissions`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch user type permissions');
+    }
+    return response.data.permissions;
+  }
+
+  async updateUserTypePermissions(userTypeId: string, permissionIds: string[]): Promise<Permission[]> {
+    const response = await api.put<{ permissions: Permission[] }>(`/billing/user-types/${userTypeId}/permissions`, {
+      permission_ids: permissionIds,
+    });
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to update user type permissions');
+    }
+    return response.data.permissions;
+  }
+
+  async applyTemplateToUserType(userTypeId: string, templateId: string): Promise<Permission[]> {
+    const response = await api.post<{ permissions: Permission[] }>(`/billing/user-types/${userTypeId}/apply-template`, {
+      template_id: templateId,
+    });
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to apply template to user type');
+    }
+    return response.data.permissions;
+  }
+
+  // ============================================================================
+  // PERMISSION TEMPLATES
+  // ============================================================================
+
+  async listPermissionTemplates(): Promise<PermissionTemplate[]> {
+    const response = await api.get<{ templates: PermissionTemplate[] }>('/billing/permission-templates');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch permission templates');
+    }
+    return response.data.templates;
+  }
+
+  async getPermissionTemplate(id: string): Promise<PermissionTemplateWithPermissions> {
+    const response = await api.get<{ template: PermissionTemplateWithPermissions }>(`/billing/permission-templates/${id}`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch permission template');
+    }
+    return response.data.template;
+  }
+
+  async createPermissionTemplate(data: CreatePermissionTemplateData): Promise<PermissionTemplate> {
+    const response = await api.post<{ template: PermissionTemplate }>('/billing/permission-templates', data);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to create permission template');
+    }
+    return response.data.template;
+  }
+
+  async updatePermissionTemplate(id: string, data: UpdatePermissionTemplateData): Promise<PermissionTemplate> {
+    const response = await api.patch<{ template: PermissionTemplate }>(`/billing/permission-templates/${id}`, data);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to update permission template');
+    }
+    return response.data.template;
+  }
+
+  async deletePermissionTemplate(id: string): Promise<void> {
+    const response = await api.delete(`/billing/permission-templates/${id}`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to delete permission template');
+    }
+  }
+
+  // ============================================================================
+  // SUBSCRIPTION TYPE PERMISSIONS (NEW)
+  // ============================================================================
+
+  /**
+   * Get permissions for a subscription type
+   */
+  async getSubscriptionTypePermissions(subscriptionTypeId: string): Promise<Permission[]> {
+    const response = await api.get<{ permissions: Permission[] }>(
+      `/billing/subscription-types/${subscriptionTypeId}/permissions`
+    );
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch subscription type permissions');
+    }
+    return response.data.permissions;
+  }
+
+  /**
+   * Update permissions for a subscription type
+   */
+  async updateSubscriptionTypePermissions(
+    subscriptionTypeId: string,
+    permissionIds: string[]
+  ): Promise<Permission[]> {
+    const response = await api.put<{ permissions: Permission[] }>(
+      `/billing/subscription-types/${subscriptionTypeId}/permissions`,
+      { permission_ids: permissionIds }
+    );
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to update subscription type permissions');
+    }
+    return response.data.permissions;
+  }
+
+  /**
+   * Get subscription type with permissions included
+   */
+  async getSubscriptionTypeWithPermissions(id: string): Promise<SubscriptionTypeWithPermissions> {
+    const [subscriptionType, permissions] = await Promise.all([
+      this.getSubscriptionType(id),
+      this.getSubscriptionTypePermissions(id),
+    ]);
+
+    return {
+      ...subscriptionType,
+      permissions,
+    };
   }
 }
 

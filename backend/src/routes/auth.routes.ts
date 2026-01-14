@@ -25,6 +25,10 @@ router.post('/forgot-password', validateBody(forgotPasswordSchema), authControll
 router.post('/reset-password', validateBody(resetPasswordSchema), authController.resetPassword);
 router.get('/verify-email', validateQuery(verifyEmailSchema), authController.verifyEmail);
 
+// Guest booking routes (public)
+router.post('/check-email', authController.checkEmail);
+router.post('/register-guest', authController.registerGuest);
+
 // Protected routes
 router.post('/logout', authenticate, authController.logout);
 router.get('/me', authenticate, loadUserProfile, authController.getMe);

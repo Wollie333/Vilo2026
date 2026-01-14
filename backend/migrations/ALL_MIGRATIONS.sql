@@ -107,10 +107,10 @@ CREATE TABLE public.properties (
 COMMENT ON TABLE public.properties IS 'Properties for multi-tenancy isolation';
 
 -- =====================================================
--- 6. USER_PROFILES TABLE (extends auth.users)
+-- 6. users TABLE (extends auth.users)
 -- =====================================================
 
-CREATE TABLE public.user_profiles (
+CREATE TABLE public.users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
@@ -144,7 +144,7 @@ CREATE TABLE public.user_profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE public.user_profiles IS 'Extended user profile data linked to Supabase auth.users';
+COMMENT ON TABLE public.users IS 'Extended user profile data linked to Supabase auth.users';
 
 -- =====================================================
 -- 7. USER_ROLES (Many-to-Many)
@@ -152,7 +152,7 @@ COMMENT ON TABLE public.user_profiles IS 'Extended user profile data linked to S
 
 CREATE TABLE public.user_roles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
     property_id UUID REFERENCES public.properties(id) ON DELETE CASCADE,
     assigned_by UUID REFERENCES auth.users(id),
@@ -168,7 +168,7 @@ COMMENT ON TABLE public.user_roles IS 'Assigns roles to users, optionally scoped
 
 CREATE TABLE public.user_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
     override_type permission_override NOT NULL,
     property_id UUID REFERENCES public.properties(id) ON DELETE CASCADE,
@@ -187,7 +187,7 @@ COMMENT ON TABLE public.user_permissions IS 'Direct permission overrides for spe
 
 CREATE TABLE public.user_properties (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
     is_primary BOOLEAN NOT NULL DEFAULT FALSE,
     assigned_by UUID REFERENCES auth.users(id),
@@ -224,7 +224,7 @@ COMMENT ON TABLE public.audit_log IS 'Immutable audit trail for all sensitive op
 
 CREATE TABLE public.user_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     refresh_token_hash VARCHAR(255),
     device_info JSONB DEFAULT '{}',
     ip_address INET,
@@ -243,9 +243,9 @@ COMMENT ON TABLE public.user_sessions IS 'Tracks active user sessions for securi
 -- =====================================================
 
 -- User profiles indexes
-CREATE INDEX idx_user_profiles_email ON public.user_profiles(email);
-CREATE INDEX idx_user_profiles_status ON public.user_profiles(status);
-CREATE INDEX idx_user_profiles_created_at ON public.user_profiles(created_at DESC);
+CREATE INDEX idx_users_email ON public.users(email);
+CREATE INDEX idx_users_status ON public.users(status);
+CREATE INDEX idx_users_created_at ON public.users(created_at DESC);
 
 -- User roles indexes
 CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
@@ -290,7 +290,7 @@ ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_properties ENABLE ROW LEVEL SECURITY;
@@ -395,7 +395,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Get user's account status
 CREATE OR REPLACE FUNCTION public.get_user_status()
 RETURNS user_status AS $$
-    SELECT status FROM public.user_profiles WHERE id = auth.uid();
+    SELECT status FROM public.users WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER;
 
 -- =====================================================
@@ -492,32 +492,32 @@ CREATE POLICY "Only super admins can delete properties"
     USING (public.is_super_admin());
 
 -- =====================================================
--- USER_PROFILES TABLE POLICIES
+-- users TABLE POLICIES
 -- =====================================================
 
 CREATE POLICY "Users can view own profile"
-    ON public.user_profiles FOR SELECT
+    ON public.users FOR SELECT
     TO authenticated
     USING (id = auth.uid());
 
 CREATE POLICY "Admins can view all profiles"
-    ON public.user_profiles FOR SELECT
+    ON public.users FOR SELECT
     TO authenticated
     USING (public.has_permission('users', 'read'));
 
 CREATE POLICY "Users can update own profile"
-    ON public.user_profiles FOR UPDATE
+    ON public.users FOR UPDATE
     TO authenticated
     USING (id = auth.uid())
     WITH CHECK (id = auth.uid());
 
 CREATE POLICY "Admins can update any profile"
-    ON public.user_profiles FOR UPDATE
+    ON public.users FOR UPDATE
     TO authenticated
     USING (public.has_permission('users', 'update'));
 
 CREATE POLICY "Service role can insert profiles"
-    ON public.user_profiles FOR INSERT
+    ON public.users FOR INSERT
     TO service_role
     WITH CHECK (TRUE);
 
@@ -632,7 +632,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Create user profile with pending status
-    INSERT INTO public.user_profiles (
+    INSERT INTO public.users (
         id,
         email,
         full_name,
@@ -684,7 +684,7 @@ CREATE OR REPLACE FUNCTION public.handle_email_confirmed()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.email_confirmed_at IS NOT NULL AND OLD.email_confirmed_at IS NULL THEN
-        UPDATE public.user_profiles
+        UPDATE public.users
         SET
             email_verified_at = NEW.email_confirmed_at,
             updated_at = NOW()
@@ -724,7 +724,7 @@ CREATE OR REPLACE FUNCTION public.handle_user_login()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.last_sign_in_at IS DISTINCT FROM OLD.last_sign_in_at THEN
-        UPDATE public.user_profiles
+        UPDATE public.users
         SET
             last_login_at = NEW.last_sign_in_at,
             last_active_at = NOW(),
@@ -769,9 +769,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON public.user_profiles;
-CREATE TRIGGER update_user_profiles_updated_at
-    BEFORE UPDATE ON public.user_profiles
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON public.users
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at();
 
@@ -989,7 +989,7 @@ DECLARE
     v_property_id UUID;
 BEGIN
     -- Update user status to active
-    UPDATE public.user_profiles
+    UPDATE public.users
     SET
         status = 'active',
         approved_at = NOW(),
@@ -1055,7 +1055,7 @@ CREATE OR REPLACE FUNCTION public.suspend_user(
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-    UPDATE public.user_profiles
+    UPDATE public.users
     SET
         status = 'suspended',
         updated_at = NOW()
@@ -1100,7 +1100,7 @@ CREATE OR REPLACE FUNCTION public.reactivate_user(
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-    UPDATE public.user_profiles
+    UPDATE public.users
     SET
         status = 'active',
         updated_at = NOW()
@@ -1258,7 +1258,7 @@ BEGIN
             WHERE upr.user_id = up.id
         ), '[]'::json)
     ) INTO v_result
-    FROM public.user_profiles up
+    FROM public.users up
     WHERE up.id = p_user_id;
 
     RETURN v_result;

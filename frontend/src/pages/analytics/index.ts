@@ -1,0 +1,1 @@
+export { FailedCheckoutsPage } from './FailedCheckoutsPage';

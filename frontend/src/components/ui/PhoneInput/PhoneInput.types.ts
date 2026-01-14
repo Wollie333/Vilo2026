@@ -1,3 +1,12 @@
+export interface CountryCode {
+  code: string;
+  name: string;
+  dialCode: string;
+  flag: string;
+  maxDigits: number;
+  format: string; // e.g., "XX XXX XXXX"
+}
+
 export interface PhoneInputProps {
   /** Label text displayed above the input */
   label?: string;
@@ -11,6 +20,8 @@ export interface PhoneInputProps {
   value?: string;
   /** Callback when value changes (returns digits only) */
   onChange?: (value: string) => void;
+  /** Callback when country code changes */
+  onCountryChange?: (country: CountryCode) => void;
   /** Callback when input loses focus */
   onBlur?: () => void;
   /** Whether the input is disabled */
@@ -21,4 +32,6 @@ export interface PhoneInputProps {
   name?: string;
   /** Placeholder text */
   placeholder?: string;
+  /** Default country code (ISO 2-letter code) */
+  defaultCountry?: string;
 }

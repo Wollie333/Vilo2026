@@ -1,7 +1,31 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { HeaderProps } from './Header.types';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { NotificationCenter } from '@/components/features/NotificationCenter';
+import { SearchModal } from '@/components/features/SearchModal';
+
+const HomeIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+    />
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
+  </svg>
+);
 
 const HelpIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -59,6 +83,12 @@ export function Header({
   rightContent,
 }: HeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [showSearchTooltip, setShowSearchTooltip] = useState(false);
+  const [showHomeTooltip, setShowHomeTooltip] = useState(false);
+  const [showHelpTooltip, setShowHelpTooltip] = useState(false);
+  const [showNotificationsTooltip, setShowNotificationsTooltip] = useState(false);
+  const [showUserTooltip, setShowUserTooltip] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -101,26 +131,84 @@ export function Header({
       <div className="flex items-center gap-2">
         {rightContent}
 
+        {/* Search */}
+        <div className="relative">
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            onMouseEnter={() => setShowSearchTooltip(true)}
+            onMouseLeave={() => setShowSearchTooltip(false)}
+            className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
+            aria-label="Search"
+          >
+            <SearchIcon />
+          </button>
+          {showSearchTooltip && (
+            <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-md whitespace-nowrap pointer-events-none z-50 shadow-lg">
+              Search properties
+            </span>
+          )}
+        </div>
+
+        {/* Home */}
+        <div className="relative">
+          <Link
+            to="/"
+            onMouseEnter={() => setShowHomeTooltip(true)}
+            onMouseLeave={() => setShowHomeTooltip(false)}
+            className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
+            aria-label="Home"
+          >
+            <HomeIcon />
+          </Link>
+          {showHomeTooltip && (
+            <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-md whitespace-nowrap pointer-events-none z-50 shadow-lg">
+              Home
+            </span>
+          )}
+        </div>
+
         {/* Theme Toggle */}
         <ThemeToggle />
 
         {/* Notifications */}
-        <NotificationCenter />
+        <div
+          className="relative"
+          onMouseEnter={() => setShowNotificationsTooltip(true)}
+          onMouseLeave={() => setShowNotificationsTooltip(false)}
+        >
+          <NotificationCenter />
+          {showNotificationsTooltip && (
+            <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-md whitespace-nowrap pointer-events-none z-50 shadow-lg">
+              Notifications
+            </span>
+          )}
+        </div>
 
         {/* Help */}
-        <button
-          onClick={onHelpClick}
-          className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-card rounded-md transition-colors"
-          aria-label="Help"
-        >
-          <HelpIcon />
-        </button>
+        <div className="relative">
+          <button
+            onClick={onHelpClick}
+            onMouseEnter={() => setShowHelpTooltip(true)}
+            onMouseLeave={() => setShowHelpTooltip(false)}
+            className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
+            aria-label="Help"
+          >
+            <HelpIcon />
+          </button>
+          {showHelpTooltip && (
+            <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-md whitespace-nowrap pointer-events-none z-50 shadow-lg">
+              Help & Support
+            </span>
+          )}
+        </div>
 
         {/* Profile Dropdown */}
         <div className="relative ml-2" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-2 p-1 hover:bg-gray-100 dark:hover:bg-dark-card rounded-md transition-colors"
+            onMouseEnter={() => setShowUserTooltip(true)}
+            onMouseLeave={() => setShowUserTooltip(false)}
+            className="flex items-center gap-2 p-1 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
           >
             {userAvatar ? (
               <img
@@ -129,7 +217,7 @@ export function Header({
                 className="w-7 h-7 rounded-full object-cover"
               />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-brand-black font-medium text-xs">
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white font-medium text-xs">
                 {userName?.charAt(0).toUpperCase() || 'U'}
               </div>
             )}
@@ -140,6 +228,13 @@ export function Header({
             )}
             <ChevronDownIcon />
           </button>
+
+          {/* Tooltip */}
+          {showUserTooltip && !isDropdownOpen && (
+            <span className="absolute top-full mt-2 right-0 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-md whitespace-nowrap pointer-events-none z-50 shadow-lg">
+              Account settings
+            </span>
+          )}
 
           {/* Dropdown Menu */}
           {isDropdownOpen && (
@@ -160,14 +255,14 @@ export function Header({
               <div className="py-1">
                 <button
                   onClick={handleProfileClick}
-                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-card-hover transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-primary-100 hover:text-gray-900 dark:hover:bg-primary dark:hover:text-black transition-colors"
                 >
                   <UserIcon />
                   My Profile
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-dark-card-hover transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
                   <LogoutIcon />
                   Log out
@@ -177,6 +272,9 @@ export function Header({
           )}
         </div>
       </div>
+
+      {/* Search Modal */}
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </header>
   );
 }

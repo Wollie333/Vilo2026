@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTheme } from '@/context/ThemeContext';
 import { ThemeToggleProps } from './ThemeToggle.types';
 
@@ -30,6 +31,7 @@ export function ThemeToggle({
   className = '',
 }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme();
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const isDark = resolvedTheme === 'dark';
 
@@ -38,51 +40,36 @@ export function ThemeToggle({
   };
 
   return (
-    <button
-      onClick={toggleTheme}
-      className={`
-        relative flex items-center gap-2 p-1
-        bg-gray-200 dark:bg-dark-card
-        rounded-full transition-colors
-        ${className}
-      `}
-      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-      title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-    >
-      {/* Toggle track with icons */}
-      <div className="flex items-center gap-1 px-1">
-        {/* Sun icon */}
-        <span
-          className={`
-            p-1.5 rounded-full transition-all duration-200
-            ${!isDark
-              ? 'bg-white text-yellow-500 shadow-sm'
-              : 'text-gray-400 hover:text-gray-300'
-            }
-          `}
-        >
-          <SunIcon />
-        </span>
+    <div className="relative">
+      <button
+        onClick={toggleTheme}
+        onMouseEnter={() => !showLabel && setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        className={`
+          flex items-center gap-2 p-1.5
+          text-gray-500 hover:text-gray-900 dark:text-gray-400
+          hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black
+          rounded-md transition-colors
+          ${className}
+        `}
+        aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      >
+        {/* Show only the current mode icon */}
+        {isDark ? <SunIcon /> : <MoonIcon />}
 
-        {/* Moon icon */}
-        <span
-          className={`
-            p-1.5 rounded-full transition-all duration-200
-            ${isDark
-              ? 'bg-dark-border text-primary shadow-sm'
-              : 'text-gray-400 hover:text-gray-600'
-            }
-          `}
-        >
-          <MoonIcon />
-        </span>
-      </div>
+        {showLabel && (
+          <span className="text-sm font-medium">
+            {isDark ? 'Light Mode' : 'Dark Mode'}
+          </span>
+        )}
+      </button>
 
-      {showLabel && (
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-200 pr-2">
-          {isDark ? 'Dark' : 'Light'}
+      {/* Tooltip - only show if label is hidden */}
+      {showTooltip && !showLabel && (
+        <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-md whitespace-nowrap pointer-events-none z-50 shadow-lg">
+          {isDark ? 'Switch to light mode' : 'Switch to dark mode'}
         </span>
       )}
-    </button>
+    </div>
   );
 }

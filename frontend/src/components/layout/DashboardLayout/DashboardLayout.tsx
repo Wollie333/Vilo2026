@@ -2,6 +2,36 @@ import { useState } from 'react';
 import { DashboardLayoutProps } from './DashboardLayout.types';
 import { Sidebar } from '../Sidebar';
 import { Header } from '../Header';
+import { PaymentRequiredBanner } from '@/components/features/PaymentRequiredBanner';
+import { BookingLinkButton } from '@/components/features';
+import { useSubscription } from '@/context/SubscriptionContext';
+import { useProperty } from '@/context/PropertyContext';
+
+// Wrapper component for the subscription banner
+const SubscriptionBannerWrapper = () => {
+  const { accessStatus, isLoading } = useSubscription();
+
+  // Don't show banner while loading or if no access status
+  if (isLoading || !accessStatus) return null;
+
+  // Don't show banner if user has full access and doesn't require payment
+  // But DO show if they're in trial (to show countdown) or have pending checkout
+  const showBanner =
+    accessStatus.requiresPayment ||
+    accessStatus.hasPendingCheckout ||
+    (accessStatus.subscriptionStatus === 'trial' && accessStatus.trialDaysRemaining !== null) ||
+    accessStatus.subscriptionStatus === 'cancelled';
+
+  if (!showBanner) return null;
+
+  return (
+    <PaymentRequiredBanner
+      message={accessStatus.message}
+      trialDaysRemaining={accessStatus.trialDaysRemaining}
+      hasPendingCheckout={accessStatus.hasPendingCheckout}
+    />
+  );
+};
 
 const MenuIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -26,9 +56,19 @@ export function DashboardLayout({
   userAvatar,
   onProfileClick,
   onLogout,
+  noPadding = false,
+  propertySelector,
 }: DashboardLayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Get property context for booking link
+  const { selectedProperty } = useProperty();
+
+  // Create rightContent with booking link button when property exists
+  const rightContent = selectedProperty?.slug ? (
+    <BookingLinkButton propertySlug={selectedProperty.slug} propertyName={selectedProperty.name} />
+  ) : undefined;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
@@ -56,6 +96,7 @@ export function DashboardLayout({
           onItemClick={(item) => {
             onNavItemClick?.(item);
           }}
+          propertySelector={propertySelector}
         />
       </div>
 
@@ -76,6 +117,7 @@ export function DashboardLayout({
             onNavItemClick?.(item);
             setIsMobileSidebarOpen(false);
           }}
+          propertySelector={propertySelector}
         />
       </div>
 
@@ -122,11 +164,15 @@ export function DashboardLayout({
             userAvatar={userAvatar}
             onProfileClick={onProfileClick}
             onLogout={onLogout}
+            rightContent={rightContent}
           />
         </div>
 
+        {/* Subscription Status Banner */}
+        <SubscriptionBannerWrapper />
+
         {/* Page Content */}
-        <main className="p-5 lg:p-8">{children}</main>
+        <main className={noPadding ? '' : 'p-5 lg:p-8'}>{children}</main>
       </div>
     </div>
   );

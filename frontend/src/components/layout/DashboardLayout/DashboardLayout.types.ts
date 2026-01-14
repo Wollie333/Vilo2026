@@ -24,4 +24,8 @@ export interface DashboardLayoutProps {
   onProfileClick?: () => void;
   /** Callback when logout is clicked */
   onLogout?: () => void;
+  /** Remove default padding from content area */
+  noPadding?: boolean;
+  /** Property selector component to display in sidebar */
+  propertySelector?: ReactNode;
 }

@@ -19,6 +19,7 @@ interface AuthContextType extends AuthState {
   signup: (data: SignUpData) => Promise<{ message: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  clearInitializing: () => void;
   hasPermission: (resource: string, action: string) => boolean;
   hasRole: (roleName: string) => boolean;
   isSuperAdmin: boolean;
@@ -38,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshToken: null,
     isAuthenticated: false,
     isLoading: true,
+    isInitializing: false,
     error: null,
   });
 
@@ -57,6 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               refreshToken,
               isAuthenticated: true,
               isLoading: false,
+              isInitializing: false,
               error: null,
             });
             return;
@@ -73,6 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         refreshToken: null,
         isAuthenticated: false,
         isLoading: false,
+        isInitializing: false,
         error: null,
       });
     };
@@ -93,6 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           refreshToken: response.refreshToken,
           isAuthenticated: true,
           isLoading: false,
+          isInitializing: false,
           error: null,
         });
       }
@@ -107,16 +112,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const signup = useCallback(async (data: SignUpData) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    setState((prev) => ({ ...prev, isLoading: true, isInitializing: true, error: null }));
 
     try {
       const response = await authService.signUp(data);
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return { message: response?.message || 'Account created successfully' };
+      if (response) {
+        // Set authenticated state immediately with basic user info
+        // This allows the user to proceed to checkout/onboarding
+        setState({
+          user: {
+            id: response.user.id,
+            email: response.user.email,
+            // Minimal profile - will be loaded fully later
+            roles: [],
+            effectivePermissions: [],
+            directPermissions: [],
+            properties: [],
+          } as any,
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken,
+          isAuthenticated: true,
+          isLoading: false,
+          isInitializing: true, // Keep true for onboarding redirect
+          error: null,
+        });
+
+        // Load full user profile in background (don't block)
+        authService.getCurrentUser().then(user => {
+          if (user) {
+            setState(prev => ({ ...prev, user }));
+          }
+        }).catch(() => {
+          // Ignore errors - user is already authenticated
+        });
+      }
+      return { message: 'Account created successfully' };
     } catch (error) {
       setState((prev) => ({
         ...prev,
         isLoading: false,
+        isInitializing: false, // Reset on error
         error: error instanceof Error ? error.message : 'Sign up failed',
       }));
       throw error;
@@ -131,6 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      isInitializing: false,
       error: null,
     });
   }, []);
@@ -144,6 +180,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       // Ignore refresh errors
     }
+  }, []);
+
+  const clearInitializing = useCallback(() => {
+    setState((prev) => ({ ...prev, isInitializing: false }));
   }, []);
 
   const hasPermission = useCallback(
@@ -169,6 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signup,
     logout,
     refreshUser,
+    clearInitializing,
     hasPermission,
     hasRole,
     isSuperAdmin,

@@ -3,7 +3,7 @@ import { sendSuccess } from '../utils/response';
 import * as billingService from '../services/billing.service';
 
 // ============================================================================
-// USER TYPES
+// USER TYPES (MEMBER TYPES)
 // ============================================================================
 
 /**
@@ -96,105 +96,153 @@ export const deleteUserType = async (
 };
 
 // ============================================================================
-// BILLING STATUSES
+// USER TYPE PERMISSIONS
 // ============================================================================
 
 /**
- * GET /api/billing/statuses
- * List all billing statuses
+ * GET /api/billing/permissions
+ * List all available permissions
  */
-export const listBillingStatuses = async (
+export const listPermissions = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const billingStatuses = await billingService.listBillingStatuses();
-    sendSuccess(res, { billingStatuses });
+    const permissions = await billingService.listPermissions();
+    sendSuccess(res, { permissions });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * GET /api/billing/statuses/:id
- * Get single billing status
+ * GET /api/billing/permissions-by-category
+ * Get all permissions grouped by category (for subscription plan editor)
  */
-export const getBillingStatus = async (
+export const getPermissionsByCategory = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const billingStatus = await billingService.getBillingStatus(req.params.id);
-    sendSuccess(res, { billingStatus });
+    const categories = await billingService.getPermissionsByCategory();
+    sendSuccess(res, { categories });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * POST /api/billing/statuses
- * Create a new billing status
+ * GET /api/billing/user-types/:id/permissions
+ * Get permissions for a user type
  */
-export const createBillingStatus = async (
+export const getUserTypePermissions = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const billingStatus = await billingService.createBillingStatus(req.body, req.user!.id);
-    sendSuccess(res, { billingStatus, message: 'Billing status created successfully' }, 201);
+    const permissions = await billingService.getUserTypePermissions(req.params.id);
+    sendSuccess(res, { permissions });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * PATCH /api/billing/statuses/:id
- * Update a billing status
+ * GET /api/billing/user-types-with-permissions
+ * Get all user types with their permissions
  */
-export const updateBillingStatus = async (
+export const listUserTypesWithPermissions = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const billingStatus = await billingService.updateBillingStatus(
+    const userTypes = await billingService.listUserTypesWithPermissions();
+    sendSuccess(res, { userTypes });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/billing/user-types/:id/permissions
+ * Update permissions for a user type (replaces all)
+ */
+export const updateUserTypePermissions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { permission_ids } = req.body;
+    await billingService.updateUserTypePermissions(
       req.params.id,
-      req.body,
+      permission_ids,
       req.user!.id
     );
-    sendSuccess(res, { billingStatus, message: 'Billing status updated successfully' });
+    const updatedPermissions = await billingService.getUserTypePermissions(req.params.id);
+    sendSuccess(res, {
+      permissions: updatedPermissions,
+      message: 'User type permissions updated successfully'
+    });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * DELETE /api/billing/statuses/:id
- * Delete a billing status
+ * POST /api/billing/user-types/:id/permissions
+ * Add a permission to a user type
  */
-export const deleteBillingStatus = async (
+export const assignPermissionToUserType = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    await billingService.deleteBillingStatus(req.params.id, req.user!.id);
-    sendSuccess(res, { message: 'Billing status deleted successfully' });
+    const { permission_id } = req.body;
+    await billingService.assignPermissionToUserType(
+      req.params.id,
+      permission_id,
+      req.user!.id
+    );
+    sendSuccess(res, { message: 'Permission assigned successfully' }, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/billing/user-types/:id/permissions/:permissionId
+ * Remove a permission from a user type
+ */
+export const removePermissionFromUserType = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    await billingService.removePermissionFromUserType(
+      req.params.id,
+      req.params.permissionId,
+      req.user!.id
+    );
+    sendSuccess(res, { message: 'Permission removed successfully' });
   } catch (error) {
     next(error);
   }
 };
 
 // ============================================================================
-// SUBSCRIPTION TYPES
+// SUBSCRIPTION TYPES (with embedded limits)
 // ============================================================================
 
 /**
  * GET /api/billing/subscription-types
- * List all subscription types
+ * List all subscription types with embedded limits
  */
 export const listSubscriptionTypes = async (
   req: Request,
@@ -211,7 +259,7 @@ export const listSubscriptionTypes = async (
 
 /**
  * GET /api/billing/subscription-types/:id
- * Get single subscription type with limits
+ * Get single subscription type with embedded limits
  */
 export const getSubscriptionType = async (
   req: Request,
@@ -228,7 +276,7 @@ export const getSubscriptionType = async (
 
 /**
  * POST /api/billing/subscription-types
- * Create a new subscription type
+ * Create a new subscription type with limits
  */
 export const createSubscriptionType = async (
   req: Request,
@@ -245,7 +293,7 @@ export const createSubscriptionType = async (
 
 /**
  * PATCH /api/billing/subscription-types/:id
- * Update a subscription type
+ * Update a subscription type (including limits)
  */
 export const updateSubscriptionType = async (
   req: Request,
@@ -282,104 +330,7 @@ export const deleteSubscriptionType = async (
 };
 
 // ============================================================================
-// SUBSCRIPTION LIMITS
-// ============================================================================
-
-/**
- * GET /api/billing/subscription-types/:subscriptionTypeId/limits
- * Get limits for a subscription type
- */
-export const getSubscriptionLimits = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const limits = await billingService.getSubscriptionLimits(req.params.subscriptionTypeId);
-    sendSuccess(res, { limits });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * POST /api/billing/limits
- * Create a new subscription limit
- */
-export const createSubscriptionLimit = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const limit = await billingService.createSubscriptionLimit(req.body, req.user!.id);
-    sendSuccess(res, { limit, message: 'Subscription limit created successfully' }, 201);
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * PATCH /api/billing/limits/:id
- * Update a subscription limit
- */
-export const updateSubscriptionLimit = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const limit = await billingService.updateSubscriptionLimit(
-      req.params.id,
-      req.body,
-      req.user!.id
-    );
-    sendSuccess(res, { limit, message: 'Subscription limit updated successfully' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * DELETE /api/billing/limits/:id
- * Delete a subscription limit
- */
-export const deleteSubscriptionLimit = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    await billingService.deleteSubscriptionLimit(req.params.id, req.user!.id);
-    sendSuccess(res, { message: 'Subscription limit deleted successfully' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * PUT /api/billing/subscription-types/:subscriptionTypeId/limits
- * Bulk update limits for a subscription type
- */
-export const bulkUpdateLimits = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const limits = await billingService.bulkUpdateLimits(
-      req.params.subscriptionTypeId,
-      req.body.limits,
-      req.user!.id
-    );
-    sendSuccess(res, { limits, message: 'Limits updated successfully' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ============================================================================
-// USER SUBSCRIPTIONS
+// USER SUBSCRIPTIONS (with status field)
 // ============================================================================
 
 /**
@@ -504,6 +455,40 @@ export const getUserBillingInfo = async (
 };
 
 /**
+ * GET /api/billing/my-billing
+ * Get current user's billing info (for profile page)
+ */
+export const getMyBillingInfo = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const billingInfo = await billingService.getUserBillingInfo(req.user!.id);
+    sendSuccess(res, { billingInfo });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/billing/my-subscription-access
+ * Get current user's subscription access status (for paywall/read-only mode)
+ */
+export const getMySubscriptionAccess = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const accessStatus = await billingService.getSubscriptionAccessStatus(req.user!.id);
+    sendSuccess(res, { accessStatus });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/billing/users/:userId/user-type
  * Assign user type to a user
  */
@@ -551,7 +536,7 @@ export const checkUserLimit = async (
 
 /**
  * GET /api/billing/overview
- * Get complete billing overview (all settings)
+ * Get complete billing overview (user types + subscription types)
  */
 export const getBillingOverview = async (
   req: Request,
@@ -559,18 +544,182 @@ export const getBillingOverview = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const [userTypes, billingStatuses, subscriptionTypes] = await Promise.all([
-      billingService.listUserTypes(),
-      billingService.listBillingStatuses(),
-      billingService.listSubscriptionTypes(),
-    ]);
+    const overview = await billingService.getBillingOverview();
+    sendSuccess(res, { overview });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// PERMISSION TEMPLATES
+// ============================================================================
+
+/**
+ * GET /api/billing/permission-templates
+ * List all permission templates
+ */
+export const listPermissionTemplates = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const templates = await billingService.listPermissionTemplates();
+    sendSuccess(res, { templates });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/billing/permission-templates/:id
+ * Get single permission template
+ */
+export const getPermissionTemplate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const template = await billingService.getPermissionTemplateWithPermissions(req.params.id);
+    sendSuccess(res, { template });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/billing/permission-templates
+ * Create a new permission template
+ */
+export const createPermissionTemplate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const template = await billingService.createPermissionTemplate(req.body, req.user!.id);
+    sendSuccess(res, { template, message: 'Permission template created successfully' }, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/billing/permission-templates/:id
+ * Update a permission template
+ */
+export const updatePermissionTemplate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const template = await billingService.updatePermissionTemplate(
+      req.params.id,
+      req.body,
+      req.user!.id
+    );
+    sendSuccess(res, { template, message: 'Permission template updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/billing/permission-templates/:id
+ * Delete a permission template
+ */
+export const deletePermissionTemplate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    await billingService.deletePermissionTemplate(req.params.id, req.user!.id);
+    sendSuccess(res, { message: 'Permission template deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/billing/user-types/:id/apply-template
+ * Apply a permission template to a user type
+ */
+export const applyTemplateToUserType = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    await billingService.applyTemplateToUserType(
+      req.params.id,
+      req.body.template_id,
+      req.user!.id
+    );
+    // Return updated permissions
+    const permissions = await billingService.getUserTypePermissions(req.params.id);
+    sendSuccess(res, {
+      permissions,
+      message: 'Permission template applied successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// SUBSCRIPTION TYPE PERMISSIONS (NEW)
+// ============================================================================
+
+/**
+ * GET /api/billing/subscription-types/:id/permissions
+ * Get permissions for a subscription type
+ */
+export const getSubscriptionTypePermissions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const permissions = await billingService.getSubscriptionTypePermissions(req.params.id);
+    sendSuccess(res, { permissions });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/billing/subscription-types/:id/permissions
+ * Update permissions for a subscription type
+ */
+export const updateSubscriptionTypePermissions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { permission_ids } = req.body;
+
+    if (!Array.isArray(permission_ids)) {
+      res.status(400).json({
+        success: false,
+        error: 'permission_ids must be an array'
+      });
+      return;
+    }
+
+    const permissions = await billingService.updateSubscriptionTypePermissions(
+      req.params.id,
+      permission_ids,
+      req.user!.id
+    );
 
     sendSuccess(res, {
-      overview: {
-        userTypes,
-        billingStatuses,
-        subscriptionTypes,
-      },
+      permissions,
+      message: 'Subscription permissions updated successfully'
     });
   } catch (error) {
     next(error);

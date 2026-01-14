@@ -11,3 +11,13 @@ export { AuthLayout } from './AuthLayout';
 export type { AuthLayoutProps } from './AuthLayout';
 
 export { AuthenticatedLayout } from './AuthenticatedLayout';
+
+export { AdminDetailLayout } from './AdminDetailLayout';
+export type {
+  AdminDetailLayoutProps,
+  AdminNavItem,
+  AdminNavSection,
+} from './AdminDetailLayout';
+
+export { PublicLayout } from './PublicLayout';
+export type { PublicLayoutProps } from './PublicLayout';

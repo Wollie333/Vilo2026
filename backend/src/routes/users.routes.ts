@@ -77,7 +77,16 @@ router.patch(
   usersController.updateUser
 );
 
-// Delete user - requires users:delete
+// Hard delete user (permanent) - requires users:delete
+// IMPORTANT: This must come BEFORE the generic /:id route
+router.delete(
+  '/:id/hard',
+  validateParams(userIdParamSchema),
+  requirePermission('users', 'delete'),
+  usersController.hardDeleteUser
+);
+
+// Delete user (soft delete) - requires users:delete
 router.delete(
   '/:id',
   validateParams(userIdParamSchema),
@@ -144,14 +153,6 @@ router.post(
   requireOwnershipOrAdmin((req) => req.params.id),
   avatarUpload.single('avatar') as unknown as RequestHandler,
   usersController.uploadAvatar
-);
-
-// Get user activity history - requires users:read permission
-router.get(
-  '/:id/activity',
-  validateParams(userIdParamSchema),
-  requirePermission('users', 'read'),
-  usersController.getUserActivity
 );
 
 export default router;

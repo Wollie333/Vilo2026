@@ -10,7 +10,7 @@
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   template_id UUID NOT NULL REFERENCES notification_templates(id) ON DELETE CASCADE,
 
   -- Channel preferences (all default to enabled)

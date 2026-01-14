@@ -45,7 +45,7 @@ export interface CreateUserData {
   fullName: string;
   phone?: string;
   status?: 'active' | 'pending';
-  roleIds?: string[];
+  userTypeId?: string;
 }
 
 export interface ActivityLogEntry {
@@ -88,7 +88,7 @@ class UsersService {
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
 
-    const response = await api.get<UserListApiResponse>(`/api/users?${params.toString()}`);
+    const response = await api.get<UserListApiResponse>(`/users?${params.toString()}`);
 
     if (!response.success) {
       console.error('listUsers API error:', response.error);
@@ -120,7 +120,7 @@ class UsersService {
   }
 
   async createUser(data: CreateUserData): Promise<UserWithRoles> {
-    const response = await api.post<{ user: UserWithRoles }>('/api/users', data);
+    const response = await api.post<{ user: UserWithRoles }>('/users', data);
     if (!response.success || !response.data) {
       console.error('createUser API error:', response.error);
       throw new Error(response.error?.message || 'Failed to create user');
@@ -129,7 +129,7 @@ class UsersService {
   }
 
   async getUser(id: string): Promise<UserWithRoles> {
-    const response = await api.get<{ user: UserWithRoles }>(`/api/users/${id}`);
+    const response = await api.get<{ user: UserWithRoles }>(`/users/${id}`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch user');
     }
@@ -137,7 +137,7 @@ class UsersService {
   }
 
   async updateUser(id: string, data: UpdateUserData): Promise<UserProfile> {
-    const response = await api.patch<{ user: UserProfile }>(`/api/users/${id}`, data);
+    const response = await api.patch<{ user: UserProfile }>(`/users/${id}`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update user');
     }
@@ -145,14 +145,21 @@ class UsersService {
   }
 
   async deleteUser(id: string): Promise<void> {
-    const response = await api.delete(`/api/users/${id}`);
+    const response = await api.delete(`/users/${id}`);
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to delete user');
     }
   }
 
+  async hardDeleteUser(id: string): Promise<void> {
+    const response = await api.delete(`/users/${id}/hard`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to permanently delete user');
+    }
+  }
+
   async approveUser(id: string): Promise<UserProfile> {
-    const response = await api.post<{ user: UserProfile }>(`/api/users/${id}/approve`);
+    const response = await api.post<{ user: UserProfile }>(`/users/${id}/approve`);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to approve user');
     }
@@ -160,7 +167,7 @@ class UsersService {
   }
 
   async assignRoles(userId: string, data: AssignRolesData): Promise<UserWithRoles> {
-    const response = await api.post<{ user: UserWithRoles }>(`/api/users/${userId}/roles`, data);
+    const response = await api.post<{ user: UserWithRoles }>(`/users/${userId}/roles`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to assign roles');
     }
@@ -168,7 +175,7 @@ class UsersService {
   }
 
   async assignPermissions(userId: string, permissions: AssignPermissionData[]): Promise<UserWithRoles> {
-    const response = await api.post<{ user: UserWithRoles }>(`/api/users/${userId}/permissions`, { permissions });
+    const response = await api.post<{ user: UserWithRoles }>(`/users/${userId}/permissions`, { permissions });
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to assign permissions');
     }
@@ -176,7 +183,7 @@ class UsersService {
   }
 
   async assignProperties(userId: string, data: AssignPropertiesData): Promise<UserWithRoles> {
-    const response = await api.post<{ user: UserWithRoles }>(`/api/users/${userId}/properties`, data);
+    const response = await api.post<{ user: UserWithRoles }>(`/users/${userId}/properties`, data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to assign properties');
     }
@@ -192,7 +199,7 @@ class UsersService {
     const formData = new FormData();
     formData.append('avatar', file);
 
-    const response = await api.upload<{ avatarUrl: string }>(`/api/users/${userId}/avatar`, formData);
+    const response = await api.upload<{ avatarUrl: string }>(`/users/${userId}/avatar`, formData);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to upload avatar');
     }
@@ -226,7 +233,7 @@ class UsersService {
 
   async getUserActivity(userId: string, page = 1, limit = 10): Promise<ActivityLogResponse> {
     const response = await api.get<ActivityLogResponse>(
-      `/api/users/${userId}/activity?page=${page}&limit=${limit}`
+      `/users/${userId}/activity?page=${page}&limit=${limit}`
     );
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch activity');

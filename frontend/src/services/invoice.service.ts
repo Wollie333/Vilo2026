@@ -1,0 +1,161 @@
+import { api } from './api.service';
+import type {
+  Invoice,
+  InvoiceSettings,
+  UpdateInvoiceSettingsData,
+  InvoiceListParams,
+  InvoiceListResponse,
+} from '@/types/invoice.types';
+
+class InvoiceService {
+  // ============================================================================
+  // USER ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get current user's invoices
+   */
+  async getMyInvoices(params?: InvoiceListParams): Promise<InvoiceListResponse> {
+    const queryParams = new URLSearchParams();
+
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.from_date) queryParams.append('from_date', params.from_date);
+    if (params?.to_date) queryParams.append('to_date', params.to_date);
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+
+    const queryString = queryParams.toString();
+    const url = `/invoices/my-invoices${queryString ? `?${queryString}` : ''}`;
+
+    const response = await api.get<InvoiceListResponse>(url);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch invoices');
+    }
+    return response.data;
+  }
+
+  /**
+   * Get a single invoice
+   */
+  async getInvoice(id: string): Promise<Invoice> {
+    const response = await api.get<{ invoice: Invoice }>(`/invoices/${id}`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch invoice');
+    }
+    return response.data.invoice;
+  }
+
+  /**
+   * Download invoice PDF
+   * Opens in new tab or triggers download
+   */
+  async downloadInvoice(id: string): Promise<void> {
+    const response = await api.get<{ download_url: string }>(`/invoices/${id}/download`);
+    if (!response.success || !response.data?.download_url) {
+      throw new Error(response.error?.message || 'Failed to get download URL');
+    }
+
+    // Open the signed URL in a new tab to trigger download
+    window.open(response.data.download_url, '_blank');
+  }
+
+  // ============================================================================
+  // ADMIN ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get invoice settings (admin only)
+   */
+  async getSettings(): Promise<InvoiceSettings> {
+    const response = await api.get<{ settings: InvoiceSettings }>('/api/invoices/admin/settings');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch invoice settings');
+    }
+    return response.data.settings;
+  }
+
+  /**
+   * Update invoice settings (admin only)
+   */
+  async updateSettings(data: UpdateInvoiceSettingsData): Promise<InvoiceSettings> {
+    const response = await api.patch<{ settings: InvoiceSettings }>('/api/invoices/admin/settings', data);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to update invoice settings');
+    }
+    return response.data.settings;
+  }
+
+  /**
+   * List all invoices (admin only)
+   */
+  async listAllInvoices(params?: InvoiceListParams): Promise<InvoiceListResponse> {
+    const queryParams = new URLSearchParams();
+
+    if (params?.user_id) queryParams.append('user_id', params.user_id);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.from_date) queryParams.append('from_date', params.from_date);
+    if (params?.to_date) queryParams.append('to_date', params.to_date);
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+
+    const queryString = queryParams.toString();
+    const url = `/invoices/admin/list${queryString ? `?${queryString}` : ''}`;
+
+    const response = await api.get<InvoiceListResponse>(url);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch invoices');
+    }
+    return response.data;
+  }
+
+  /**
+   * Void an invoice (admin only)
+   */
+  async voidInvoice(id: string): Promise<Invoice> {
+    const response = await api.post<{ invoice: Invoice }>(`/invoices/admin/${id}/void`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to void invoice');
+    }
+    return response.data.invoice;
+  }
+
+  /**
+   * Regenerate PDF for an invoice (admin only)
+   */
+  async regeneratePDF(id: string): Promise<void> {
+    const response = await api.post(`/invoices/admin/${id}/regenerate-pdf`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to regenerate PDF');
+    }
+  }
+
+  /**
+   * Upload invoice logo (admin only)
+   */
+  async uploadLogo(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    const response = await api.upload<{ logo_url: string }>('/api/invoices/admin/logo', formData);
+    if (!response.success || !response.data?.logo_url) {
+      throw new Error(response.error?.message || 'Failed to upload logo');
+    }
+    return response.data.logo_url;
+  }
+
+  /**
+   * Delete invoice logo (admin only)
+   */
+  async deleteLogo(): Promise<void> {
+    const response = await api.delete('/invoices/admin/logo');
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to delete logo');
+    }
+  }
+}
+
+export const invoiceService = new InvoiceService();

@@ -24,23 +24,33 @@ const ModalHeader: React.FC<ModalHeaderProps> = ({
   children,
   onClose,
   showCloseButton = true,
-}) => (
-  <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-dark-border">
-    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-      {children}
-    </h2>
-    {showCloseButton && onClose && (
-      <button
-        type="button"
-        onClick={onClose}
-        className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-dark-cardHover transition-colors"
-        aria-label="Close modal"
-      >
-        <CloseIcon />
-      </button>
-    )}
-  </div>
-);
+  className = '',
+}) => {
+  // Check if custom background is applied (e.g., bg-primary)
+  const hasColoredBg = className.includes('bg-');
+
+  return (
+    <div className={`flex items-center justify-between px-5 py-3 border-b ${hasColoredBg ? 'border-transparent' : 'border-gray-200 dark:border-dark-border'} ${className}`}>
+      <h2 className={`text-sm font-semibold ${hasColoredBg ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+        {children}
+      </h2>
+      {showCloseButton && onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className={`p-1 rounded-md transition-colors ${
+            hasColoredBg
+              ? 'text-white/80 hover:text-white hover:bg-white/10'
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-dark-cardHover'
+          }`}
+          aria-label="Close modal"
+        >
+          <CloseIcon />
+        </button>
+      )}
+    </div>
+  );
+};
 
 const ModalBody: React.FC<ModalBodyProps> = ({ children, className = '' }) => (
   <div className={`px-5 py-3 ${className}`}>{children}</div>
@@ -67,6 +77,7 @@ export const Modal: React.FC<ModalProps> & {
   closeOnOverlayClick = true,
   showCloseButton = true,
   footer,
+  headerClassName,
 }) => {
   // Handle escape key
   const handleEscape = useCallback(
@@ -128,7 +139,7 @@ export const Modal: React.FC<ModalProps> & {
           onClick={(e) => e.stopPropagation()}
         >
           {title && (
-            <ModalHeader onClose={onClose} showCloseButton={showCloseButton}>
+            <ModalHeader onClose={onClose} showCloseButton={showCloseButton} className={headerClassName}>
               <span id="modal-title">{title}</span>
             </ModalHeader>
           )}
