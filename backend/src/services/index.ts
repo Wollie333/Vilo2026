@@ -1,7 +1,21 @@
-export * from './audit.service';
 export * from './auth.service';
 export * from './users.service';
 export * from './roles.service';
 export * from './notifications.service';
 export * from './notification-preferences.service';
 export * from './email.service';
+export * from './company.service';
+export * as checkoutService from './checkout.service';
+export * as onboardingService from './onboarding.service';
+export * as invoiceService from './invoice.service';
+export * as roomService from './room.service';
+export * as bookingService from './booking.service';
+export * as bookingStatusService from './booking-status.service';
+export * as bookingNotificationsService from './booking-notifications.service';
+export * from './addon.service';
+export * as paymentRulesService from './payment-rules.service';
+export * as paymentScheduleService from './payment-schedule.service';
+export * as paymentReceiptService from './payment-receipt.service';
+export * as dashboardService from './dashboard.service';
+export * as reviewService from './review.service';
+export * as companyTeamService from './company-team.service'; // NEW

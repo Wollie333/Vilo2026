@@ -539,7 +539,7 @@ async function sendEmailForNotification(
 
     // Get user's email
     const { data: user } = await supabase
-      .from('user_profiles')
+      .from('users')
       .select('email')
       .eq('id', notification.user_id)
       .single();
@@ -609,3 +609,73 @@ async function sendEmailForNotification(
     // Don't throw - email failure shouldn't fail notification creation
   }
 }
+
+// ============================================================================
+// Convenience Helper for Refund System
+// ============================================================================
+
+/**
+ * Send notification to multiple recipients using a template
+ * Convenience wrapper for refund system notifications
+ */
+export interface SendNotificationParams {
+  template_key: string; // Template name (e.g., 'refund_requested')
+  recipient_ids: string[]; // Array of user IDs to notify
+  data: Record<string, any>; // Template variables
+  priority?: 'low' | 'normal' | 'high'; // Notification priority
+  send_email?: boolean; // Whether to send email (default: true)
+}
+
+export const sendNotification = async (params: SendNotificationParams): Promise<void> => {
+  const { template_key, recipient_ids, data, priority = 'normal', send_email = true } = params;
+
+  if (!recipient_ids || recipient_ids.length === 0) {
+    logger.warn('sendNotification called with no recipients', { template_key });
+    return;
+  }
+
+  // Filter out any null/undefined recipient IDs
+  const validRecipients = recipient_ids.filter((id) => id && id.trim().length > 0);
+
+  if (validRecipients.length === 0) {
+    logger.warn('sendNotification: all recipient IDs were invalid', { template_key, recipient_ids });
+    return;
+  }
+
+  try {
+    // Create notifications for all recipients
+    const promises = validRecipients.map((userId) =>
+      createNotification(
+        {
+          user_id: userId,
+          template_name: template_key,
+          data,
+          priority,
+          send_email,
+        },
+        'system' // System actor for automated notifications
+      ).catch((error) => {
+        logger.error('Failed to create notification for user', {
+          userId,
+          template_key,
+          error: error.message,
+        });
+        // Don't throw - continue with other recipients
+      })
+    );
+
+    await Promise.all(promises);
+
+    logger.info('Notifications sent successfully', {
+      template_key,
+      recipient_count: validRecipients.length,
+    });
+  } catch (error) {
+    logger.error('Failed to send notifications', {
+      template_key,
+      recipient_count: validRecipients.length,
+      error,
+    });
+    // Don't throw - notification failure shouldn't block refund operations
+  }
+};
