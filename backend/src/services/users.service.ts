@@ -1821,12 +1821,16 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
     console.log(`     - is_active: ${policy.is_active}`);
   });
 
-  // Create a map of policy names to policy objects (case-insensitive)
-  const policiesMap = new Map(
+  // Create TWO maps: one for names (legacy), one for IDs (new schema)
+  const policiesByName = new Map(
     (allPolicies || []).map((p) => [p.name.toLowerCase(), p])
   );
+  const policiesById = new Map(
+    (allPolicies || []).map((p) => [p.id, p])
+  );
 
-  console.log('\n🗺️  Policies Map Keys:', Array.from(policiesMap.keys()));
+  console.log('\n🗺️  Policies Map Keys (by name):', Array.from(policiesByName.keys()));
+  console.log('🗺️  Policies Map Keys (by ID):', Array.from(policiesById.keys()));
 
   // Step 4: Return ALL active policies (not just ones used by properties)
   // This ensures policies created in the legal section show up even if not yet assigned
@@ -1834,21 +1838,40 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
   // doesn't have user_id/company_id. Future improvement: add ownership to policies table.
   const usedPolicies = allPolicies || [];
 
+  // Helper to check if a string is a UUID
+  const isUUID = (str: string): boolean => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  };
+
   // Step 5: Map properties to their policies
   console.log('\n🔗 Matching Properties to Policies:');
   const propertyPolicies = allProperties.map((prop) => {
-    const policyName = prop.cancellation_policy?.toLowerCase();
-    const policy = policyName ? policiesMap.get(policyName) : null;
+    const policyValue = prop.cancellation_policy;
+    let policy = null;
 
     console.log(`\n  Property: "${prop.name}"`);
-    console.log(`    - cancellation_policy value: "${prop.cancellation_policy}"`);
-    console.log(`    - Lowercase search key: "${policyName}"`);
-    console.log(`    - Found in map: ${policy ? 'YES' : 'NO'}`);
-    if (policy) {
-      console.log(`    - Matched policy: "${policy.name}" (${policy.id})`);
-    } else if (policyName) {
-      console.log(`    - ❌ NO MATCH FOUND for "${policyName}"`);
-      console.log(`    - Available keys:`, Array.from(policiesMap.keys()));
+    console.log(`    - cancellation_policy value: "${policyValue}"`);
+
+    if (policyValue) {
+      // Check if it's a UUID (new schema) or a name (legacy schema)
+      if (isUUID(policyValue)) {
+        console.log(`    - Detected as UUID - matching by ID`);
+        policy = policiesById.get(policyValue) || null;
+      } else {
+        console.log(`    - Detected as name - matching by name (case-insensitive)`);
+        const policyName = policyValue.toLowerCase();
+        policy = policiesByName.get(policyName) || null;
+      }
+
+      console.log(`    - Found in map: ${policy ? 'YES' : 'NO'}`);
+      if (policy) {
+        console.log(`    - ✅ Matched policy: "${policy.name}" (${policy.id})`);
+      } else {
+        console.log(`    - ❌ NO MATCH FOUND for "${policyValue}"`);
+      }
+    } else {
+      console.log(`    - No cancellation_policy set (null/empty)`);
     }
 
     return {
