@@ -246,6 +246,7 @@ export const createProperty = async (
       description: input.description?.trim() || null,
       video_url: input.video_url?.trim() || null,
       show_video: input.show_video !== undefined ? input.show_video : true,
+      terms_and_conditions: input.terms_and_conditions?.trim() || null,
       address_street: input.address_street?.trim() || null,
       address_city: input.address_city?.trim() || null,
       address_state: input.address_state?.trim() || null,
@@ -353,11 +354,25 @@ export const updateProperty = async (
   if (input.check_in_time !== undefined) updateData.check_in_time = input.check_in_time;
   if (input.check_out_time !== undefined) updateData.check_out_time = input.check_out_time;
   if (input.cancellation_policy !== undefined) updateData.cancellation_policy = input.cancellation_policy?.trim() || null;
+
+  // DEBUG: Terms and conditions
+  if (input.terms_and_conditions !== undefined) {
+    console.log('\n🔍 Updating terms_and_conditions:');
+    console.log('  - Property ID:', id);
+    console.log('  - Input value type:', typeof input.terms_and_conditions);
+    console.log('  - Input value length:', input.terms_and_conditions?.length || 0);
+    console.log('  - Input value preview:', input.terms_and_conditions ? input.terms_and_conditions.substring(0, 100) + '...' : 'null/empty');
+    console.log('  - After trim:', input.terms_and_conditions?.trim().substring(0, 100) + '...');
+    updateData.terms_and_conditions = input.terms_and_conditions?.trim() || null;
+    console.log('  - Final value to save:', updateData.terms_and_conditions ? `${updateData.terms_and_conditions.length} chars` : 'null');
+  }
+
   if (input.amenities !== undefined) updateData.amenities = input.amenities;
   if (input.house_rules !== undefined) updateData.house_rules = input.house_rules;
   if (input.whats_included !== undefined) updateData.whats_included = input.whats_included;
   if (input.promotions !== undefined) updateData.promotions = input.promotions;
 
+  console.log('\n📤 Updating property in database...');
   const { data, error } = await supabase
     .from('properties')
     .update(updateData)
@@ -365,6 +380,11 @@ export const updateProperty = async (
     .eq('owner_id', userId)
     .select()
     .single();
+
+  console.log('  - Update result:', error ? 'ERROR' : 'SUCCESS');
+  if (data) {
+    console.log('  - Returned terms_and_conditions:', data.terms_and_conditions ? `${data.terms_and_conditions.length} chars` : 'null');
+  }
 
   if (error || !data) {
     console.error('Supabase update error:', error);
