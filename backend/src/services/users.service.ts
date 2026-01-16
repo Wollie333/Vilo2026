@@ -1716,6 +1716,11 @@ export const getUserAddons = async (userId: string): Promise<any[]> => {
 export const getUserPolicies = async (userId: string): Promise<any> => {
   const supabase = getAdminClient();
 
+  console.log('\n========================================');
+  console.log('🔍 getUserPolicies - START');
+  console.log('========================================');
+  console.log('User ID:', userId);
+
   // Step 1: Get all properties for this user (owned + assigned)
   const { data: ownedProperties, error: ownedError } = await supabase
     .from('properties')
@@ -1725,6 +1730,14 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
   if (ownedError) {
     throw new Error(`Failed to fetch owned properties: ${ownedError.message}`);
   }
+
+  console.log('\n📦 Owned Properties:', ownedProperties?.length || 0);
+  ownedProperties?.forEach((p, i) => {
+    console.log(`  ${i + 1}. "${p.name}"`);
+    console.log(`     - ID: ${p.id}`);
+    console.log(`     - cancellation_policy: "${p.cancellation_policy}"`);
+    console.log(`     - Type: ${typeof p.cancellation_policy}`);
+  });
 
   const { data: assignedProperties, error: assignedError } = await supabase
     .from('user_properties')
@@ -1737,6 +1750,8 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
   if (assignedError) {
     throw new Error(`Failed to fetch assigned properties: ${assignedError.message}`);
   }
+
+  console.log('\n📦 Assigned Properties:', assignedProperties?.length || 0);
 
   // Combine all properties
   const ownedPropertiesData = (ownedProperties || []).map((p) => ({
@@ -1762,7 +1777,10 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
   });
   const allProperties = Array.from(propertiesMap.values());
 
+  console.log('\n📊 Total Unique Properties:', allProperties.length);
+
   if (allProperties.length === 0) {
+    console.log('⚠️  No properties found, returning empty result');
     return { policies: [], propertyPolicies: [] };
   }
 
@@ -1773,6 +1791,8 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
       .filter(Boolean)
       .map((name) => name.toLowerCase())
   )];
+
+  console.log('\n🏷️  Unique Policy Names from Properties:', policyNames);
 
   // Step 3: Fetch all cancellation policies from the database
   const { data: allPolicies, error: policiesError } = await supabase
@@ -1793,10 +1813,20 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
     throw new Error(`Failed to fetch policies: ${policiesError.message}`);
   }
 
+  console.log('\n📋 Policies from Database:', allPolicies?.length || 0);
+  allPolicies?.forEach((policy, i) => {
+    console.log(`  ${i + 1}. "${policy.name}"`);
+    console.log(`     - ID: ${policy.id}`);
+    console.log(`     - Lowercase: "${policy.name.toLowerCase()}"`);
+    console.log(`     - is_active: ${policy.is_active}`);
+  });
+
   // Create a map of policy names to policy objects (case-insensitive)
   const policiesMap = new Map(
     (allPolicies || []).map((p) => [p.name.toLowerCase(), p])
   );
+
+  console.log('\n🗺️  Policies Map Keys:', Array.from(policiesMap.keys()));
 
   // Step 4: Return ALL active policies (not just ones used by properties)
   // This ensures policies created in the legal section show up even if not yet assigned
@@ -1805,9 +1835,21 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
   const usedPolicies = allPolicies || [];
 
   // Step 5: Map properties to their policies
+  console.log('\n🔗 Matching Properties to Policies:');
   const propertyPolicies = allProperties.map((prop) => {
     const policyName = prop.cancellation_policy?.toLowerCase();
     const policy = policyName ? policiesMap.get(policyName) : null;
+
+    console.log(`\n  Property: "${prop.name}"`);
+    console.log(`    - cancellation_policy value: "${prop.cancellation_policy}"`);
+    console.log(`    - Lowercase search key: "${policyName}"`);
+    console.log(`    - Found in map: ${policy ? 'YES' : 'NO'}`);
+    if (policy) {
+      console.log(`    - Matched policy: "${policy.name}" (${policy.id})`);
+    } else if (policyName) {
+      console.log(`    - ❌ NO MATCH FOUND for "${policyName}"`);
+      console.log(`    - Available keys:`, Array.from(policiesMap.keys()));
+    }
 
     return {
       property_id: prop.id,
@@ -1816,6 +1858,13 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
       policy_name: policy?.name || prop.cancellation_policy || 'No Policy',
     };
   });
+
+  console.log('\n📤 Final Result:');
+  console.log('  - Total policies:', usedPolicies.length);
+  console.log('  - Property mappings:', propertyPolicies.length);
+  console.log('  - Properties WITH policy:', propertyPolicies.filter(pp => pp.policy_id).length);
+  console.log('  - Properties WITHOUT policy:', propertyPolicies.filter(pp => !pp.policy_id).length);
+  console.log('========================================\n');
 
   return {
     policies: usedPolicies,
