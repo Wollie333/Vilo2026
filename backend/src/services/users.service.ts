@@ -1902,6 +1902,11 @@ export const getUserPolicies = async (userId: string): Promise<any> => {
 export const getUserTerms = async (userId: string): Promise<any[]> => {
   const supabase = getAdminClient();
 
+  console.log('\n========================================');
+  console.log('🔍 getUserTerms - START');
+  console.log('========================================');
+  console.log('User ID:', userId);
+
   // Step 1: Get all properties for this user (owned + assigned)
   const { data: ownedProperties, error: ownedError } = await supabase
     .from('properties')
@@ -1911,6 +1916,15 @@ export const getUserTerms = async (userId: string): Promise<any[]> => {
   if (ownedError) {
     throw new Error(`Failed to fetch owned properties: ${ownedError.message}`);
   }
+
+  console.log('\n📦 Owned Properties:', ownedProperties?.length || 0);
+  ownedProperties?.forEach((p, i) => {
+    console.log(`  ${i + 1}. "${p.name}"`);
+    console.log(`     - ID: ${p.id}`);
+    console.log(`     - terms_and_conditions: ${p.terms_and_conditions ? `"${p.terms_and_conditions.substring(0, 100)}..."` : 'null'}`);
+    console.log(`     - Type: ${typeof p.terms_and_conditions}`);
+    console.log(`     - Length: ${p.terms_and_conditions?.length || 0} characters`);
+  });
 
   const { data: assignedProperties, error: assignedError } = await supabase
     .from('user_properties')
@@ -1923,6 +1937,8 @@ export const getUserTerms = async (userId: string): Promise<any[]> => {
   if (assignedError) {
     throw new Error(`Failed to fetch assigned properties: ${assignedError.message}`);
   }
+
+  console.log('\n📦 Assigned Properties:', assignedProperties?.length || 0);
 
   // Combine all properties
   const ownedPropertiesData = (ownedProperties || []).map((p) => ({
@@ -1949,7 +1965,15 @@ export const getUserTerms = async (userId: string): Promise<any[]> => {
     }
   });
 
-  return Array.from(propertiesMap.values());
+  const result = Array.from(propertiesMap.values());
+
+  console.log('\n📤 Final Result:');
+  console.log('  - Total properties:', result.length);
+  console.log('  - Properties WITH terms:', result.filter(p => p.terms_and_conditions).length);
+  console.log('  - Properties WITHOUT terms:', result.filter(p => !p.terms_and_conditions).length);
+  console.log('========================================\n');
+
+  return result;
 };
 
 /**
