@@ -6,9 +6,20 @@ const REFRESH_TOKEN_KEY = 'vilo_refresh_token';
 
 class ApiService {
   private baseUrl: string;
+  private isRefreshing: boolean = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
 
   constructor() {
     this.baseUrl = API_URL;
+  }
+
+  private subscribeTokenRefresh(callback: (token: string) => void) {
+    this.refreshSubscribers.push(callback);
+  }
+
+  private onTokenRefreshed(token: string) {
+    this.refreshSubscribers.forEach(callback => callback(token));
+    this.refreshSubscribers = [];
   }
 
   // Token management
@@ -41,9 +52,11 @@ class ApiService {
   // HTTP methods
   private async request<T>(
     endpoint: string,
-    options: RequestInit & { params?: Record<string, any>; timeout?: number } = {}
+    options: RequestInit & { params?: Record<string, any>; timeout?: number; _retryCount?: number; _silentAuth?: boolean } = {}
   ): Promise<ApiResponse<T>> {
     const timeout = options.timeout || 30000; // 30 second default timeout
+    const retryCount = options._retryCount || 0;
+    const silentAuth = options._silentAuth || false;
 
     // Build URL with query parameters
     let url = `${this.baseUrl}${endpoint}`;
@@ -86,13 +99,45 @@ class ApiService {
 
         const data: ApiResponse<T> = await response.json();
 
-        // Handle 401 - try to refresh token
-        if (response.status === 401 && this.getRefreshToken()) {
-          const refreshed = await this.refreshTokens();
-          if (refreshed) {
-            // Retry the request with new token
-            return this.request<T>(endpoint, options);
+        // Handle 401 - try to refresh token (only once per request)
+        if (response.status === 401 && this.getRefreshToken() && retryCount === 0) {
+          if (!this.isRefreshing) {
+            this.isRefreshing = true;
+            try {
+              const refreshed = await this.refreshTokens();
+              this.isRefreshing = false;
+
+              if (refreshed) {
+                const newToken = this.getAccessToken();
+                if (newToken) {
+                  this.onTokenRefreshed(newToken);
+                  // Retry the request with new token (increment retry count)
+                  return this.request<T>(endpoint, { ...options, _retryCount: retryCount + 1 });
+                }
+              }
+            } catch (error) {
+              this.isRefreshing = false;
+              throw error;
+            }
+          } else {
+            // Token refresh in progress - wait for it
+            return new Promise((resolve) => {
+              this.subscribeTokenRefresh(() => {
+                resolve(this.request<T>(endpoint, { ...options, _retryCount: retryCount + 1 }));
+              });
+            });
           }
+        }
+
+        // If we get 401 after retry, it's a permissions issue, not a token issue
+        if (response.status === 401 && retryCount > 0 && !silentAuth) {
+          console.warn('Access denied after token refresh - insufficient permissions for:', endpoint);
+        }
+
+        // Don't log 401 errors to console if silentAuth is true (e.g., during auth init)
+        if (response.status === 401 && silentAuth && !response.ok) {
+          // Silently return the error response without console logging
+          return data;
         }
 
         return data;
@@ -122,7 +167,10 @@ class ApiService {
 
   private async refreshTokens(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
-    if (!refreshToken) return false;
+    if (!refreshToken) {
+      console.warn('No refresh token available');
+      return false;
+    }
 
     try {
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
@@ -132,7 +180,15 @@ class ApiService {
       });
 
       if (!response.ok) {
-        this.clearTokens();
+        console.warn('Token refresh failed with status:', response.status);
+        // Only clear tokens on 401 (invalid token), not on server errors
+        if (response.status === 401) {
+          this.clearTokens();
+          // Redirect to login
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+        }
         return false;
       }
 
@@ -142,15 +198,20 @@ class ApiService {
         return true;
       }
 
+      console.warn('Token refresh response invalid');
       this.clearTokens();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
       return false;
-    } catch {
-      this.clearTokens();
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      // Don't clear tokens on network errors - might be temporary
       return false;
     }
   }
 
-  async get<T>(endpoint: string, options?: { params?: Record<string, any> }): Promise<ApiResponse<T>> {
+  async get<T>(endpoint: string, options?: { params?: Record<string, any>; _silentAuth?: boolean }): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET', ...options });
   }
 
@@ -162,6 +223,16 @@ class ApiService {
   }
 
   async patch<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    // DEBUG: Log patch requests to properties
+    if (endpoint.includes('/properties/')) {
+      console.log('📡 API PATCH Request:', endpoint);
+      console.log('  - Body keys:', body ? Object.keys(body as object) : 'no body');
+      if (body && (body as any).terms_and_conditions) {
+        console.log('  - terms_and_conditions length:', (body as any).terms_and_conditions.length);
+      }
+      console.log('  - Full body:', body);
+    }
+
     return this.request<T>(endpoint, {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
