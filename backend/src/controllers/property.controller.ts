@@ -6,11 +6,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import * as propertyService from '../services/property.service';
+import * as pdfService from '../services/pdf.service';
 import {
   CreatePropertyRequest,
   UpdatePropertyRequest,
   PropertyListParams,
 } from '../types/property.types';
+import { AppError } from '../utils/errors';
 
 // ============================================================================
 // List Properties
@@ -122,6 +124,23 @@ export const patchProperty = async (
   try {
     const { id } = req.params;
     const input: UpdatePropertyRequest = req.body;
+
+    // DEBUG: Log what controller received
+    console.log('\n🎯 CONTROLLER received PATCH /properties/:id');
+    console.log('  - Property ID:', id);
+    console.log('  - Body keys:', Object.keys(req.body));
+    if (req.body.terms_and_conditions) {
+      console.log('  - terms_and_conditions in req.body:', req.body.terms_and_conditions.length, 'chars');
+    } else {
+      console.log('  - terms_and_conditions in req.body: NOT PRESENT');
+    }
+    console.log('  - Input keys:', Object.keys(input));
+    if (input.terms_and_conditions) {
+      console.log('  - terms_and_conditions in input:', input.terms_and_conditions.length, 'chars');
+    } else {
+      console.log('  - terms_and_conditions in input: NOT PRESENT');
+    }
+
     const property = await propertyService.updateProperty(id, req.user!.id, input);
     sendSuccess(res, property);
   } catch (error) {
@@ -379,6 +398,54 @@ export const togglePublicListing = async (
         ? 'Property is now publicly listed'
         : 'Property removed from public listing',
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// Terms & Conditions PDF Download
+// ============================================================================
+
+/**
+ * GET /api/properties/:id/terms/pdf
+ * Download Terms & Conditions as PDF
+ */
+export const downloadTermsPDF = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const propertyId = req.params.id;
+
+    // Get property (no user check - public access to terms)
+    const property = await propertyService.getProperty(propertyId);
+
+    if (!property) {
+      throw new AppError('NOT_FOUND', 'Property not found');
+    }
+
+    if (!property.terms_and_conditions) {
+      throw new AppError('NOT_FOUND', 'No terms and conditions available for this property');
+    }
+
+    // Generate PDF
+    const pdfBuffer = await pdfService.generateTermsPDF(
+      property.terms_and_conditions,
+      property.name
+    );
+
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Terms-${property.slug}.pdf"`
+    );
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    // Send PDF
+    res.send(pdfBuffer);
   } catch (error) {
     next(error);
   }
