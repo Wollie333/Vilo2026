@@ -1,0 +1,16 @@
+echo "🔍 Validating migrations..."
+npm run migration:validate
+if [ $? -ne 0 ]; then
+  echo "❌ Migration validation failed. Fix errors before committing."
+  exit 1
+fi
+
+echo "🔍 Checking for schema drift..."
+npm run schema:drift
+if [ $? -ne 0 ]; then
+  echo "⚠️  Schema drift detected. Review before committing."
+  # Don't block commit, just warn
+fi
+
+echo "✅ Pre-commit checks passed!"
+exit 0

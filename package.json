@@ -13,7 +13,11 @@
     "test:frontend": "npm run test -w frontend",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "schema:drift": "ts-node scripts/detect-schema-drift.ts",
+    "migration:validate": "ts-node scripts/validate-migration.ts",
+    "schema:generate-docs": "ts-node scripts/generate-schema-docs.ts",
+    "prepare": "husky"
   },
   "workspaces": [
     "backend",
@@ -21,8 +25,12 @@
   ],
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "@types/node": "^20.10.0",
     "concurrently": "^8.2.2",
-    "playwright": "^1.40.0"
+    "husky": "^9.1.7",
+    "playwright": "^1.40.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
