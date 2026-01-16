@@ -129,6 +129,7 @@ export const updatePropertySchema = z.object({
   check_in_time: z.string().optional().nullable(),
   check_out_time: z.string().optional().nullable(),
   cancellation_policy: z.string().max(2000).optional().nullable(), // Increased from 100 to 2000 chars
+  terms_and_conditions: z.string().optional().nullable(), // Property-specific Terms & Conditions HTML
   amenities: z.array(z.string()).optional(),
   house_rules: z.array(z.string()).optional(),
   whats_included: z.array(z.string()).optional(),
