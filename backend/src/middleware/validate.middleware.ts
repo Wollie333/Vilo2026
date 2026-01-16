@@ -34,13 +34,27 @@ export const validateBody = <T>(schema: ZodSchema<T>) => {
     next: NextFunction
   ): Promise<void> => {
     try {
+      // DEBUG: Log validation
+      if (req.path.includes('/properties/')) {
+        console.log('\n🔍 VALIDATOR - Before validation:');
+        console.log('  - req.body keys:', Object.keys(req.body));
+        console.log('  - req.body:', req.body);
+      }
+
       const result = await schema.safeParseAsync(req.body);
 
       if (!result.success) {
         const errors = formatZodErrors(result.error);
+        console.log('  - ❌ Validation FAILED:', errors);
         throw new AppError('VALIDATION_ERROR', 'Invalid request body', {
           errors,
         });
+      }
+
+      if (req.path.includes('/properties/')) {
+        console.log('  - ✅ Validation SUCCESS');
+        console.log('  - result.data keys:', Object.keys(result.data as object));
+        console.log('  - result.data:', result.data);
       }
 
       // Replace body with parsed data (applies defaults and transformations)
