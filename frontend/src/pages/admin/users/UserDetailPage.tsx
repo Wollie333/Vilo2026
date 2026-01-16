@@ -23,10 +23,12 @@ import {
   SaveStatus,
 } from '@/components/ui';
 import { ActivityItem } from '@/components/features/ActivityItem';
+import { UserBookingsTab, UserReviewsTab, UserRefundsTab, UserPropertiesTab, UserTeamTab, UserCustomersTab, UserRoomsTab, UserAddonsTab, UserPoliciesTab, UserTermsTab, UserPaymentIntegrationsTab, UserSubscriptionTab, UserPaymentHistoryTab } from '@/components/features/UserAdmin';
 import { usersService, rolesService } from '@/services';
 import type { ActivityLogEntry } from '@/services/users.service';
 import { useImmediateSave, useHashTab } from '@/hooks';
-import type { UserWithRoles, Role, UserStatus, Permission } from '@/types/auth.types';
+import { useAuth } from '@/context/AuthContext';
+import type { UserWithRoles, Role, UserStatus, Permission, UserStats, UserFunctionalRole, UserType } from '@/types/auth.types';
 
 // Valid views for hash-based routing
 const USER_VIEWS = [
@@ -34,15 +36,20 @@ const USER_VIEWS = [
   'personal',
   'address',
   'company',
+  'organization',
   'properties',
   'rooms',
+  'addons',
   'team',
   'customers',
   'bookings',
   'reviews',
   'refunds',
-  'roles',
-  'permissions',
+  'policies',
+  'terms',
+  'payment-integrations',
+  'subscription',
+  'payment-history',
   'activity',
 ] as const;
 type ViewType = typeof USER_VIEWS[number];
@@ -228,6 +235,12 @@ const RefundIcon = () => (
   </svg>
 );
 
+const PlusIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  </svg>
+);
+
 // Format date helpers
 function formatRelativeDate(dateString: string): string {
   const date = new Date(dateString);
@@ -384,6 +397,7 @@ const CircularProgress: React.FC<{
 export const UserDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isSuperAdmin } = useAuth();
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Active view state
@@ -404,6 +418,10 @@ export const UserDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // User stats state
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Action states
   const [isApproving, setIsApproving] = useState(false);
@@ -523,6 +541,20 @@ export const UserDetailPage: React.FC = () => {
           .filter((dp) => dp.override_type === 'deny')
           .map((dp) => dp.permission.id);
         setSelectedPermissions({ grants, denies });
+
+        // Fetch user stats if super admin
+        if (isSuperAdmin) {
+          try {
+            setLoadingStats(true);
+            const stats = await usersService.getUserStatsByUserId(id);
+            setUserStats(stats);
+          } catch (err) {
+            console.error('Failed to load user stats:', err);
+            // Don't show error to user - stats are supplementary
+          } finally {
+            setLoadingStats(false);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load user');
       } finally {
@@ -530,10 +562,16 @@ export const UserDetailPage: React.FC = () => {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, isSuperAdmin]);
 
   // Fetch activity
   useEffect(() => {
+    // TODO: Activity logging not yet implemented in backend
+    // Endpoint /api/users/:id/activity needs to be created
+    // For now, just mark as not loading to prevent 404 errors
+    setActivityLoading(false);
+
+    /* Commented out until backend endpoint is implemented
     const fetchActivity = async () => {
       if (!id) return;
       setActivityLoading(true);
@@ -548,6 +586,7 @@ export const UserDetailPage: React.FC = () => {
       }
     };
     fetchActivity();
+    */
   }, [id, activityPage]);
 
   const refreshUser = async () => {
@@ -769,22 +808,27 @@ export const UserDetailPage: React.FC = () => {
     if (!user) return {} as Record<ViewType, boolean>;
     return {
       overview: true,
-      // ORGANIZATION - placeholder for now, will be populated when data is available
+      // ORGANIZATION
+      organization: Boolean(user.company_name),
       properties: false, // TODO: Check user.properties?.length > 0
       rooms: false, // TODO: Check rooms count from properties
+      addons: false, // TODO: Check addons count
       team: false, // TODO: Check team members count
-      // OPERATIONS - placeholder for now
+      // OPERATIONS
       customers: false, // TODO: Check customers count
       bookings: false, // TODO: Check bookings count
       reviews: false, // TODO: Check reviews count
       refunds: false, // TODO: Check refunds count
+      // LEGAL
+      policies: false, // TODO: Check policies count
+      // BILLING
+      'payment-integrations': false, // TODO: Check payment integrations
+      subscription: false, // TODO: Check subscription status
+      'payment-history': false, // TODO: Check payment history
       // PROFILE
       personal: Boolean(user.full_name),
       address: Boolean(user.address_street || user.address_city || user.address_country),
       company: Boolean(user.company_name),
-      // ACCESS
-      roles: (user.roles?.length || 0) > 0,
-      permissions: selectedPermissions.grants.length > 0 || selectedPermissions.denies.length > 0,
       // HISTORY
       activity: activities.length > 0,
     };
@@ -803,49 +847,213 @@ export const UserDetailPage: React.FC = () => {
   const resourceKeys = Object.keys(permissionsByResource);
   const completionStatus = getCompletionStatus();
 
-  // Navigation sections - mirrors the screenshot layout
+  // Determine user's functional role based on type and stats
+  const determineUserRole = (): UserFunctionalRole => {
+    if (!user) return 'Guest';
+
+    // Debug: Log user type info
+    console.log('🔍 User Type Debug:', {
+      user_type: user.user_type,
+      user_type_name: user.user_type?.name,
+      parent_user_id: user.parent_user_id,
+      email: user.email,
+      propertyCount: userStats?.propertyCount
+    });
+
+    // Get user type name
+    const userTypeName = user.user_type?.name;
+
+    // System roles first
+    if (userTypeName === 'super_admin') return 'Super Admin';
+    if (userTypeName === 'admin') return 'Admin';
+
+    // Team member check
+    if (user.parent_user_id) return 'Team Member';
+
+    // Property ownership check (requires stats)
+    if ((userTypeName === 'paid' || userTypeName === 'free')
+        && userStats && userStats.propertyCount > 0) {
+      return 'Property Owner';
+    }
+
+    // Default to Guest
+    return 'Guest';
+  };
+
+  const userRole = determineUserRole();
+
+  // Get role badge component
+  const getUserRoleBadge = (role: UserFunctionalRole) => {
+    const roleConfig: Record<UserFunctionalRole, {
+      variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'primary',
+      label: string
+    }> = {
+      'Super Admin': { variant: 'error', label: 'Super Admin' },
+      'Admin': { variant: 'warning', label: 'Admin' },
+      'Property Owner': { variant: 'success', label: 'Property Owner' },
+      'Team Member': { variant: 'info', label: 'Team Member' },
+      'Guest': { variant: 'default', label: 'Guest' },
+    };
+
+    const config = roleConfig[role];
+    return <Badge variant={config.variant} size="sm">{config.label}</Badge>;
+  };
+
+  // Determine which tabs should be visible based on user role
+  const getVisibleTabs = (): ViewType[] => {
+    const tabsByRole: Record<UserFunctionalRole, ViewType[]> = {
+      // TODO: Add 'activity' back when backend endpoint /api/users/:id/activity is implemented
+      'Super Admin': ['overview', 'organization', 'properties', 'rooms', 'addons', 'team',
+                      'customers', 'bookings', 'reviews', 'refunds', 'policies', 'terms', 'payment-integrations', 'subscription', 'payment-history',
+                      'personal', 'address', 'company'],
+      'Admin': ['overview', 'organization', 'properties', 'rooms', 'addons', 'team',
+                'customers', 'bookings', 'reviews', 'refunds', 'policies', 'terms', 'payment-integrations', 'subscription', 'payment-history',
+                'personal', 'address', 'company'],
+      'Property Owner': ['overview', 'organization', 'properties', 'rooms', 'addons', 'team',
+                         'bookings', 'reviews', 'refunds', 'policies', 'terms',
+                         'personal', 'address', 'company'],
+      'Team Member': ['overview', 'properties', 'rooms', 'addons', 'bookings', 'reviews',
+                      'personal'],
+      'Guest': ['overview', 'bookings', 'reviews', 'refunds', 'personal'],
+    };
+
+    return tabsByRole[userRole];
+  };
+
+  const visibleTabs = getVisibleTabs();
+
+  // Navigation sections - filtered based on user role
   const navSections: NavSection[] = [
     {
       title: 'GENERAL',
       items: [{ id: 'overview', label: 'Overview', icon: <GridIcon /> }],
     },
-    {
+    visibleTabs.includes('organization') && {
       title: 'ORGANIZATION',
       items: [
-        { id: 'properties', label: 'Properties', icon: <PropertyIcon />, count: 0 },
-        { id: 'rooms', label: 'Rooms', icon: <RoomIcon />, count: 0 },
-        { id: 'team', label: 'Team Members', icon: <TeamIcon />, count: 0 },
-      ],
+        { id: 'organization', label: 'Organization', icon: <BuildingIcon /> },
+        visibleTabs.includes('properties') && {
+          id: 'properties',
+          label: 'Properties',
+          icon: <PropertyIcon />,
+          count: userStats?.propertyCount || 0
+        },
+        visibleTabs.includes('rooms') && {
+          id: 'rooms',
+          label: 'Rooms',
+          icon: <RoomIcon />,
+          count: userStats?.roomCount || 0
+        },
+        visibleTabs.includes('addons') && {
+          id: 'addons',
+          label: 'Add-ons',
+          icon: <PlusIcon />,
+          count: userStats?.addonCount || 0
+        },
+        visibleTabs.includes('team') && {
+          id: 'team',
+          label: 'Team Members',
+          icon: <TeamIcon />,
+          count: userStats?.teamMemberCount || 0
+        },
+      ].filter(Boolean),
     },
-    {
+    visibleTabs.some(t => ['customers', 'bookings', 'reviews', 'refunds'].includes(t)) && {
       title: 'OPERATIONS',
       items: [
-        { id: 'customers', label: 'Customers', icon: <CustomerIcon /> },
-        { id: 'bookings', label: 'Bookings', icon: <BookingIcon />, count: 0 },
-        { id: 'reviews', label: 'Reviews', icon: <ReviewIcon /> },
-        { id: 'refunds', label: 'Refunds', icon: <RefundIcon /> },
-      ],
+        visibleTabs.includes('customers') && {
+          id: 'customers',
+          label: 'Customers',
+          icon: <CustomerIcon />,
+          count: userStats?.customerCount || 0
+        },
+        visibleTabs.includes('bookings') && {
+          id: 'bookings',
+          label: 'Bookings',
+          icon: <BookingIcon />,
+          count: userStats?.bookingCount || 0
+        },
+        visibleTabs.includes('reviews') && {
+          id: 'reviews',
+          label: 'Reviews',
+          icon: <ReviewIcon />,
+          count: userStats?.reviewCount || 0
+        },
+        visibleTabs.includes('refunds') && {
+          id: 'refunds',
+          label: 'Refunds',
+          icon: <RefundIcon />
+        },
+      ].filter(Boolean),
     },
-    {
+    visibleTabs.some(t => ['policies', 'terms'].includes(t)) && {
+      title: 'LEGAL',
+      items: [
+        visibleTabs.includes('policies') && {
+          id: 'policies',
+          label: 'Cancellation Policies',
+          icon: <ShieldIcon />
+        },
+        visibleTabs.includes('terms') && {
+          id: 'terms',
+          label: 'Terms & Conditions',
+          icon: <ShieldIcon />
+        },
+      ].filter(Boolean),
+    },
+    visibleTabs.some(t => ['payment-integrations', 'subscription', 'payment-history'].includes(t)) && {
+      title: 'BILLING',
+      items: [
+        visibleTabs.includes('subscription') && {
+          id: 'subscription',
+          label: 'Subscription',
+          icon: <ShieldIcon />
+        },
+        visibleTabs.includes('payment-integrations') && {
+          id: 'payment-integrations',
+          label: 'Payment Integrations',
+          icon: <ShieldIcon />
+        },
+        visibleTabs.includes('payment-history') && {
+          id: 'payment-history',
+          label: 'Payment History',
+          icon: <ShieldIcon />
+        },
+      ].filter(Boolean),
+    },
+    visibleTabs.some(t => ['personal', 'address', 'company'].includes(t)) && {
       title: 'PROFILE',
       items: [
-        { id: 'personal', label: 'Personal Info', icon: <UserIcon /> },
-        { id: 'address', label: 'Address', icon: <HomeIcon /> },
-        { id: 'company', label: 'Company', icon: <BuildingIcon /> },
-      ],
+        visibleTabs.includes('personal') && {
+          id: 'personal',
+          label: 'Personal Info',
+          icon: <UserIcon />
+        },
+        visibleTabs.includes('address') && {
+          id: 'address',
+          label: 'Address',
+          icon: <HomeIcon />
+        },
+        visibleTabs.includes('company') && {
+          id: 'company',
+          label: 'Company',
+          icon: <BuildingIcon />
+        },
+      ].filter(Boolean),
     },
-    {
-      title: 'ACCESS',
-      items: [
-        { id: 'roles', label: 'Roles', icon: <ShieldIcon />, count: user?.roles?.length || 0 },
-        { id: 'permissions', label: 'Permissions', icon: <KeyIcon /> },
-      ],
-    },
-    {
+    visibleTabs.includes('activity') && {
       title: 'HISTORY',
       items: [{ id: 'activity', label: 'Activity', icon: <ClockIcon /> }],
     },
-  ];
+  ].filter(Boolean) as NavSection[];
+
+  if (!id) {
+    return (
+      <AuthenticatedLayout title="User Details">
+        <Alert variant="error">Invalid user ID</Alert>
+      </AuthenticatedLayout>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -1210,229 +1418,110 @@ export const UserDetailPage: React.FC = () => {
           </Card>
         );
 
-      case 'roles':
-        return (
-          <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Roles</h3>
-              <SaveStatus status={rolesSave.saveStatus} />
-            </Card.Header>
-            <Card.Body>
-              <div className="space-y-3">
-                {allRoles.map((role) => (
-                  <Checkbox
-                    key={role.id}
-                    checked={selectedRoles.includes(role.id)}
-                    onCheckedChange={(checked) => handleRoleToggle(role.id, !!checked)}
-                    label={role.display_name}
-                    description={role.description ?? undefined}
-                    disabled={rolesSave.isSaving}
-                  />
-                ))}
-                {allRoles.length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No roles available</p>
-                )}
-              </div>
-            </Card.Body>
-          </Card>
-        );
-
-      case 'permissions':
-        return (
-          <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Direct Permissions</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Override role-based permissions</p>
-              </div>
-              <SaveStatus status={permissionsSave.saveStatus} />
-            </Card.Header>
-            <Card.Body className="p-0">
-              {resourceKeys.length > 0 ? (
-                <Tabs defaultValue={resourceKeys[0]} variant="underline">
-                  <div className="px-4 pt-2 border-b border-gray-200 dark:border-dark-border overflow-x-auto">
-                    <TabsList variant="underline">
-                      {resourceKeys.map((resource) => (
-                        <TabsTrigger key={resource} value={resource} variant="underline">
-                          <span className="capitalize">{resource}</span>
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </div>
-                  {resourceKeys.map((resource) => (
-                    <TabsContent key={resource} value={resource} className="p-4">
-                      <div className="space-y-2">
-                        {permissionsByResource[resource].map((permission) => {
-                          const isGranted = selectedPermissions.grants.includes(permission.id);
-                          const isDenied = selectedPermissions.denies.includes(permission.id);
-
-                          return (
-                            <div
-                              key={permission.id}
-                              className="flex items-center justify-between py-2 px-3 rounded-md bg-gray-50 dark:bg-dark-bg"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                                  {permission.action}
-                                </span>
-                                {permission.description && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                    {permission.description}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex gap-1 ml-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handlePermissionToggle(permission.id, isGranted ? 'none' : 'grant')
-                                  }
-                                  disabled={permissionsSave.isSaving}
-                                  className={`px-2 py-1 text-xs rounded font-medium transition-colors disabled:opacity-50 ${
-                                    isGranted
-                                      ? 'bg-success text-white'
-                                      : 'bg-gray-200 text-gray-600 hover:bg-success/20 dark:bg-gray-700 dark:text-gray-300'
-                                  }`}
-                                >
-                                  Grant
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handlePermissionToggle(permission.id, isDenied ? 'none' : 'deny')
-                                  }
-                                  disabled={permissionsSave.isSaving}
-                                  className={`px-2 py-1 text-xs rounded font-medium transition-colors disabled:opacity-50 ${
-                                    isDenied
-                                      ? 'bg-error text-white'
-                                      : 'bg-gray-200 text-gray-600 hover:bg-error/20 dark:bg-gray-700 dark:text-gray-300'
-                                  }`}
-                                >
-                                  Deny
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              ) : (
-                <div className="p-4">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No permissions available</p>
-                </div>
-              )}
-
-              {/* Effective Permissions */}
-              <div className="p-4 border-t border-gray-200 dark:border-dark-border">
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Effective Permissions ({user.effectivePermissions.length})
-                </p>
-                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                  {user.effectivePermissions.slice(0, 15).map((perm) => (
-                    <Badge key={perm} variant="default" size="sm">
-                      {perm}
-                    </Badge>
-                  ))}
-                  {user.effectivePermissions.length > 15 && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      +{user.effectivePermissions.length - 15} more
-                    </span>
-                  )}
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
-        );
-
       // ORGANIZATION section views
-      case 'properties':
-        return (
-          <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Properties</h3>
-              <Button variant="primary" size="sm">
-                Assign Property
-              </Button>
-            </Card.Header>
-            <Card.Body>
-              <EmptyState
-                icon={<PropertyIcon />}
-                title="No properties assigned to this user yet."
-                description="Properties this user owns or manages will appear here."
-                size="sm"
-              />
-            </Card.Body>
-          </Card>
-        );
-
-      case 'rooms':
+      case 'organization':
         return (
           <Card variant="bordered">
             <Card.Header>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Rooms</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Organization</h3>
             </Card.Header>
             <Card.Body>
-              <EmptyState
-                icon={<RoomIcon />}
-                title="No rooms found for this user's properties."
-                description="Rooms from assigned properties will appear here."
-                size="sm"
-              />
+              {loadingStats ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size="md" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        Organization Name
+                      </label>
+                      <p className="text-sm text-gray-900 dark:text-white">
+                        {user.company_name || 'Not specified'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        Organization Type
+                      </label>
+                      <p className="text-sm text-gray-900 dark:text-white">
+                        Property Management
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      Description
+                    </label>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {user.bio || 'No organization description available.'}
+                    </p>
+                  </div>
+                  <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {userStats?.propertyCount || 0}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Properties
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {userStats?.teamMemberCount || 0}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Team Members
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                          {userStats?.roomCount || 0}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Rooms
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </Card.Body>
           </Card>
         );
 
+      case 'properties':
+        return <UserPropertiesTab userId={id} userName={user?.full_name || ''} />;
+
+      case 'rooms':
+        return <UserRoomsTab userId={id} userName={user?.full_name || ''} />;
+
+      case 'addons':
+        return <UserAddonsTab userId={id} userName={user?.full_name || ''} />;
+
       case 'team':
-        return (
-          <Card variant="bordered">
-            <Card.Header className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Team Members</h3>
-              <Button variant="primary" size="sm">
-                Invite Member
-              </Button>
-            </Card.Header>
-            <Card.Body>
-              <EmptyState
-                icon={<TeamIcon />}
-                title="No team members yet."
-                description="Team members this user has invited will appear here."
-                size="sm"
-              />
-            </Card.Body>
-          </Card>
-        );
+        return <UserTeamTab userId={id} userName={user?.full_name || ''} />;
 
       // OPERATIONS section views
       case 'customers':
-        return (
-          <Card variant="bordered">
-            <Card.Header>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Customers</h3>
-            </Card.Header>
-            <Card.Body>
-              <EmptyState
-                icon={<CustomerIcon />}
-                title="No customers found."
-                description="Customers who have booked with this user will appear here."
-                size="sm"
-              />
-            </Card.Body>
-          </Card>
-        );
+        return <UserCustomersTab userId={id} userName={user?.full_name || ''} />;
 
       case 'bookings':
-        return (
+        return isSuperAdmin ? (
+          <UserBookingsTab userId={id} userName={user?.full_name || ''} />
+        ) : (
           <Card variant="bordered">
-            <Card.Header>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Bookings</h3>
-            </Card.Header>
             <Card.Body>
               <EmptyState
-                icon={<BookingIcon />}
-                title="No bookings found."
-                description="Bookings for this user's properties will appear here."
+                icon={
+                  <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                }
+                title="Access Restricted"
+                description="Only super admins can manage user bookings."
                 size="sm"
               />
             </Card.Body>
@@ -1440,16 +1529,19 @@ export const UserDetailPage: React.FC = () => {
         );
 
       case 'reviews':
-        return (
+        return isSuperAdmin ? (
+          <UserReviewsTab userId={id} userName={user?.full_name || ''} />
+        ) : (
           <Card variant="bordered">
-            <Card.Header>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Reviews</h3>
-            </Card.Header>
             <Card.Body>
               <EmptyState
-                icon={<ReviewIcon />}
-                title="No reviews yet."
-                description="Reviews for this user's properties will appear here."
+                icon={
+                  <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                }
+                title="Access Restricted"
+                description="Only super admins can manage user reviews."
                 size="sm"
               />
             </Card.Body>
@@ -1457,21 +1549,41 @@ export const UserDetailPage: React.FC = () => {
         );
 
       case 'refunds':
-        return (
+        return isSuperAdmin ? (
+          <UserRefundsTab userId={id} userName={user?.full_name || ''} />
+        ) : (
           <Card variant="bordered">
-            <Card.Header>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Refunds</h3>
-            </Card.Header>
             <Card.Body>
               <EmptyState
-                icon={<RefundIcon />}
-                title="No refunds processed."
-                description="Refund requests and history will appear here."
+                icon={
+                  <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                }
+                title="Access Restricted"
+                description="Only super admins can manage user refunds."
                 size="sm"
               />
             </Card.Body>
           </Card>
         );
+
+      // LEGAL section views
+      case 'policies':
+        return <UserPoliciesTab userId={id} userName={user?.full_name || ''} />;
+
+      case 'terms':
+        return <UserTermsTab userId={id} userName={user?.full_name || ''} />;
+
+      // BILLING section views
+      case 'subscription':
+        return <UserSubscriptionTab userId={id} userName={user?.full_name || ''} />;
+
+      case 'payment-integrations':
+        return <UserPaymentIntegrationsTab userId={id} userName={user?.full_name || ''} />;
+
+      case 'payment-history':
+        return <UserPaymentHistoryTab userId={id} userName={user?.full_name || ''} />;
 
       case 'activity':
         return (
@@ -1538,26 +1650,83 @@ export const UserDetailPage: React.FC = () => {
   };
 
   return (
-    <AuthenticatedLayout title="User Details" subtitle="View and manage user account">
+    <AuthenticatedLayout
+      title="User Details"
+      subtitle="View and manage user account"
+    >
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/admin/users')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-card rounded-md transition-colors"
-          >
-            <BackIcon />
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {user.full_name || 'Unnamed User'}
-              </h1>
-              <Badge variant={statusColors[user.status]} size="md">
-                {user.status}
-              </Badge>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/admin/users')}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-card rounded-md transition-colors"
+            >
+              <BackIcon />
+            </button>
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {user.full_name || 'Unnamed User'}
+                </h1>
+                <Badge variant={statusColors[user.status]} size="md">
+                  {user.status}
+                </Badge>
+                {/* User role badge */}
+                {getUserRoleBadge(userRole)}
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex items-center gap-2">
+            {/* Approve Button - Show when status is 'pending' */}
+            {user.status === 'pending' && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleApprove}
+                isLoading={isApproving}
+              >
+                Approve User
+              </Button>
+            )}
+
+            {/* Pause Button - Show when status is 'active' */}
+            {user.status === 'active' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmAction({ type: 'suspend', isOpen: true })}
+                className="text-warning border-warning/30 hover:bg-warning/10"
+              >
+                Pause User
+              </Button>
+            )}
+
+            {/* Reactivate Button - Show when status is 'suspended' */}
+            {user.status === 'suspended' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmAction({ type: 'reactivate', isOpen: true })}
+              >
+                Reactivate User
+              </Button>
+            )}
+
+            {/* Suspend Button - Always show (unless deactivated) */}
+            {user.status !== 'deactivated' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmAction({ type: 'deactivate', isOpen: true })}
+                className="text-error hover:bg-error/10"
+              >
+                Suspend User
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1579,29 +1748,69 @@ export const UserDetailPage: React.FC = () => {
           <div className="lg:col-span-3">
             <Card variant="bordered" className="lg:sticky lg:top-6">
               <Card.Body className="p-3 space-y-4">
-                {/* Profile Completion */}
-                <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-dark-bg rounded-lg">
-                  <CircularProgress
-                    percentage={(() => {
-                      const profileFields = ['personal', 'address', 'company', 'roles'] as const;
-                      const completed = profileFields.filter(f => completionStatus[f]).length;
-                      return (completed / profileFields.length) * 100;
-                    })()}
-                    size={48}
-                    strokeWidth={4}
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      Profile Completion
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {(() => {
-                        const profileFields = ['personal', 'address', 'company', 'roles'] as const;
-                        const completed = profileFields.filter(f => completionStatus[f]).length;
-                        return `${completed} of ${profileFields.length} sections`;
-                      })()}
-                    </p>
+                {/* User Profile Card */}
+                <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+                  <div className="flex items-center gap-3">
+                    {/* Avatar with upload */}
+                    <button
+                      onClick={handleAvatarClick}
+                      disabled={isUploadingAvatar}
+                      className="relative group focus:outline-none rounded-full"
+                    >
+                      <Avatar
+                        src={user.avatar_url || undefined}
+                        name={user.full_name || user.email}
+                        size="lg"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-full flex items-center justify-center">
+                        {isUploadingAvatar ? (
+                          <Spinner size="sm" className="text-white" />
+                        ) : (
+                          <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                            Change
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                        {user.full_name || 'Unknown User'}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                        {user.email}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant={statusColors[user.status]} size="sm">
+                          {user.status}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Additional Info */}
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border space-y-1">
+                    {user.phone && (
+                      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                        <PhoneIcon />
+                        <span>{user.phone}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                      <CalendarIcon />
+                      <span>Joined {formatDate(user.created_at)}</span>
+                    </div>
+                  </div>
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
                 </div>
 
                 {navSections.map((section) => (
@@ -1627,173 +1836,8 @@ export const UserDetailPage: React.FC = () => {
           </div>
 
           {/* Center Column - Content */}
-          <div className="lg:col-span-5">{renderContent()}</div>
-
-          {/* Right Column - Profile Sidebar */}
-          <div className="lg:col-span-4">
-            <div className="lg:sticky lg:top-6 space-y-6">
-              {/* Profile Card with Banner */}
-              <Card variant="bordered" className="overflow-hidden">
-                {/* Green Banner */}
-                <div className="h-20 bg-gradient-to-br from-primary to-primary-600 relative">
-                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                    <button
-                      onClick={handleAvatarClick}
-                      disabled={isUploadingAvatar}
-                      className="relative focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full group"
-                    >
-                      <Avatar
-                        src={user.avatar_url || undefined}
-                        name={user.full_name || user.email}
-                        size="xl-lg"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 rounded-full transition-all flex items-center justify-center">
-                        {isUploadingAvatar ? (
-                          <Spinner size="sm" className="text-white" />
-                        ) : (
-                          <svg
-                            className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Identity */}
-                <div className="pt-11 pb-4 px-4 text-center">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {user.full_name || 'Unnamed User'}
-                  </h3>
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <Badge variant={statusColors[user.status]} size="sm">
-                      {user.status}
-                    </Badge>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      /{user.email.split('@')[0]}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* User Info */}
-              <Card variant="bordered">
-                <Card.Header>
-                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    User Info
-                  </h3>
-                </Card.Header>
-                <Card.Body className="space-y-3">
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-400 dark:text-gray-500">
-                      <MailIcon />
-                    </span>
-                    <span className="text-gray-900 dark:text-white truncate">{user.email}</span>
-                  </div>
-                  {user.phone && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="text-gray-400 dark:text-gray-500">
-                        <PhoneIcon />
-                      </span>
-                      <span className="text-gray-900 dark:text-white">{user.phone}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-400 dark:text-gray-500">
-                      <GlobeIcon />
-                    </span>
-                    <span className="text-gray-900 dark:text-white">{user.timezone || 'UTC'}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-400 dark:text-gray-500">
-                      <CalendarIcon />
-                    </span>
-                    <span className="text-gray-900 dark:text-white">
-                      Joined {formatDate(user.created_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-400 dark:text-gray-500">
-                      <UsersIcon />
-                    </span>
-                    <span className="text-gray-900 dark:text-white">
-                      {user.roles?.length || 0} roles assigned
-                    </span>
-                  </div>
-                </Card.Body>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card variant="bordered">
-                <Card.Header>
-                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Quick Actions
-                  </h3>
-                </Card.Header>
-                <Card.Body className="space-y-2">
-                  {user.status === 'pending' && (
-                    <Button
-                      variant="primary"
-                      onClick={handleApprove}
-                      isLoading={isApproving}
-                      className="w-full"
-                    >
-                      Approve User
-                    </Button>
-                  )}
-                  {user.status === 'active' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmAction({ type: 'suspend', isOpen: true })}
-                      className="w-full text-warning border-warning/30 hover:bg-warning/10"
-                    >
-                      Pause User
-                    </Button>
-                  )}
-                  {user.status === 'suspended' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmAction({ type: 'reactivate', isOpen: true })}
-                      className="w-full"
-                    >
-                      Reactivate User
-                    </Button>
-                  )}
-                  {user.status !== 'deactivated' && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => setConfirmAction({ type: 'deactivate', isOpen: true })}
-                      className="w-full text-error hover:bg-error/10"
-                    >
-                      Suspend User
-                    </Button>
-                  )}
-                </Card.Body>
-              </Card>
-            </div>
+          <div className="lg:col-span-9">
+            {renderContent()}
           </div>
         </div>
 
