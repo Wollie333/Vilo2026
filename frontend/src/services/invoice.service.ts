@@ -1,6 +1,8 @@
 import { api } from './api.service';
 import type {
   Invoice,
+  SubscriptionInvoice,
+  BookingInvoice,
   InvoiceSettings,
   UpdateInvoiceSettingsData,
   InvoiceListParams,
@@ -69,7 +71,7 @@ class InvoiceService {
    * Get invoice settings (admin only)
    */
   async getSettings(): Promise<InvoiceSettings> {
-    const response = await api.get<{ settings: InvoiceSettings }>('/api/invoices/admin/settings');
+    const response = await api.get<{ settings: InvoiceSettings }>('/invoices/admin/settings');
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch invoice settings');
     }
@@ -80,7 +82,7 @@ class InvoiceService {
    * Update invoice settings (admin only)
    */
   async updateSettings(data: UpdateInvoiceSettingsData): Promise<InvoiceSettings> {
-    const response = await api.patch<{ settings: InvoiceSettings }>('/api/invoices/admin/settings', data);
+    const response = await api.patch<{ settings: InvoiceSettings }>('/invoices/admin/settings', data);
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update invoice settings');
     }
@@ -155,6 +157,46 @@ class InvoiceService {
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to delete logo');
     }
+  }
+
+  // ============================================================================
+  // TYPE-SPECIFIC ENDPOINTS
+  // ============================================================================
+
+  /**
+   * Get subscription invoices for current user (SaaS billing)
+   * Returns invoices where the user is the payer (subscription owner)
+   */
+  async getSubscriptionInvoices(): Promise<SubscriptionInvoice[]> {
+    const response = await api.get<SubscriptionInvoice[]>('/invoices/subscription');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch subscription invoices');
+    }
+    return response.data;
+  }
+
+  /**
+   * Get booking invoices issued by current user (property owner perspective)
+   * Returns invoices where the user is the issuer (property owner)
+   */
+  async getIssuedBookingInvoices(): Promise<BookingInvoice[]> {
+    const response = await api.get<BookingInvoice[]>('/invoices/booking/issued');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch issued booking invoices');
+    }
+    return response.data;
+  }
+
+  /**
+   * Get booking invoices received by current user (guest perspective)
+   * Returns invoices for bookings where the user is the guest
+   */
+  async getReceivedBookingInvoices(): Promise<BookingInvoice[]> {
+    const response = await api.get<BookingInvoice[]>('/invoices/booking/received');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch received booking invoices');
+    }
+    return response.data;
   }
 }
 

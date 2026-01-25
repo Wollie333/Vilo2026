@@ -51,6 +51,8 @@ export interface OnboardingCompanyData {
   email?: string;
   phone?: string;
   website?: string;
+  default_currency?: string;
+  logo_url?: string;
   address_street?: string;
   address_city?: string;
   address_state?: string;
@@ -65,11 +67,25 @@ export interface OnboardingPropertyData {
   name: string;
   description?: string;
   property_type?: string;
+  // Contact information
+  phone?: string;
+  email?: string;
+  website?: string;
+  // Images
+  logo_url?: string;
+  featured_image_url?: string;
+  // Address fields
   address_street?: string;
   address_city?: string;
   address_state?: string;
   address_postal_code?: string;
   address_country?: string;
+  // Hierarchical location fields for listing
+  country_id?: number;
+  province_id?: number;
+  city_id?: number;
+  location_lat?: number;
+  location_lng?: number;
 }
 
 /**

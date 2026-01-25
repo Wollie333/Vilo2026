@@ -8,10 +8,13 @@
  */
 
 import React, { useState } from 'react';
-import { Input, PhoneInput, Alert, LocationSelector } from '@/components/ui';
-import type { LocationData } from '@/components/ui';
+import { Mail, Globe } from 'lucide-react';
+import { Input, PhoneInput, Alert, AddressAutocomplete, ImageUpload, Select } from '@/components/ui';
+import type { AddressData } from '@/components/ui';
 import { OnboardingFooter } from '../components/OnboardingFooter';
 import type { OnboardingCompanyData } from '@/types/onboarding.types';
+import { companyService } from '@/services';
+import { CURRENCY_SELECT_OPTIONS } from '@/utils/currencies';
 
 interface CompanyStepProps {
   onSubmit: (data: OnboardingCompanyData) => Promise<void>;
@@ -33,6 +36,7 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
     email: initialData?.email || '',
     phone: initialData?.phone || '',
     website: initialData?.website || '',
+    default_currency: initialData?.default_currency || 'USD',
     address_street: initialData?.address_street || '',
     address_city: initialData?.address_city || '',
     address_state: initialData?.address_state || '',
@@ -40,12 +44,13 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
     address_country: initialData?.address_country || '',
   });
 
-  // Location state for LocationSelector
-  const [locationData, setLocationData] = useState<LocationData>({
-    countryId: undefined,
-    provinceId: undefined,
-    cityId: undefined,
-  });
+  // State for address autocomplete search
+  const [addressSearch, setAddressSearch] = useState('');
+
+  // State for logo upload
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Update form when initialData changes (for edit mode)
   React.useEffect(() => {
@@ -55,18 +60,29 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
         email: initialData.email || '',
         phone: initialData.phone || '',
         website: initialData.website || '',
+        default_currency: initialData.default_currency || 'USD',
         address_street: initialData.address_street || '',
         address_city: initialData.address_city || '',
         address_state: initialData.address_state || '',
         address_postal_code: initialData.address_postal_code || '',
         address_country: initialData.address_country || '',
       });
+
+      // Set logo preview if there's an existing logo URL
+      if (initialData.logo_url) {
+        setLogoPreview(initialData.logo_url);
+      }
     }
   }, [initialData]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleChange = (field: keyof OnboardingCompanyData, value: string) => {
+    // Log address field changes
+    if (field.startsWith('address_')) {
+      console.log(`[CompanyStep] Address field changed: ${field} = "${value}"`);
+    }
+
     setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear field error when user starts typing
     if (errors[field]) {
@@ -82,15 +98,19 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
     handleChange(e.target.name as keyof OnboardingCompanyData, e.target.value);
   };
 
-  const handleLocationChange = (data: LocationData) => {
-    setLocationData(data);
-    // Update form data with location names
+  const handleAddressSelect = (address: AddressData) => {
+    console.log('[CompanyStep] Address selected from autocomplete:', address);
+
     setFormData((prev) => ({
       ...prev,
-      address_country: data.countryName || '',
-      address_state: data.provinceName || '',
-      address_city: data.cityName || '',
+      address_street: address.street || prev.address_street,
+      address_city: address.city || prev.address_city,
+      address_state: address.state || prev.address_state,
+      address_postal_code: address.postal_code || prev.address_postal_code,
+      address_country: address.country || prev.address_country,
     }));
+
+    console.log('[CompanyStep] Form data updated with autocomplete address');
   };
 
   const validateForm = (): boolean => {
@@ -102,12 +122,18 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
       newErrors.name = 'Company name must be at least 2 characters';
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+    // Email is optional - only validate if provided
+    if (formData.email && formData.email.trim() !== '') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
     }
 
-    if (formData.website && !formData.website.startsWith('http')) {
-      newErrors.website = 'Website must start with http:// or https://';
+    // Website is optional - only validate if provided
+    if (formData.website && formData.website.trim() !== '') {
+      if (!formData.website.startsWith('http')) {
+        newErrors.website = 'Website must start with http:// or https://';
+      }
     }
 
     setErrors(newErrors);
@@ -118,12 +144,42 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
     setSubmitError(null);
 
     if (!validateForm()) {
+      console.log('[CompanyStep] Validation failed');
       return;
     }
 
+    console.log('[CompanyStep] === Submitting company data ===');
+    console.log('[CompanyStep] Full form data:', JSON.stringify(formData, null, 2));
+    console.log('[CompanyStep] Address fields:', {
+      street: formData.address_street,
+      city: formData.address_city,
+      state: formData.address_state,
+      postal: formData.address_postal_code,
+      country: formData.address_country,
+    });
+
     try {
-      await onSubmit(formData);
+      // First, save company data and get the company ID from response
+      const response = await onSubmit(formData);
+      console.log('[CompanyStep] Save successful, company ID:', response?.companyId);
+
+      // If logo selected, upload it using the returned company ID
+      if (logoFile && response?.companyId) {
+        setUploadingLogo(true);
+        try {
+          console.log('[CompanyStep] Uploading company logo for ID:', response.companyId);
+          await companyService.uploadLogo(response.companyId, logoFile);
+          console.log('[CompanyStep] Logo upload successful');
+        } catch (logoErr) {
+          console.error('[CompanyStep] Logo upload failed:', logoErr);
+          // Don't block onboarding if upload fails - user can upload later
+        } finally {
+          setUploadingLogo(false);
+        }
+      }
     } catch (err) {
+      console.error('[CompanyStep] Save failed:', err);
+      console.error('[CompanyStep] Error details:', err instanceof Error ? err.stack : 'N/A');
       setSubmitError(err instanceof Error ? err.message : 'Failed to create company');
     }
   };
@@ -165,29 +221,18 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Email (optional)
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <Input
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="contact@company.com"
-                className="pl-10"
-                fullWidth
-                disabled={isLoading}
-                error={errors.email}
-              />
-            </div>
-          </div>
+          <Input
+            label="Email (optional)"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleInputChange}
+            placeholder="contact@company.com"
+            leftIcon={<Mail className="w-5 h-5" />}
+            fullWidth
+            disabled={isLoading}
+            error={errors.email}
+          />
 
           <PhoneInput
             label="Phone (optional)"
@@ -201,28 +246,56 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
           />
         </div>
 
+        <Input
+          label="Website (optional)"
+          name="website"
+          type="url"
+          value={formData.website}
+          onChange={handleInputChange}
+          placeholder="https://myrentals.com"
+          leftIcon={<Globe className="w-5 h-5" />}
+          fullWidth
+          disabled={isLoading}
+          error={errors.website}
+        />
+
+        {/* Currency Selector */}
+        <div className="space-y-2">
+          <Select
+            label="Default Currency"
+            name="default_currency"
+            value={formData.default_currency}
+            onChange={handleInputChange}
+            options={CURRENCY_SELECT_OPTIONS}
+            fullWidth
+            disabled={isLoading}
+            helperText="This will be used as the default currency for all pricing, invoices, and payments"
+          />
+        </div>
+
+        {/* Company Logo Upload */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Website (optional)
+            Company Logo (Optional)
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-              </svg>
-            </div>
-            <Input
-              name="website"
-              type="url"
-              value={formData.website}
-              onChange={handleInputChange}
-              placeholder="https://myrentals.com"
-              className="pl-10"
-              fullWidth
-              disabled={isLoading}
-              error={errors.website}
-            />
-          </div>
+          <ImageUpload
+            value={logoPreview}
+            onUpload={async (file) => {
+              setLogoFile(file);
+              setLogoPreview(URL.createObjectURL(file));
+            }}
+            onDelete={async () => {
+              setLogoFile(null);
+              setLogoPreview(null);
+            }}
+            shape="square"
+            size="lg"
+            disabled={isLoading || uploadingLogo}
+            showDelete={true}
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Upload your company logo (max 2MB, JPG/PNG/SVG)
+          </p>
         </div>
 
         {/* Address section */}
@@ -232,16 +305,19 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
           </p>
 
           <div className="space-y-4">
-            {/* Location Selector */}
-            <LocationSelector
-              selectedCountryId={locationData.countryId}
-              selectedProvinceId={locationData.provinceId}
-              selectedCityId={locationData.cityId}
-              onLocationChange={handleLocationChange}
+            {/* Address Autocomplete */}
+            <AddressAutocomplete
+              value={addressSearch}
+              onChange={handleAddressSelect}
+              onInputChange={setAddressSearch}
+              placeholder="Search for your company address..."
               disabled={isLoading}
-              showCoordinates={false}
-              helperText="Select your company's location"
+              label="Search Address"
             />
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Start typing to search for an address, or fill in the fields manually below
+            </p>
 
             {/* Street Address */}
             <Input
@@ -250,24 +326,65 @@ export const CompanyStep: React.FC<CompanyStepProps> = ({
               type="text"
               value={formData.address_street}
               onChange={handleInputChange}
-              placeholder="123 Business St"
+              placeholder="123 Business Street"
               fullWidth
               disabled={isLoading}
               error={errors.address_street}
             />
 
-            {/* Postal Code */}
-            <Input
-              label="Postal Code"
-              name="address_postal_code"
-              type="text"
-              value={formData.address_postal_code}
-              onChange={handleInputChange}
-              placeholder="12345"
-              fullWidth
-              disabled={isLoading}
-              error={errors.address_postal_code}
-            />
+            {/* City and State/Province in a row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="City"
+                name="address_city"
+                type="text"
+                value={formData.address_city}
+                onChange={handleInputChange}
+                placeholder="Cape Town"
+                fullWidth
+                disabled={isLoading}
+                error={errors.address_city}
+              />
+
+              <Input
+                label="State / Province"
+                name="address_state"
+                type="text"
+                value={formData.address_state}
+                onChange={handleInputChange}
+                placeholder="Western Cape"
+                fullWidth
+                disabled={isLoading}
+                error={errors.address_state}
+              />
+            </div>
+
+            {/* Postal Code and Country in a row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Postal Code"
+                name="address_postal_code"
+                type="text"
+                value={formData.address_postal_code}
+                onChange={handleInputChange}
+                placeholder="8001"
+                fullWidth
+                disabled={isLoading}
+                error={errors.address_postal_code}
+              />
+
+              <Input
+                label="Country"
+                name="address_country"
+                type="text"
+                value={formData.address_country}
+                onChange={handleInputChange}
+                placeholder="South Africa"
+                fullWidth
+                disabled={isLoading}
+                error={errors.address_country}
+              />
+            </div>
           </div>
         </div>
       </div>

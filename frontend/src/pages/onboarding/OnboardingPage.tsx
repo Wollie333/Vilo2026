@@ -11,7 +11,6 @@ import { Spinner, Alert } from '@/components/ui';
 import { LogoIcon } from '@/components/ui/Logo';
 import { useAuth } from '@/hooks';
 import { onboardingService, companyService, propertyService } from '@/services';
-import { SkipModal } from './components/SkipModal';
 import { ProfileStep } from './steps/ProfileStep';
 import { CompanyStep } from './steps/CompanyStep';
 import { PropertyStep } from './steps/PropertyStep';
@@ -127,8 +126,8 @@ export const OnboardingPage: React.FC = () => {
   const [, setProgress] = useState<OnboardingProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSkipModal, setShowSkipModal] = useState(false);
 
   // Initial data for edit mode - pre-populate forms with existing data
   const [profileInitialData, setProfileInitialData] = useState<OnboardingProfileData | undefined>(undefined);
@@ -175,6 +174,8 @@ export const OnboardingPage: React.FC = () => {
               email: company.contact_email || '',
               phone: company.contact_phone || '',
               website: company.website || '',
+              default_currency: company.default_currency || 'USD',
+              logo_url: company.logo_url || undefined,
               address_street: company.address_street || '',
               address_city: company.address_city || '',
               address_state: company.address_state || '',
@@ -197,6 +198,11 @@ export const OnboardingPage: React.FC = () => {
               name: property.name || '',
               description: property.description || '',
               property_type: propertyType,
+              phone: property.phone || '',
+              email: property.email || '',
+              website: property.website || '',
+              logo_url: property.logo_url || undefined,
+              featured_image_url: property.featured_image_url || undefined,
               address_street: property.address_street || '',
               address_city: property.address_city || '',
               address_state: property.address_state || '',
@@ -231,23 +237,6 @@ export const OnboardingPage: React.FC = () => {
   }, [user]);
 
   // Handlers
-  const handleSkipAll = () => {
-    setShowSkipModal(true);
-  };
-
-  const handleConfirmSkipAll = async () => {
-    try {
-      setIsSubmitting(true);
-      await onboardingService.skipAll();
-      navigate('/manage/dashboard');
-    } catch (err) {
-      setError('Failed to skip onboarding');
-    } finally {
-      setIsSubmitting(false);
-      setShowSkipModal(false);
-    }
-  };
-
   const handleSkipStep = async () => {
     try {
       setIsSubmitting(true);
@@ -292,6 +281,7 @@ export const OnboardingPage: React.FC = () => {
       setError(null);
       const result = await onboardingService.saveCompany(data);
       setCurrentStep(result.step);
+      return result; // Return result so CompanyStep can access companyId
     } catch (err) {
       throw err;
     } finally {
@@ -309,7 +299,10 @@ export const OnboardingPage: React.FC = () => {
       // Mark onboarding as complete
       if (result.step === ONBOARDING_STEPS.COMPLETE) {
         await onboardingService.complete();
+        // Refresh user context so onboarding_completed_at is updated
+        await refreshUser();
       }
+      return result; // Return result so PropertyStep can access propertyId
     } catch (err) {
       throw err;
     } finally {
@@ -319,14 +312,41 @@ export const OnboardingPage: React.FC = () => {
 
   const handleGoToDashboard = async () => {
     try {
+      // Show loading screen
+      setIsDashboardLoading(true);
+
+      // Complete onboarding (sets onboarding_completed_at in database)
       await onboardingService.complete();
+
+      // CRITICAL: Refresh user context to get updated onboarding_completed_at
+      // Without this, ProtectedRoute will still see null and redirect back to onboarding
+      await refreshUser();
+
+      // Now navigate - ProtectedRoute will see completed onboarding
       navigate('/manage/dashboard');
     } catch (err) {
+      // Even on error, try to navigate (user might have already completed)
+      await refreshUser();
       navigate('/manage/dashboard');
+    } finally {
+      // Loading state will be unmounted when navigating, but set false for safety
+      setIsDashboardLoading(false);
     }
   };
 
-  // Show loading state
+  // Show dashboard loading state (when navigating to dashboard after completion)
+  if (isDashboardLoading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <Spinner size="xl" />
+          <p className="mt-4 text-gray-400">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state (when loading onboarding data)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -395,9 +415,9 @@ export const OnboardingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Left Panel - Dark Theme with Progress */}
-      <div className="lg:w-[400px] xl:w-[480px] bg-gray-950 p-6 lg:p-10 flex flex-col relative overflow-hidden flex-shrink-0">
+    <div className="h-screen flex flex-col lg:flex-row overflow-hidden">
+      {/* Left Panel - Dark Theme with Progress - STICKY */}
+      <div className="lg:w-[400px] xl:w-[480px] bg-gray-950 p-6 lg:p-10 flex flex-col relative overflow-hidden flex-shrink-0 lg:h-screen lg:sticky lg:top-0">
         {/* Decorative Elements */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-56 h-56 bg-primary/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
@@ -434,50 +454,32 @@ export const OnboardingPage: React.FC = () => {
               ))}
             </div>
           </div>
-
-          {/* Skip All Button */}
-          {currentStep < ONBOARDING_STEPS.COMPLETE && (
-            <div className="mt-auto pt-6">
-              <button
-                onClick={handleSkipAll}
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors text-sm"
-              >
-                <span>Skip setup for now</span>
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Right Panel - Form Content */}
-      <div className="flex-1 bg-white dark:bg-dark-card p-6 lg:p-10 xl:p-16 flex flex-col min-h-screen lg:min-h-0">
-        <div className="max-w-xl w-full mx-auto flex-1 flex flex-col">
-          {/* Error Alert */}
-          {error && (
-            <Alert
-              variant="error"
-              className="mb-6"
-              dismissible
-              onDismiss={() => setError(null)}
-            >
-              {error}
-            </Alert>
-          )}
+      {/* Right Panel - Form Content - SCROLLABLE */}
+      <div className="flex-1 bg-white dark:bg-dark-card overflow-y-auto">
+        <div className="p-6 lg:p-10 xl:p-16">
+          <div className="max-w-xl w-full mx-auto">
+            {/* Error Alert */}
+            {error && (
+              <Alert
+                variant="error"
+                className="mb-6"
+                dismissible
+                onDismiss={() => setError(null)}
+              >
+                {error}
+              </Alert>
+            )}
 
-          {/* Step Content */}
-          <div className="flex-1">
-            {renderStep()}
+            {/* Step Content */}
+            <div>
+              {renderStep()}
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Skip confirmation modal */}
-      <SkipModal
-        isOpen={showSkipModal}
-        onClose={() => setShowSkipModal(false)}
-        onConfirm={handleConfirmSkipAll}
-        isLoading={isSubmitting}
-      />
     </div>
   );
 };

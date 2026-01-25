@@ -102,7 +102,7 @@ export const CreateAddonPage: React.FC = () => {
         <Alert variant="warning">
           You need to create a property before you can add add-ons.{' '}
           <button
-            onClick={() => navigate('/properties/new')}
+            onClick={() => navigate('/manage/properties/new')}
             className="font-medium underline"
           >
             Create a property

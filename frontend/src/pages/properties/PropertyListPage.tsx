@@ -213,7 +213,7 @@ export const PropertyListPage: React.FC = () => {
           <Alert variant="warning">
             You need to create a company before you can add properties.{' '}
             <button
-              onClick={() => navigate('/companies/new')}
+              onClick={() => navigate('/manage/companies/new')}
               className="font-medium underline"
             >
               Create a company
@@ -283,7 +283,7 @@ export const PropertyListPage: React.FC = () => {
                     <span className="ml-2">Create Property</span>
                   </Button>
                 ) : companies.length === 0 ? (
-                  <Button onClick={() => navigate('/companies/new')}>
+                  <Button onClick={() => navigate('/manage/companies/new')}>
                     <PlusIcon />
                     <span className="ml-2">Create Company</span>
                   </Button>

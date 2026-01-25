@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Mail } from 'lucide-react';
 import { AuthenticatedLayout } from '@/components/layout';
 import {
   Card,
@@ -15,11 +16,11 @@ import {
   PhoneInput,
   MaskedInput,
   Select,
+  AddressAutocomplete,
 } from '@/components/ui';
-import { AddressField } from '@/components/features';
+import type { AddressData } from '@/components/ui';
 import { companyService } from '@/services';
 import type { CreateCompanyData, CompanyLimitInfo } from '@/types/company.types';
-import type { AddressData } from '@/types/location.types';
 
 // Currency options
 const currencyOptions = [
@@ -65,18 +66,8 @@ export const CreateCompanyPage: React.FC = () => {
     youtube_url: '',
   });
 
-  // Address state for the AddressField component
-  const [addressData, setAddressData] = useState<AddressData>({
-    street_address: '',
-    street_address_2: '',
-    country: '',
-    country_id: '',
-    province: '',
-    province_id: '',
-    city: '',
-    city_id: '',
-    postal_code: '',
-  });
+  // Address state for autocomplete search
+  const [addressSearch, setAddressSearch] = useState('');
 
   // Check limit on mount
   useEffect(() => {
@@ -99,14 +90,12 @@ export const CreateCompanyPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Handle address changes from AddressField
-  const handleAddressChange = (data: AddressData) => {
-    setAddressData(data);
-    // Map AddressData to CreateCompanyData address fields
-    // Combine street_address and street_address_2
+  // Handle address selection from autocomplete
+  const handleAddressSelect = (data: AddressData) => {
     const streetAddress = [data.street_address, data.street_address_2]
       .filter(Boolean)
       .join(', ');
+
     setFormData((prev) => ({
       ...prev,
       address_street: streetAddress,
@@ -115,6 +104,9 @@ export const CreateCompanyPage: React.FC = () => {
       address_postal_code: data.postal_code || '',
       address_country: data.country || '',
     }));
+
+    // Clear the search after selection
+    setAddressSearch('');
   };
 
   // Handle form submit
@@ -219,26 +211,15 @@ export const CreateCompanyPage: React.FC = () => {
                 Contact Information
               </h3>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Contact Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <Input
-                    type="email"
-                    value={formData.contact_email || ''}
-                    onChange={(e) => handleChange('contact_email', e.target.value)}
-                    placeholder="company@example.com"
-                    className="pl-10"
-                    fullWidth
-                  />
-                </div>
-              </div>
+              <Input
+                label="Contact Email"
+                type="email"
+                value={formData.contact_email || ''}
+                onChange={(e) => handleChange('contact_email', e.target.value)}
+                placeholder="company@example.com"
+                leftIcon={<Mail className="w-5 h-5" />}
+                fullWidth
+              />
 
               <PhoneInput
                 label="Contact Phone"
@@ -259,15 +240,64 @@ export const CreateCompanyPage: React.FC = () => {
 
           {/* Address */}
           <Card className="mb-6">
-            <div className="p-6">
+            <div className="p-6 space-y-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Address
               </h3>
 
-              <AddressField
-                value={addressData}
-                onChange={handleAddressChange}
+              {/* Address Autocomplete */}
+              <AddressAutocomplete
+                value={addressSearch}
+                onChange={handleAddressSelect}
+                onInputChange={setAddressSearch}
+                placeholder="Search for your company address..."
                 disabled={loading}
+                label="Search Address"
+              />
+
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Start typing to search for an address, or fill in the fields manually below
+              </p>
+
+              {/* Manual Address Fields */}
+              <Input
+                label="Street Address"
+                value={formData.address_street}
+                onChange={(e) => handleChange('address_street', e.target.value)}
+                placeholder="123 Main St"
+                fullWidth
+              />
+
+              <Input
+                label="City"
+                value={formData.address_city}
+                onChange={(e) => handleChange('address_city', e.target.value)}
+                placeholder="Cape Town"
+                fullWidth
+              />
+
+              <Input
+                label="State / Province"
+                value={formData.address_state}
+                onChange={(e) => handleChange('address_state', e.target.value)}
+                placeholder="Western Cape"
+                fullWidth
+              />
+
+              <Input
+                label="Postal Code"
+                value={formData.address_postal_code}
+                onChange={(e) => handleChange('address_postal_code', e.target.value)}
+                placeholder="8001"
+                fullWidth
+              />
+
+              <Input
+                label="Country"
+                value={formData.address_country}
+                onChange={(e) => handleChange('address_country', e.target.value)}
+                placeholder="South Africa"
+                fullWidth
               />
             </div>
           </Card>

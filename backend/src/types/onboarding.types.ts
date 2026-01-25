@@ -74,11 +74,22 @@ export interface OnboardingPropertyRequest {
   name: string;
   description?: string | null;
   property_type?: string | null;
+  // Contact information
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  // Address fields
   address_street?: string | null;
   address_city?: string | null;
   address_state?: string | null;
   address_postal_code?: string | null;
   address_country?: string | null;
+  // Hierarchical location fields for listing
+  country_id?: number | null;
+  province_id?: number | null;
+  city_id?: number | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
 }
 
 // ============================================================================
@@ -105,6 +116,8 @@ export interface OnboardingStepResponse {
   success: boolean;
   step: OnboardingStepNumber;
   message: string;
+  companyId?: string; // ID of created/updated company (step 2)
+  propertyId?: string; // ID of created/updated property (step 3)
 }
 
 /**

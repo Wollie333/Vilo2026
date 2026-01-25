@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HiOutlineOfficeBuilding, HiOutlineSwitchHorizontal } from 'react-icons/hi';
 import { useProperty } from '@/context/PropertyContext';
 import { SelectableCard } from '@/components/ui/SelectableCard';
@@ -15,6 +16,7 @@ import { Modal } from '@/components/ui/Modal';
 import type { PropertySelectorProps } from './PropertySelector.types';
 
 export const PropertySelector: React.FC<PropertySelectorProps> = ({ className = '' }) => {
+  const navigate = useNavigate();
   const {
     properties,
     selectedProperty,
@@ -109,7 +111,7 @@ export const PropertySelector: React.FC<PropertySelectorProps> = ({ className = 
           <Button
             variant="primary"
             size="sm"
-            onClick={() => (window.location.href = '/properties/new')}
+            onClick={() => navigate('/manage/properties/new')}
           >
             Create Property
           </Button>

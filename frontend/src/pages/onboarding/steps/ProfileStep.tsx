@@ -8,9 +8,11 @@
  */
 
 import React, { useState } from 'react';
-import { Input, PhoneInput, Textarea, Alert } from '@/components/ui';
+import { Input, PhoneInput, Textarea, Alert, ImageUpload } from '@/components/ui';
 import { OnboardingFooter } from '../components/OnboardingFooter';
 import type { OnboardingProfileData } from '@/types/onboarding.types';
+import { usersService } from '@/services';
+import { useAuth } from '@/hooks';
 
 interface ProfileStepProps {
   onSubmit: (data: OnboardingProfileData) => Promise<void>;
@@ -25,11 +27,18 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({
   isLoading,
   initialData,
 }) => {
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState<OnboardingProfileData>({
     full_name: initialData?.full_name || '',
     phone: initialData?.phone || '',
     bio: initialData?.bio || '',
   });
+
+  // State for avatar upload
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Update form when initialData changes (for edit mode)
   React.useEffect(() => {
@@ -39,6 +48,7 @@ export const ProfileStep: React.FC<ProfileStepProps> = ({
         phone: initialData.phone || '',
         bio: initialData.bio || '',
       });
+      setAvatarPreview(initialData.avatar_url || null);
     }
   }, [initialData]);
   const [errors, setErrors] = useState<Record<string, string>>({});

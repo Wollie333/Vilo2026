@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Mail, Globe } from 'lucide-react';
 import { AuthenticatedLayout } from '@/components/layout';
 import { AdminDetailLayout } from '@/components/layout/AdminDetailLayout';
 import type { AdminNavSection } from '@/components/layout/AdminDetailLayout';
@@ -212,7 +213,7 @@ export const CreatePropertyPage: React.FC = () => {
         slug: formData.slug || undefined,
       });
 
-      navigate(`/properties/${property.id}`);
+      navigate(`/manage/properties/${property.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create property');
     } finally {
@@ -371,7 +372,7 @@ export const CreatePropertyPage: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400 mb-6">
                 Properties must be associated with a company. Please create a company first.
               </p>
-              <Button onClick={() => navigate('/companies/new')}>Create Company</Button>
+              <Button onClick={() => navigate('/manage/companies/new')}>Create Company</Button>
             </Card.Body>
           </Card>
         </div>
@@ -535,47 +536,25 @@ export const CreatePropertyPage: React.FC = () => {
                 fullWidth
               />
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <Input
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => handleChange('email', e.target.value)}
-                    placeholder="bookings@property.com"
-                    className="pl-10"
-                    fullWidth
-                  />
-                </div>
-              </div>
+              <Input
+                label="Email"
+                type="email"
+                value={formData.email || ''}
+                onChange={(e) => handleChange('email', e.target.value)}
+                placeholder="bookings@property.com"
+                leftIcon={<Mail className="w-5 h-5" />}
+                fullWidth
+              />
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Website
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                    </svg>
-                  </div>
-                  <Input
-                    type="url"
-                    value={formData.website || ''}
-                    onChange={(e) => handleChange('website', e.target.value)}
-                    placeholder="https://www.yourproperty.com"
-                    className="pl-10"
-                    fullWidth
-                  />
-                </div>
-              </div>
+              <Input
+                label="Website"
+                type="url"
+                value={formData.website || ''}
+                onChange={(e) => handleChange('website', e.target.value)}
+                placeholder="https://www.yourproperty.com"
+                leftIcon={<Globe className="w-5 h-5" />}
+                fullWidth
+              />
             </div>
           </Card>
         );
