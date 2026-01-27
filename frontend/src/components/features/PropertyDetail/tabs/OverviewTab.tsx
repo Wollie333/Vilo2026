@@ -4,14 +4,16 @@
  * Professional, clean design with subtle elevation and great typography
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   HiCheck,
   HiClock,
   HiUsers,
   HiX,
   HiSparkles,
+  HiOutlineArrowRight,
 } from 'react-icons/hi';
+import { TermsModal } from '@/components/features';
 import type { OverviewTabProps } from './OverviewTab.types';
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -27,8 +29,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   checkInTime,
   checkOutTime,
   cancellationPolicy,
+  cancellationPolicyDetail,
+  termsAndConditions,
+  propertyName,
+  propertyId,
   maxGuests,
 }) => {
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const displayDescription = longDescription || description || excerpt;
 
   // Helper function to extract video embed URL
@@ -210,43 +217,96 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       )}
 
       {/* Cancellation Policy */}
-      {cancellationPolicy && (() => {
-        const policyLines = cancellationPolicy.split('\n').filter(line => line.trim());
-        const policyCount = policyLines.length;
+      {cancellationPolicyDetail && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">
+            Cancellation policy
+          </h2>
+          <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg p-6">
+            {/* Policy Name */}
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              {cancellationPolicyDetail.name}
+            </h3>
 
-        // Determine colors based on number of policies
-        const getColorForIndex = (index: number): string => {
-          if (policyCount === 1) {
-            return 'bg-red-500'; // Only one policy = red
-          } else if (policyCount === 2) {
-            return index === 0 ? 'bg-yellow-500' : 'bg-red-500'; // Two policies = yellow, red
-          } else {
-            // Three or more policies = green, yellow, red, then repeat pattern
-            const colors = ['bg-green-500', 'bg-yellow-500', 'bg-red-500'];
-            return colors[index % 3];
-          }
-        };
+            {/* Policy Description */}
+            {cancellationPolicyDetail.description && (
+              <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-4 whitespace-pre-line">
+                {cancellationPolicyDetail.description}
+              </p>
+            )}
 
-        return (
-          <div>
-            <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">
-              Cancellation policy
-            </h2>
-            <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg p-6">
-              <ul className="space-y-3">
-                {policyLines.map((line, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <div className={`w-1.5 h-1.5 rounded-full ${getColorForIndex(index)} flex-shrink-0 mt-2`} />
-                    <span className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
-                      {line.trim()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {/* Policy Tiers */}
+            {cancellationPolicyDetail.tiers && cancellationPolicyDetail.tiers.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  Refund Schedule:
+                </h4>
+                <ul className="space-y-2">
+                  {cancellationPolicyDetail.tiers
+                    .sort((a, b) => b.days - a.days)
+                    .map((tier, index) => {
+                      // Color based on refund percentage
+                      const getColorForRefund = (refund: number): string => {
+                        if (refund >= 80) return 'bg-green-500';
+                        if (refund >= 50) return 'bg-yellow-500';
+                        return 'bg-red-500';
+                      };
+
+                      return (
+                        <li key={index} className="flex items-center gap-3">
+                          <div className={`w-1.5 h-1.5 rounded-full ${getColorForRefund(tier.refund)} flex-shrink-0`} />
+                          <span className="text-base text-gray-700 dark:text-gray-300">
+                            {tier.days > 0 ? (
+                              <>
+                                <span className="font-medium">{tier.days}+ days</span> before check-in: <span className="font-medium">{tier.refund}%</span> refund
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-medium">Less than {Math.abs(tier.days)} days</span> before check-in: <span className="font-medium">{tier.refund}%</span> refund
+                              </>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            )}
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* Terms & Conditions */}
+      {termsAndConditions && propertyName && propertyId && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">
+            Terms & Conditions
+          </h2>
+          <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg p-6">
+            <p className="text-base text-gray-700 dark:text-gray-300 mb-3">
+              Please review our terms and conditions before making a booking.
+            </p>
+            <button
+              onClick={() => setShowTermsModal(true)}
+              className="text-base text-primary hover:underline font-medium inline-flex items-center gap-1"
+            >
+              View Terms & Conditions
+              <HiOutlineArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Terms Modal */}
+      {termsAndConditions && propertyName && propertyId && (
+        <TermsModal
+          isOpen={showTermsModal}
+          onClose={() => setShowTermsModal(false)}
+          termsHtml={termsAndConditions}
+          propertyName={propertyName}
+          propertyId={propertyId}
+        />
+      )}
     </div>
   );
 };

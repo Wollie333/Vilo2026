@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
 import * as checkoutService from '../services/checkout.service';
 import * as paymentService from '../services/payment.service';
+import * as companyPaymentService from '../services/company-payment-integration.service';
 import * as refundService from '../services/refund.service';
 import { logger } from '../utils/logger';
 import type { PaystackConfig, PayPalConfig } from '../types/payment.types';
@@ -257,6 +258,140 @@ export const handlePayPalRefundWebhook = async (
     res.status(200).json({ received: true });
   } catch (error: any) {
     logger.error('PayPal refund webhook error:', error);
+    // Still return 200 to prevent PayPal from retrying
+    res.status(200).json({ received: true, error: 'Processing failed' });
+  }
+};
+
+// ============================================================================
+// COMPANY-SPECIFIC PAYMENT WEBHOOKS
+// These endpoints receive webhooks for specific company payment integrations
+// ============================================================================
+
+/**
+ * POST /api/webhooks/company/:companyId/paystack
+ * Handle Paystack webhook events for a specific company
+ */
+export const handleCompanyPaystackWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { companyId } = req.params;
+
+    if (!companyId) {
+      res.status(400).json({ error: 'Company ID required' });
+      return;
+    }
+
+    // Get the company's Paystack integration
+    const integration = await companyPaymentService.getCompanyIntegration(
+      companyId,
+      'paystack'
+    );
+
+    if (!integration) {
+      logger.error(`Paystack integration not found for company: ${companyId}`);
+      res.status(404).json({ error: 'Integration not found' });
+      return;
+    }
+
+    // Verify signature if webhook secret is configured
+    if (integration.webhook_secret) {
+      const hash = crypto
+        .createHmac('sha512', integration.webhook_secret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+
+      if (hash !== req.headers['x-paystack-signature']) {
+        logger.error(`Invalid Paystack signature for company: ${companyId}`);
+        res.status(401).json({ error: 'Invalid signature' });
+        return;
+      }
+    }
+
+    const { event, data } = req.body;
+
+    logger.info(`Paystack webhook received for company ${companyId}: ${event}`);
+
+    // Handle the event
+    await checkoutService.handlePaystackWebhook(event, data);
+
+    // Always respond with 200 to acknowledge receipt
+    res.status(200).json({ received: true });
+  } catch (error) {
+    logger.error('Company Paystack webhook error:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
+    // Still return 200 to prevent Paystack from retrying
+    res.status(200).json({ received: true, error: 'Processing failed' });
+  }
+};
+
+/**
+ * POST /api/webhooks/company/:companyId/paypal
+ * Handle PayPal webhook events for a specific company
+ */
+export const handleCompanyPayPalWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { companyId } = req.params;
+    const event = req.body;
+    const headers = req.headers as Record<string, string>;
+
+    if (!companyId) {
+      res.status(400).json({ error: 'Company ID required' });
+      return;
+    }
+
+    // Get the company's PayPal integration
+    const integration = await companyPaymentService.getCompanyIntegration(
+      companyId,
+      'paypal'
+    );
+
+    if (!integration?.webhook_secret) {
+      logger.error(`PayPal webhook ID not configured for company: ${companyId}`);
+      res.status(500).json({ error: 'Webhook ID not configured' });
+      return;
+    }
+
+    // Verify webhook signature
+    const isValid = await paymentService.verifyPayPalWebhookSignature(
+      integration.webhook_secret, // This stores the webhook_id
+      headers,
+      event
+    );
+
+    if (!isValid) {
+      logger.error(`Invalid PayPal signature for company: ${companyId}`);
+      res.status(401).json({ error: 'Invalid signature' });
+      return;
+    }
+
+    // Handle the webhook event
+    const eventType = event.event_type;
+
+    logger.info(`PayPal webhook received (verified) for company ${companyId}: ${eventType}`);
+
+    if (eventType === 'CHECKOUT.ORDER.APPROVED' || eventType === 'PAYMENT.CAPTURE.COMPLETED') {
+      const orderId = event.resource?.id;
+      if (!orderId) {
+        logger.error('No order ID in PayPal webhook');
+        res.status(400).json({ error: 'Missing order ID' });
+        return;
+      }
+
+      // Handle the event
+      await checkoutService.handlePayPalWebhook(eventType, event.resource);
+    }
+
+    // Acknowledge receipt
+    res.status(200).json({ received: true });
+  } catch (error) {
+    logger.error('Company PayPal webhook error:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
     // Still return 200 to prevent PayPal from retrying
     res.status(200).json({ received: true, error: 'Processing failed' });
   }

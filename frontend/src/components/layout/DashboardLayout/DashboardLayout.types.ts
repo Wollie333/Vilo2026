@@ -14,6 +14,8 @@ export interface DashboardLayoutProps {
   headerTitle?: string;
   /** Subtitle displayed in header */
   headerSubtitle?: string;
+  /** Actions to display inline with the header title */
+  headerActions?: ReactNode;
   /** User's display name */
   userName?: string;
   /** User's email */

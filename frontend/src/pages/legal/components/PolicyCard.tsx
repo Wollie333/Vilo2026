@@ -11,6 +11,7 @@ import type { CancellationPolicy } from '@/types/legal.types';
 
 interface PolicyCardProps {
   policy: CancellationPolicy;
+  propertyId?: string;
   onEdit: (policy: CancellationPolicy) => void;
   onDelete: (policy: CancellationPolicy) => void;
 }
@@ -34,8 +35,52 @@ const TrashIcon = () => (
   </svg>
 );
 
-export const PolicyCard: React.FC<PolicyCardProps> = ({ policy, onEdit, onDelete }) => {
+const DownloadIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
+export const PolicyCard: React.FC<PolicyCardProps> = ({ policy, propertyId, onEdit, onDelete }) => {
   const sortedTiers = [...policy.tiers].sort((a, b) => b.days - a.days);
+
+  const handleDownloadPDF = async () => {
+    try {
+      console.log('[PolicyCard] Downloading PDF for policy:', policy.id);
+
+      const url = propertyId
+        ? `/api/legal/cancellation-policies/${policy.id}/pdf?propertyId=${propertyId}`
+        : `/api/legal/cancellation-policies/${policy.id}/pdf`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download PDF');
+      }
+
+      // Create blob from response
+      const blob = await response.blob();
+
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${policy.name.replace(/[^a-z0-9]/gi, '_')}_Policy.pdf`;
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(link);
+
+      console.log('[PolicyCard] PDF downloaded successfully');
+    } catch (err) {
+      console.error('[PolicyCard] Failed to download PDF:', err);
+      alert('Failed to download PDF. Please try again.');
+    }
+  };
 
   return (
     <div className="relative p-4 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
@@ -47,7 +92,10 @@ export const PolicyCard: React.FC<PolicyCardProps> = ({ policy, onEdit, onDelete
               {policy.name}
             </h4>
             {policy.is_default && (
-              <Badge variant="default" size="sm">Default</Badge>
+              <Badge variant="default" size="sm">System Default</Badge>
+            )}
+            {policy.is_custom && (
+              <Badge variant="primary" size="sm">Custom</Badge>
             )}
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -57,14 +105,18 @@ export const PolicyCard: React.FC<PolicyCardProps> = ({ policy, onEdit, onDelete
 
         {/* Actions */}
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => onEdit(policy)}
-            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-dark-border transition-colors"
-            title="Edit policy"
-          >
-            <PencilIcon />
-          </button>
-          {!policy.is_default && (
+          {/* Only allow editing custom policies, not system defaults */}
+          {policy.is_custom && (
+            <button
+              onClick={() => onEdit(policy)}
+              className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-dark-border transition-colors"
+              title="Edit policy"
+            >
+              <PencilIcon />
+            </button>
+          )}
+          {/* Only allow deleting custom policies, not system defaults */}
+          {policy.is_custom && (
             <button
               onClick={() => onDelete(policy)}
               className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
@@ -138,6 +190,17 @@ export const PolicyCard: React.FC<PolicyCardProps> = ({ policy, onEdit, onDelete
             </span>
           ))}
         </div>
+      </div>
+
+      {/* Download PDF Button */}
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-dark-border">
+        <button
+          onClick={handleDownloadPDF}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-dark-bg hover:bg-gray-100 dark:hover:bg-dark-border rounded-md transition-colors"
+        >
+          <DownloadIcon />
+          <span>Download PDF</span>
+        </button>
       </div>
     </div>
   );

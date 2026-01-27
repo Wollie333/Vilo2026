@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input, Textarea, Alert, Checkbox, Select } from '@/components/ui';
 import { PhoneInput } from '@/components/ui/PhoneInput';
+import { PolicyModal } from '@/components/features';
 import { useAuth } from '@/context/AuthContext';
 
 // ============================================================================
@@ -33,6 +34,12 @@ export interface GuestDetailsStepProps {
   checkInDate: Date;
   onContinue: (data: GuestDetails) => void;
   onBack: () => void;
+  // Property policy data
+  propertyTerms?: string | null;
+  propertyPrivacyPolicy?: string | null;
+  propertyRefundPolicy?: string | null;
+  propertyName?: string;
+  propertyId?: string;
 }
 
 // ============================================================================
@@ -144,8 +151,17 @@ export const GuestDetailsStep: React.FC<GuestDetailsStepProps> = ({
   checkInDate,
   onContinue,
   onBack,
+  propertyTerms,
+  propertyPrivacyPolicy,
+  propertyRefundPolicy,
+  propertyName,
+  propertyId,
 }) => {
   const { user } = useAuth();
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+
   // Split full_name into first and last names
   const nameParts = user?.full_name?.split(' ') || [];
   const userFirstName = nameParts[0] || '';
@@ -315,26 +331,19 @@ export const GuestDetailsStep: React.FC<GuestDetailsStepProps> = ({
           {/* Contact fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  onBlur={() => handleBlur('email')}
-                  error={touched.email ? errors.email : undefined}
-                  placeholder="john@example.com"
-                  className="pl-10"
-                  helperText="Confirmation will be sent here"
-                />
-              </div>
+              <Input
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleChange('email', e.target.value)}
+                onBlur={() => handleBlur('email')}
+                error={touched.email ? errors.email : undefined}
+                placeholder="john@example.com"
+                helperText="Confirmation will be sent here"
+                required
+                autoComplete="email"
+                inputMode="email"
+              />
             </div>
             <PhoneInput
               label="Phone Number"
@@ -395,23 +404,70 @@ export const GuestDetailsStep: React.FC<GuestDetailsStepProps> = ({
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 I agree to the{' '}
-                <a
-                  href="/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Terms & Conditions
-                </a>{' '}
-                and{' '}
-                <a
-                  href="/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Privacy Policy
-                </a>
+                {propertyPrivacyPolicy && propertyName && propertyId ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowPrivacyModal(true);
+                    }}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Privacy Policy
+                  </button>
+                ) : (
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Privacy Policy
+                  </a>
+                )},{' '}
+                {propertyRefundPolicy && propertyName && propertyId ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowRefundModal(true);
+                    }}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Refund Policy
+                  </button>
+                ) : (
+                  <a
+                    href="/refund-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Refund Policy
+                  </a>
+                )},{' '}
+                {propertyTerms && propertyName && propertyId ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowTermsModal(true);
+                    }}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Terms & Conditions
+                  </button>
+                ) : (
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Terms & Conditions
+                  </a>
+                )}{' '}
+                and understand that an account will be created for me to access my booking portal. *
               </span>
             </label>
             {touched.terms_accepted && errors.terms_accepted && (
@@ -438,6 +494,40 @@ export const GuestDetailsStep: React.FC<GuestDetailsStepProps> = ({
           Continue to Payment
         </Button>
       </div>
+
+      {/* Policy Modals */}
+      {propertyPrivacyPolicy && propertyName && propertyId && (
+        <PolicyModal
+          isOpen={showPrivacyModal}
+          onClose={() => setShowPrivacyModal(false)}
+          policyHtml={propertyPrivacyPolicy}
+          policyType="privacy"
+          propertyName={propertyName}
+          propertyId={propertyId}
+        />
+      )}
+
+      {propertyRefundPolicy && propertyName && propertyId && (
+        <PolicyModal
+          isOpen={showRefundModal}
+          onClose={() => setShowRefundModal(false)}
+          policyHtml={propertyRefundPolicy}
+          policyType="refund"
+          propertyName={propertyName}
+          propertyId={propertyId}
+        />
+      )}
+
+      {propertyTerms && propertyName && propertyId && (
+        <PolicyModal
+          isOpen={showTermsModal}
+          onClose={() => setShowTermsModal(false)}
+          policyHtml={propertyTerms}
+          policyType="terms"
+          propertyName={propertyName}
+          propertyId={propertyId}
+        />
+      )}
     </div>
   );
 };

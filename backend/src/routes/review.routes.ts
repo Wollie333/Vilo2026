@@ -40,6 +40,9 @@ router.get('/my-reviews', reviewController.getMyReviews);
 // Get bookings eligible for review
 router.get('/eligible-bookings', reviewController.getEligibleBookings);
 
+// Get review status for a booking
+router.get('/booking/:bookingId/status', reviewController.getBookingReviewStatus);
+
 // Create a new review
 router.post('/', reviewController.createReview);
 
@@ -87,28 +90,28 @@ router.post('/send-request/:bookingId', reviewController.sendReviewRequest);
 // Get pending withdrawal requests
 router.get(
   '/admin/pending-withdrawals',
-  requireRole(['super_admin', 'property_admin']),
+  requireRole('super_admin', 'property_admin'),
   reviewController.getPendingWithdrawals
 );
 
 // Approve withdrawal request
 router.post(
   '/admin/:id/approve-withdrawal',
-  requireRole(['super_admin', 'property_admin']),
+  requireRole('super_admin', 'property_admin'),
   reviewController.approveWithdrawal
 );
 
 // Reject withdrawal request
 router.post(
   '/admin/:id/reject-withdrawal',
-  requireRole(['super_admin', 'property_admin']),
+  requireRole('super_admin', 'property_admin'),
   reviewController.rejectWithdrawal
 );
 
 // Hard delete review (extreme cases)
 router.delete(
   '/admin/:id',
-  requireRole(['super_admin']),
+  requireRole('super_admin'),
   reviewController.deleteReview
 );
 

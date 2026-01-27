@@ -10,8 +10,8 @@ import { Button, Badge } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs/Tabs';
 import type { SubscriptionType } from '@/types/billing.types';
 import type { PlanFormData } from './SubscriptionPlansTab';
-import { BasicInfoTab } from './tabs/BasicInfoTab';
-import { PricingTab } from './tabs/PricingTab';
+import { PlanDetailsTab } from './tabs/PlanDetailsTab';
+import { PricingBillingTab } from './tabs/PricingBillingTab';
 import { LimitsTab } from './tabs/LimitsTab';
 import { PermissionsTab } from './tabs/PermissionsTab';
 
@@ -55,12 +55,12 @@ export const PlanEditorTabs: React.FC<PlanEditorTabsProps> = ({
   isSaving,
 }) => {
   const isCreate = mode === 'create';
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('details');
 
   // Validation states for tab badges
-  const hasBasicErrors = isCreate
-    ? !formData.name || !formData.display_name
-    : !formData.display_name;
+  const hasDetailsErrors = isCreate
+    ? !formData.name || !formData.display_name || !formData.slug
+    : !formData.display_name || !formData.slug;
   const hasPricingErrors =
     !formData.billing_types.monthly &&
     !formData.billing_types.annual &&
@@ -102,17 +102,17 @@ export const PlanEditorTabs: React.FC<PlanEditorTabsProps> = ({
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="basic">
+          <TabsTrigger value="details">
             <div className="flex items-center gap-2">
-              <span>Basic Info</span>
-              {hasBasicErrors && (
+              <span>Plan Details</span>
+              {hasDetailsErrors && (
                 <span className="w-2 h-2 bg-error rounded-full" title="Required fields missing" />
               )}
             </div>
           </TabsTrigger>
           <TabsTrigger value="pricing">
             <div className="flex items-center gap-2">
-              <span>Pricing</span>
+              <span>Pricing & Billing</span>
               {hasPricingErrors && (
                 <span
                   className="w-2 h-2 bg-error rounded-full"
@@ -121,7 +121,7 @@ export const PlanEditorTabs: React.FC<PlanEditorTabsProps> = ({
               )}
             </div>
           </TabsTrigger>
-          <TabsTrigger value="limits">Limits</TabsTrigger>
+          <TabsTrigger value="limits">Features & Limits</TabsTrigger>
           <TabsTrigger value="permissions">
             <div className="flex items-center gap-2">
               <span>Permissions</span>
@@ -134,12 +134,12 @@ export const PlanEditorTabs: React.FC<PlanEditorTabsProps> = ({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="basic" className="mt-6">
-          <BasicInfoTab formData={formData} onChange={onChange} isCreate={isCreate} />
+        <TabsContent value="details" className="mt-6">
+          <PlanDetailsTab formData={formData} onChange={onChange} isCreate={isCreate} />
         </TabsContent>
 
         <TabsContent value="pricing" className="mt-6">
-          <PricingTab formData={formData} onChange={onChange} />
+          <PricingBillingTab formData={formData} onChange={onChange} />
         </TabsContent>
 
         <TabsContent value="limits" className="mt-6">

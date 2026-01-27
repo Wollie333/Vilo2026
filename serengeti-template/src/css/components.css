@@ -1,0 +1,494 @@
+/* Component Styles - Hotel FT Theme */
+@layer components {
+  
+  /* ===== HEADER & NAVIGATION ===== */
+  .header {
+    @apply fixed top-0 left-0 right-0 z-50 bg-black/30 backdrop-blur-sm transition-all duration-300;
+  }
+
+  .header.scrolled {
+    @apply bg-white shadow-md;
+  }
+
+  .header__container {
+    @apply max-w-7xl mx-auto px-6 flex items-center justify-between h-20;
+  }
+
+  .header__logo {
+    @apply text-2xl font-bold text-white transition-colors duration-300;
+  }
+
+  .header.scrolled .header__logo {
+    @apply text-gray-700;
+  }
+
+  .nav__list {
+    @apply hidden md:flex items-center gap-8;
+  }
+
+  .nav__link {
+    @apply text-white hover:text-primary-500 transition-colors font-medium text-sm;
+  }
+
+  .header.scrolled .nav__link {
+    @apply text-gray-700 hover:text-primary-500;
+  }
+
+  .nav__link.active {
+    @apply text-primary-500;
+  }
+
+  /* Header actions color when scrolled */
+  .header-actions button,
+  .header-login,
+  .header-menu-toggle {
+    @apply text-white transition-colors duration-300;
+  }
+
+  .header-actions button:hover,
+  .header-login:hover {
+    @apply text-primary-500;
+  }
+
+  .header.scrolled .header-actions button,
+  .header.scrolled .header-login,
+  .header.scrolled .header-menu-toggle {
+    @apply text-gray-700;
+  }
+
+  .header.scrolled .header-actions button:hover,
+  .header.scrolled .header-login:hover {
+    @apply text-primary-500;
+  }
+
+  /* Mobile menu */
+  .mobile-menu {
+    @apply fixed top-0 right-0 bottom-0 w-80 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-50 md:hidden;
+  }
+
+  .mobile-menu.open {
+    @apply translate-x-0;
+  }
+
+  /* ===== ROOM CARDS (Grid View) ===== */
+  .room-card {
+    @apply bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300;
+  }
+
+  .room-card__image-wrapper {
+    @apply relative aspect-[16/10] overflow-hidden;
+  }
+
+  .room-card__image {
+    @apply w-full h-full object-cover transition-transform duration-500;
+  }
+
+  .room-card:hover .room-card__image {
+    @apply scale-105;
+  }
+
+  .room-card__badge {
+    @apply absolute top-4 right-4 bg-primary-500 text-white px-3 py-1 rounded-md text-xs font-semibold uppercase;
+  }
+
+  .room-card__content {
+    @apply p-6 space-y-4;
+  }
+
+  .room-card__header {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .room-card__title-wrap {
+    @apply flex-1;
+  }
+
+  .room-card__title {
+    @apply text-xl font-semibold text-gray-900 mb-1;
+  }
+
+  .room-card__type {
+    @apply text-sm text-gray-500;
+  }
+
+  .room-card__price {
+    @apply text-right flex-shrink-0;
+  }
+
+  .room-card__price-label {
+    @apply block text-xs text-gray-500;
+  }
+
+  .room-card__price-amount {
+    @apply block text-xl font-bold text-gray-900;
+  }
+
+  .room-card__price-unit {
+    @apply block text-xs text-gray-500;
+  }
+
+  .room-card__rating {
+    @apply flex items-center gap-2;
+  }
+
+  .room-card__rating-score {
+    @apply text-sm font-medium text-gray-900;
+  }
+
+  .room-card__rating-stars {
+    @apply flex items-center gap-1;
+  }
+
+  .room-card__description {
+    @apply text-sm text-gray-600 leading-relaxed;
+  }
+
+  .room-card__amenities {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .room-card__amenity {
+    @apply flex items-center gap-1.5 text-xs text-gray-600;
+  }
+
+  .room-card__btn {
+    @apply w-full justify-center;
+  }
+
+  /* ===== ROOM LIST (List View) ===== */
+  .room-list-item {
+    @apply bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300;
+  }
+
+  .room-list-item__inner {
+    @apply flex flex-col md:flex-row;
+  }
+
+  .room-list-item__image-wrapper {
+    @apply md:w-[60%] relative overflow-hidden min-h-[300px] md:min-h-[400px];
+  }
+
+  .room-list-item__image {
+    @apply w-full h-full object-cover transition-transform duration-500;
+  }
+
+  .room-list-item:hover .room-list-item__image {
+    @apply scale-105;
+  }
+
+  .room-list-item__badge {
+    @apply absolute top-4 right-4 bg-primary-500 text-white px-3 py-1 rounded-md text-xs font-semibold uppercase;
+  }
+
+  .room-list-item__content {
+    @apply md:w-[40%] p-8 flex flex-col justify-center space-y-4;
+  }
+
+  .room-list-item__header {
+    @apply space-y-1;
+  }
+
+  .room-list-item__title {
+    @apply text-3xl font-semibold text-gray-900;
+  }
+
+  .room-list-item__type {
+    @apply text-sm text-gray-500;
+  }
+
+  .room-list-item__rating {
+    @apply flex items-center gap-2;
+  }
+
+  .room-list-item__rating-score {
+    @apply text-sm font-medium text-gray-900;
+  }
+
+  .room-list-item__rating-stars {
+    @apply flex items-center gap-1;
+  }
+
+  .room-list-item__description {
+    @apply text-gray-600 leading-relaxed;
+  }
+
+  .room-list-item__amenities {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .room-list-item__amenity {
+    @apply flex items-center gap-2 text-sm text-gray-600;
+  }
+
+  .room-list-item__footer {
+    @apply flex items-center justify-between gap-4 pt-4;
+  }
+
+  .room-list-item__price {
+    @apply text-gray-600;
+  }
+
+  .room-list-item__price-label {
+    @apply text-sm;
+  }
+
+  .room-list-item__price-amount {
+    @apply text-3xl font-bold text-gray-900 mx-1;
+  }
+
+  .room-list-item__price-unit {
+    @apply text-sm;
+  }
+
+  .room-list-item__btn {
+    @apply flex-shrink-0;
+  }
+
+  /* ===== SEARCH WIDGET ===== */
+  .search-widget {
+    @apply bg-white rounded-xl shadow-lg p-6 max-w-5xl;
+  }
+
+  .search-widget__inner {
+    @apply grid grid-cols-1 md:grid-cols-4 gap-4 items-end;
+  }
+
+  .search-widget__field {
+    @apply flex flex-col gap-2;
+  }
+
+  .search-widget__label {
+    @apply flex items-center gap-2 text-sm font-medium text-gray-700 mb-1;
+  }
+
+  .search-widget__icon {
+    @apply w-5 h-5 text-primary-500 flex-shrink-0;
+  }
+
+  .search-widget__label-text {
+    @apply text-sm font-medium text-gray-700;
+  }
+
+  .search-widget__input {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm;
+  }
+
+  .search-widget__guests {
+    @apply flex items-center gap-3 border border-gray-300 rounded-lg px-3 py-2;
+  }
+
+  .search-widget__guests-btn {
+    @apply w-8 h-8 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 transition-colors;
+  }
+
+  .search-widget__guests-input {
+    @apply flex-1 text-center border-none focus:outline-none text-sm font-medium;
+  }
+
+  .search-widget__submit {
+    @apply w-full md:w-auto;
+  }
+
+  .search-widget__field--submit {
+    @apply flex items-end;
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-primary-500 text-white hover:bg-primary-600 shadow-sm hover:shadow-md;
+  }
+
+  .btn-outline {
+    @apply border-2 border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+  }
+
+  /* ===== FOOTER ===== */
+  .footer {
+    @apply bg-dark-teal text-white m-0;
+  }
+
+  .footer__container {
+    @apply max-w-7xl mx-auto px-6 md:px-8 py-12;
+  }
+
+  .footer__content {
+    @apply grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-12 mb-8;
+  }
+
+  .footer__column {
+    @apply space-y-4;
+  }
+
+  .footer__title {
+    @apply text-lg font-semibold mb-4 text-white;
+  }
+
+  .footer__text {
+    @apply text-white/80 text-sm leading-relaxed mb-4;
+  }
+
+  .footer__social {
+    @apply flex items-center gap-4;
+  }
+
+  .footer__social-link {
+    @apply w-10 h-10 rounded-full bg-white/10 hover:bg-primary-500 flex items-center justify-center transition-all duration-300;
+  }
+
+  .footer__links {
+    @apply space-y-2;
+  }
+
+  .footer__link {
+    @apply text-white/80 hover:text-white transition-colors text-sm block;
+  }
+
+  .footer__contact {
+    @apply space-y-3;
+  }
+
+  .footer__contact-item {
+    @apply flex items-start gap-3 text-white/80 text-sm;
+  }
+
+  .footer__contact-item svg {
+    @apply flex-shrink-0 mt-0.5 text-primary-500;
+  }
+
+  .footer__bottom {
+    @apply border-t border-white/20 pt-8 flex flex-col md:flex-row items-center justify-between gap-4;
+  }
+
+  .footer__copyright {
+    @apply text-white/60 text-sm;
+  }
+
+  .footer__legal {
+    @apply flex items-center gap-6;
+  }
+
+  .footer__legal-link {
+    @apply text-white/60 hover:text-white text-sm transition-colors;
+  }
+
+  /* ===== BLOG CARDS ===== */
+  .blog-card {
+    @apply bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300;
+  }
+
+  .blog-card__image {
+    @apply aspect-[16/9] overflow-hidden;
+  }
+
+  .blog-card__image img {
+    @apply w-full h-full object-cover transition-transform duration-500;
+  }
+
+  .blog-card:hover .blog-card__image img {
+    @apply scale-105;
+  }
+
+  .blog-card__content {
+    @apply p-6;
+  }
+
+  .blog-card__meta {
+    @apply flex items-center gap-4 text-sm text-gray-500 mb-3;
+  }
+
+  .blog-card__title {
+    @apply text-xl font-semibold text-gray-900 mb-3 hover:text-primary-500 transition-colors;
+  }
+
+  .blog-card__excerpt {
+    @apply text-gray-600 mb-4 line-clamp-2;
+  }
+
+  .blog-card__read-more {
+    @apply inline-flex items-center gap-2 text-primary-500 hover:text-primary-600 font-medium text-sm uppercase;
+  }
+
+  /* ===== PAGE HERO ===== */
+  .page-hero {
+    @apply relative h-64 md:h-80 flex items-center justify-center text-center;
+  }
+
+  .page-hero__image {
+    @apply absolute inset-0 w-full h-full object-cover;
+  }
+
+  .page-hero__overlay {
+    @apply absolute inset-0 bg-black/50;
+  }
+
+  .page-hero__content {
+    @apply relative z-10 text-white;
+  }
+
+  .page-hero__title {
+    @apply text-4xl md:text-5xl font-bold uppercase;
+  }
+
+  /* ===== AMENITY ICONS ===== */
+  .amenity-icon {
+    @apply w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-700;
+  }
+
+  /* ===== FILTER DROPDOWN ===== */
+  .filter-dropdown {
+    @apply absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-6 z-10 min-w-[300px];
+  }
+
+  /* ===== GALLERY CAROUSEL ===== */
+  .carousel-wrapper {
+    @apply relative w-full overflow-hidden rounded-2xl;
+  }
+
+  .carousel-track {
+    @apply flex transition-transform duration-500 ease-in-out;
+  }
+
+  .carousel-slide {
+    @apply w-full flex-shrink-0 opacity-0 transition-opacity duration-500 absolute inset-0;
+  }
+
+  .carousel-slide.active {
+    @apply opacity-100 relative;
+  }
+
+  .carousel-slide img {
+    @apply w-full h-full object-cover;
+  }
+
+  .carousel-btn {
+    @apply absolute top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110;
+  }
+
+  .carousel-btn--prev {
+    @apply left-4;
+  }
+
+  .carousel-btn--next {
+    @apply right-4;
+  }
+
+  .carousel-dots {
+    @apply absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10;
+  }
+
+  .carousel-dot {
+    @apply w-3 h-3 rounded-full bg-white/50 hover:bg-white/80 transition-all duration-300 cursor-pointer;
+  }
+
+  .carousel-dot.active {
+    @apply bg-white w-8;
+  }
+}

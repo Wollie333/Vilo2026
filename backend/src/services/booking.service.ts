@@ -1,7 +1,9 @@
 import { getAdminClient } from '../config/supabase';
 import { AppError } from '../utils/errors';
+import { logger } from '../utils/logger';
 import { createAuditLog } from './audit.service';
 import { getProperty } from './property.service';
+import { findOrCreateCustomer } from './customer.service';
 import { getRoomById, calculatePrice, checkAvailability, listPropertyAddOns } from './room.service';
 import {
   sendBookingConfirmationEmail,
@@ -10,6 +12,7 @@ import {
   notifyHostBookingCancellation,
   notifyPaymentReceived,
 } from './booking-notifications.service';
+import * as whatsappAutomation from './whatsapp-automation.service';
 import { sendNotification } from './notifications.service';
 import { generateBookingInvoice } from './invoice.service';
 import { generatePaymentSchedule, getBookingPaymentSchedule, updateMilestoneStatus } from './payment-schedule.service';
@@ -55,6 +58,7 @@ import { NightlyRate } from '../types/room.types';
 
 /**
  * List bookings with filters
+ * Supports filtering by booking type: 'received' (at my properties), 'made' (by me as guest), or 'all'
  */
 export const listBookings = async (
   userId: string,
@@ -62,11 +66,19 @@ export const listBookings = async (
 ): Promise<BookingListResponse> => {
   const supabase = getAdminClient();
 
+  console.log('=== [BOOKING_SERVICE] listBookings called ===');
+  console.log('[BOOKING_SERVICE] User ID:', userId);
+  console.log('[BOOKING_SERVICE] Params:', JSON.stringify(params, null, 2));
+
   const page = params?.page || 1;
   const limit = params?.limit || 20;
   const offset = (page - 1) * limit;
+  const bookingType = params?.bookingType || 'received'; // Default to received bookings
 
-  // Build base query
+  console.log('[BOOKING_SERVICE] Booking type:', bookingType);
+  console.log('[BOOKING_SERVICE] Pagination: page', page, 'limit', limit, 'offset', offset);
+
+  // Build base query with properties join
   let query = supabase
     .from('bookings')
     .select(`
@@ -77,8 +89,23 @@ export const listBookings = async (
         slug,
         owner_id
       )
-    `, { count: 'exact' })
-    .eq('properties.owner_id', userId);
+    `, { count: 'exact' });
+
+  // Apply booking type filter
+  if (bookingType === 'received') {
+    // Bookings at properties I own
+    console.log('[BOOKING_SERVICE] Filtering for received bookings (properties.owner_id =', userId, ')');
+    query = query.eq('properties.owner_id', userId);
+  } else if (bookingType === 'made') {
+    // Bookings I made as a guest at OTHER properties (not my own)
+    // Must be bookings where I'm the guest AND property is NOT owned by me
+    console.log('[BOOKING_SERVICE] Filtering for made bookings (guest_id =', userId, 'AND properties.owner_id !=', userId, ')');
+    query = query.eq('guest_id', userId).neq('properties.owner_id', userId);
+  } else if (bookingType === 'all') {
+    // Both types: bookings at my properties OR bookings I made
+    console.log('[BOOKING_SERVICE] Filtering for all bookings (properties.owner_id =', userId, 'OR guest_id =', userId, ')');
+    query = query.or(`properties.owner_id.eq.${userId},guest_id.eq.${userId}`);
+  }
 
   // Filters
   if (params?.property_id) {
@@ -153,8 +180,22 @@ export const listBookings = async (
   // Pagination
   const { data, error, count } = await query.range(offset, offset + limit - 1);
 
+  console.log('[BOOKING_SERVICE] Query executed');
+  console.log('[BOOKING_SERVICE] Error:', error);
+  console.log('[BOOKING_SERVICE] Count:', count);
+  console.log('[BOOKING_SERVICE] Data length:', data?.length || 0);
+
+  if (data && data.length > 0) {
+    console.log('[BOOKING_SERVICE] First booking:', JSON.stringify(data[0], null, 2));
+    console.log('[BOOKING_SERVICE] Booking IDs:', data.map((b: any) => b.id));
+    console.log('[BOOKING_SERVICE] Booking references:', data.map((b: any) => b.booking_reference));
+    console.log('[BOOKING_SERVICE] Property owner_ids:', data.map((b: any) => b.properties?.owner_id));
+  } else {
+    console.log('[BOOKING_SERVICE] NO BOOKINGS FOUND - this is the problem!');
+  }
+
   if (error) {
-    console.error('Supabase error fetching bookings:', error);
+    console.error('[BOOKING_SERVICE] Supabase error fetching bookings:', error);
     throw new AppError('INTERNAL_ERROR', `Failed to fetch bookings: ${error.message}`);
   }
 
@@ -202,6 +243,218 @@ export const listBookings = async (
     guests: (guestsResult.data || []).filter((g: any) => g.booking_id === booking.id),
     payments: (paymentsResult.data || []).filter((p: any) => p.booking_id === booking.id),
     status_history: (historyResult.data || []).filter((h: any) => h.booking_id === booking.id),
+    // Rename properties to property (singular) for frontend consistency
+    property: booking.properties,
+    property_name: booking.properties?.name,
+    property_slug: booking.properties?.slug,
+    properties: undefined,
+  }));
+
+  return {
+    bookings,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+};
+
+/**
+ * Get all bookings for a specific user (as guest + as property owner)
+ * Used by super admin to view all user's bookings
+ */
+export const getBookingsByUser = async (
+  userId: string,
+  params?: BookingListParams
+): Promise<BookingListResponse> => {
+  const supabase = getAdminClient();
+
+  console.log('=== [BOOKING_SERVICE] getBookingsByUser called ===');
+  console.log('[BOOKING_SERVICE] User ID:', userId);
+  console.log('[BOOKING_SERVICE] Params:', JSON.stringify(params, null, 2));
+
+  const page = params?.page || 1;
+  const limit = params?.limit || 20;
+  const offset = (page - 1) * limit;
+
+  // First, get all property IDs owned by this user
+  const { data: properties, error: propertiesError } = await supabase
+    .from('properties')
+    .select('id, name, owner_id')
+    .eq('owner_id', userId);
+
+  if (propertiesError) {
+    console.error('[BOOKING_SERVICE] Error fetching properties:', propertiesError);
+  }
+
+  const propertyIds = properties?.map((p) => p.id) || [];
+  console.log('[BOOKING_SERVICE] User owns', propertyIds.length, 'properties:', propertyIds);
+  if (properties && properties.length > 0) {
+    console.log('[BOOKING_SERVICE] Property names:', properties.map(p => p.name));
+  }
+
+  // Build query to fetch bookings where:
+  // 1. User is the guest (guest_id = userId)
+  // 2. OR booking is for a property owned by user (property_id in propertyIds)
+  let query = supabase
+    .from('bookings')
+    .select(`
+      *,
+      properties!inner (
+        id,
+        name,
+        slug,
+        owner_id
+      )
+    `, { count: 'exact' });
+
+  // Apply OR filter: guest OR property owner
+  if (propertyIds.length > 0) {
+    const orFilter = `guest_id.eq.${userId},property_id.in.(${propertyIds.join(',')})`;
+    console.log('[BOOKING_SERVICE] Applying OR filter:', orFilter);
+    query = query.or(orFilter);
+  } else {
+    // If user has no properties, only show bookings where they are the guest
+    console.log('[BOOKING_SERVICE] No properties - filtering by guest_id only');
+    query = query.eq('guest_id', userId);
+  }
+
+  // Apply additional filters
+  if (params?.property_id) {
+    query = query.eq('property_id', params.property_id);
+  }
+
+  if (params?.booking_status) {
+    if (Array.isArray(params.booking_status)) {
+      query = query.in('booking_status', params.booking_status);
+    } else {
+      query = query.eq('booking_status', params.booking_status);
+    }
+  }
+
+  if (params?.payment_status) {
+    if (Array.isArray(params.payment_status)) {
+      query = query.in('payment_status', params.payment_status);
+    } else {
+      query = query.eq('payment_status', params.payment_status);
+    }
+  }
+
+  if (params?.source) {
+    if (Array.isArray(params.source)) {
+      query = query.in('source', params.source);
+    } else {
+      query = query.eq('source', params.source);
+    }
+  }
+
+  if (params?.check_in_from) {
+    query = query.gte('check_in_date', params.check_in_from);
+  }
+
+  if (params?.check_in_to) {
+    query = query.lte('check_in_date', params.check_in_to);
+  }
+
+  if (params?.check_out_from) {
+    query = query.gte('check_out_date', params.check_out_from);
+  }
+
+  if (params?.check_out_to) {
+    query = query.lte('check_out_date', params.check_out_to);
+  }
+
+  if (params?.created_from) {
+    query = query.gte('created_at', params.created_from);
+  }
+
+  if (params?.created_to) {
+    query = query.lte('created_at', params.created_to);
+  }
+
+  if (params?.search) {
+    query = query.or(`guest_name.ilike.%${params.search}%,guest_email.ilike.%${params.search}%,booking_reference.ilike.%${params.search}%`);
+  }
+
+  // Sorting
+  const sortBy = params?.sortBy || 'created_at';
+  const sortOrder = params?.sortOrder || 'desc';
+  query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+
+  // Pagination
+  const { data, error, count } = await query.range(offset, offset + limit - 1);
+
+  console.log('[BOOKING_SERVICE] Query executed');
+  console.log('[BOOKING_SERVICE] Error:', error);
+  console.log('[BOOKING_SERVICE] Count:', count);
+  console.log('[BOOKING_SERVICE] Bookings found:', data?.length || 0);
+  if (data && data.length > 0) {
+    console.log('[BOOKING_SERVICE] Booking IDs:', data.map((b: any) => b.id));
+    console.log('[BOOKING_SERVICE] Booking references:', data.map((b: any) => b.booking_reference));
+  }
+
+  if (error) {
+    console.error('[BOOKING_SERVICE] Supabase error fetching user bookings:', error);
+    throw new AppError('INTERNAL_ERROR', `Failed to fetch user bookings: ${error.message}`);
+  }
+
+  const total = count || 0;
+
+  // Fetch related data for each booking
+  const bookingIds = (data || []).map((b: any) => b.id);
+
+  if (bookingIds.length === 0) {
+    console.log('[BOOKING_SERVICE] No bookings found for user');
+    return {
+      bookings: [],
+      total: 0,
+      page,
+      limit,
+      totalPages: 0,
+    };
+  }
+
+  // Fetch rooms, addons, guests, payments in parallel
+  const [roomsResult, addonsResult, guestsResult, paymentsResult, historyResult] = await Promise.all([
+    supabase.from('booking_rooms').select(`
+      *,
+      rooms!inner (
+        featured_image
+      )
+    `).in('booking_id', bookingIds),
+    supabase.from('booking_addons').select(`
+      *,
+      add_ons!inner (
+        image_url
+      )
+    `).in('booking_id', bookingIds),
+    supabase.from('booking_guests').select('*').in('booking_id', bookingIds),
+    supabase.from('booking_payments').select('*').in('booking_id', bookingIds),
+    supabase.from('booking_status_history').select('*').in('booking_id', bookingIds).order('created_at', { ascending: false }),
+  ]);
+
+  // Map to BookingWithDetails format
+  const bookings: BookingWithDetails[] = (data || []).map((booking: any) => ({
+    ...booking,
+    rooms: (roomsResult.data || [])
+      .filter((r: any) => r.booking_id === booking.id)
+      .map((r: any) => ({
+        ...r,
+        featured_image: r.rooms?.featured_image || null,
+        rooms: undefined, // Remove nested object
+      })),
+    addons: (addonsResult.data || [])
+      .filter((a: any) => a.booking_id === booking.id)
+      .map((a: any) => ({
+        ...a,
+        image_url: a.add_ons?.image_url || null,
+        add_ons: undefined, // Remove nested object
+      })),
+    guests: (guestsResult.data || []).filter((g: any) => g.booking_id === booking.id),
+    payments: (paymentsResult.data || []).filter((p: any) => p.booking_id === booking.id),
+    status_history: (historyResult.data || []).filter((h: any) => h.booking_id === booking.id),
+    // Rename properties to property (singular) for frontend consistency
+    property: booking.properties,
     property_name: booking.properties?.name,
     property_slug: booking.properties?.slug,
     properties: undefined,
@@ -221,11 +474,13 @@ export const listBookings = async (
  */
 export const getBookingById = async (
   id: string,
-  userId?: string
+  userId?: string,
+  isSuperAdmin: boolean = false
 ): Promise<BookingWithDetails> => {
   const supabase = getAdminClient();
 
-  let query = supabase
+  // Fetch booking WITHOUT access filters first
+  const { data, error } = await supabase
     .from('bookings')
     .select(`
       *,
@@ -236,16 +491,46 @@ export const getBookingById = async (
         owner_id
       )
     `)
-    .eq('id', id);
+    .eq('id', id)
+    .single();
 
-  if (userId) {
-    query = query.eq('properties.owner_id', userId);
-  }
-
-  const { data, error } = await query.single();
-
+  // If booking doesn't exist, return 404
   if (error || !data) {
     throw new AppError('NOT_FOUND', 'Booking not found');
+  }
+
+  // Check authorization if userId is provided (skip for super admins)
+  if (userId && !isSuperAdmin) {
+    const propertyOwnerId = data.properties?.owner_id;
+    const guestId = data.guest_id;
+
+    // User can access if they are:
+    // 1. The property owner
+    // 2. The guest who made the booking
+    const isPropertyOwner = propertyOwnerId === userId;
+    const isGuest = guestId === userId;
+
+    if (!isPropertyOwner && !isGuest) {
+      console.log('[BOOKING_SERVICE] Access denied for booking:', {
+        booking_id: id,
+        user_id: userId,
+        property_owner_id: propertyOwnerId,
+        guest_id: guestId
+      });
+      throw new AppError('FORBIDDEN', 'You do not have permission to view this booking');
+    }
+
+    console.log('[BOOKING_SERVICE] Access granted for booking:', {
+      booking_id: id,
+      user_id: userId,
+      is_property_owner: isPropertyOwner,
+      is_guest: isGuest
+    });
+  } else if (isSuperAdmin) {
+    console.log('[BOOKING_SERVICE] Super admin access granted for booking:', {
+      booking_id: id,
+      user_id: userId
+    });
   }
 
   // Fetch related data with images from rooms and add_ons tables
@@ -378,6 +663,30 @@ export const createBooking = async (
     }
   }
 
+  // Fetch property and company for VAT calculation
+  const { data: property, error: propertyError } = await supabase
+    .from('properties')
+    .select('id, company_id')
+    .eq('id', input.property_id)
+    .single();
+
+  if (propertyError || !property) {
+    throw new AppError('NOT_FOUND', 'Property not found');
+  }
+
+  // Fetch company's VAT percentage
+  const { data: company, error: companyError } = await supabase
+    .from('companies')
+    .select('vat_percentage')
+    .eq('id', property.company_id)
+    .single();
+
+  if (companyError || !company) {
+    throw new AppError('NOT_FOUND', 'Company not found');
+  }
+
+  const vatPercentage = company.vat_percentage !== null && company.vat_percentage !== undefined ? company.vat_percentage : 15;
+
   // Calculate pricing for all rooms
   let roomTotal = 0;
   const roomsData: any[] = [];
@@ -468,7 +777,12 @@ export const createBooking = async (
   }
 
   const subtotal = roomTotal + addonsTotal;
-  const totalAmount = Math.max(0, subtotal - discountAmount);
+
+  // Calculate tax using company's VAT percentage
+  const taxRate = vatPercentage / 100; // Convert percentage to decimal (e.g., 15 -> 0.15)
+  const taxableAmount = subtotal - discountAmount; // Apply discount before tax
+  const taxAmount = taxableAmount * taxRate;
+  const totalAmount = Math.max(0, taxableAmount + taxAmount);
 
   // Create the booking
   const { data: bookingData, error: bookingError } = await supabase
@@ -490,6 +804,7 @@ export const createBooking = async (
       addons_total: addonsTotal,
       subtotal,
       discount_amount: discountAmount,
+      tax_amount: taxAmount,
       total_amount: totalAmount,
       currency: roomsData[0]?.currency || 'ZAR',
       coupon_code: input.coupon_code || null,
@@ -632,6 +947,26 @@ export const createBooking = async (
     console.error('Error in guest account auto-creation:', error);
   }
 
+  // AUTO-CREATE CUSTOMER (fallback to database trigger)
+  try {
+    const property = await getProperty(input.property_id);
+
+    if (property && property.company_id) {
+      await findOrCreateCustomer({
+        email: input.guest_email.trim().toLowerCase(),
+        full_name: input.guest_name.trim(),
+        phone: input.guest_phone?.trim() || undefined,
+        company_id: property.company_id,
+        first_property_id: input.property_id,
+        source: 'booking',
+        user_id: bookingData.guest_id || undefined,
+      });
+    }
+  } catch (error) {
+    // Don't fail the booking if customer creation fails (trigger should have handled it)
+    console.error('Error in customer auto-creation fallback:', error);
+  }
+
   // Generate payment schedule based on room payment rules
   try {
     // Get the first room's ID to find payment rules (assuming all rooms in booking use same property rules)
@@ -676,6 +1011,13 @@ export const createBooking = async (
 
   // Fire notifications without blocking
   sendNotifications();
+
+  // Send WhatsApp booking confirmation (async, don't block response)
+  if (fullBooking.booking_status === 'confirmed') {
+    whatsappAutomation.sendBookingConfirmation(fullBooking.id).catch((error) => {
+      console.error('Failed to send WhatsApp booking confirmation:', error);
+    });
+  }
 
   return fullBooking;
 };
@@ -810,6 +1152,11 @@ export const updateBookingStatus = async (
   if (input.status === 'confirmed' && current.booking_status !== 'confirmed') {
     sendBookingConfirmationEmail(updatedBooking).catch((err) => {
       console.error('Failed to send confirmation email:', err);
+    });
+
+    // Send WhatsApp booking confirmation
+    whatsappAutomation.sendBookingConfirmation(updatedBooking.id).catch((error) => {
+      console.error('Failed to send WhatsApp booking confirmation:', error);
     });
   }
 
@@ -949,6 +1296,11 @@ export const updatePaymentStatus = async (
       // Generate invoice for the booking
       generateBookingInvoice(updatedBooking, ownerInfo.userId).catch((err) => {
         console.error('Failed to generate booking invoice:', err);
+      });
+
+      // Send WhatsApp payment received notification (async, don't block response)
+      whatsappAutomation.sendPaymentReceivedNotification(updatedBooking.id).catch((error) => {
+        console.error('Failed to send WhatsApp payment notification:', error);
       });
     }
   }
@@ -1102,6 +1454,13 @@ export const cancelBooking = async (
   // Fire notifications without blocking
   sendCancellationNotifications();
 
+  // Send WhatsApp cancellation notification (async, don't block response)
+  if (input.notify_guest !== false) {
+    whatsappAutomation.sendBookingCancelledNotification(cancelledBooking.id).catch((error) => {
+      console.error('Failed to send WhatsApp cancellation notification:', error);
+    });
+  }
+
   return cancelledBooking;
 };
 
@@ -1223,8 +1582,8 @@ export const updateBookingDates = async (
     const { error: roomError } = await supabase
       .from('booking_rooms')
       .update({
-        nightly_rates: roomPricing.nightly_breakdown,
-        room_subtotal: roomPricing.total_price,
+        nightly_rates: roomPricing.nightly_rates,
+        room_subtotal: roomPricing.room_total,
         updated_at: new Date().toISOString(),
       })
       .eq('id', bookingRoom.id);
@@ -1233,7 +1592,7 @@ export const updateBookingDates = async (
       throw new AppError('INTERNAL_ERROR', 'Failed to update room pricing');
     }
 
-    newRoomTotal += roomPricing.total_price;
+    newRoomTotal += roomPricing.room_total;
   }
 
   // Calculate new totals
@@ -1723,7 +2082,7 @@ export const addBookingPayment = async (
 
   // Validate payment amount
   if (input.amount <= 0) {
-    throw new AppError('Payment amount must be greater than zero', 400);
+    throw new AppError('VALIDATION_ERROR', 'Payment amount must be greater than zero');
   }
 
   // Check for overpayment
@@ -1733,14 +2092,14 @@ export const addBookingPayment = async (
 
   if (input.amount > outstanding) {
     throw new AppError(
-      `Payment amount (${input.amount}) exceeds outstanding balance (${outstanding})`,
-      400
+      'VALIDATION_ERROR',
+      `Payment amount (${input.amount}) exceeds outstanding balance (${outstanding})`
     );
   }
 
   // Prevent payment on cancelled bookings
   if (booking.booking_status === 'cancelled') {
-    throw new AppError('Cannot record payment for cancelled bookings', 400);
+    throw new AppError('VALIDATION_ERROR', 'Cannot record payment for cancelled bookings');
   }
 
   const { data, error } = await supabase
@@ -1755,7 +2114,7 @@ export const addBookingPayment = async (
       gateway_response: input.gateway_response || null,
       status: input.status || 'pending',
       paid_at: input.paid_at || null,
-      proof_url: input.proof_url || null,
+      // proof_url: Removed - proof tracking now handled in bookings table only
       notes: input.notes || null,
       created_by: userId,
     })
@@ -1767,6 +2126,18 @@ export const addBookingPayment = async (
   }
 
   const payment = data;
+
+  // If proof is provided, update the bookings table's payment_proof_url
+  if (input.proof_url) {
+    await supabase
+      .from('bookings')
+      .update({
+        payment_proof_url: input.proof_url,
+        payment_proof_uploaded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', bookingId);
+  }
 
   // Generate receipt for completed/verified payments
   if (payment.status === 'completed' || payment.status === 'verified') {
@@ -1842,7 +2213,7 @@ export const addBookingPayment = async (
         checkout_date: booking.check_out_date,
         total_nights: booking.total_nights,
         applied_to_milestone: appliedToMilestone,
-        company_id: property.company_id,
+        company_id: property.company_id!,
 
         // Financial breakdown (for accounting best practices)
         total_booking_amount: booking.total_amount,
@@ -1885,9 +2256,8 @@ export const addBookingPayment = async (
     if (totalPaid >= totalAmount && !updatedBooking.invoice_id) {
       console.log(`Booking ${updatedBooking.booking_reference} is fully paid, auto-generating invoice...`);
 
-      // Import invoice service dynamically to avoid circular dependencies
-      const invoiceService = await import('./invoice.service');
-      const invoice = await invoiceService.generateBookingInvoice(updatedBooking, userId);
+      // Generate invoice
+      const invoice = await generateBookingInvoice(updatedBooking, userId);
 
       // Link invoice to booking
       await supabase.from('bookings').update({
@@ -2600,7 +2970,7 @@ export const updateBookingRefundStatus = async (bookingId: string): Promise<void
     .eq('status', 'completed');
 
   if (refundsError) {
-    logger.error('Error fetching completed refunds:', refundsError);
+    logger.error('Error fetching completed refunds:', { message: refundsError.message, code: refundsError.code, details: refundsError.details });
     return;
   }
 
@@ -2955,22 +3325,22 @@ export const uploadPaymentProof = async (
     .single();
 
   if (bookingError || !booking) {
-    throw AppError.notFound('Booking not found');
+    throw new AppError('NOT_FOUND', 'Booking not found');
   }
 
   // Check authorization - only guest can upload proof for their booking
   if (booking.guest_id !== userId) {
-    throw AppError.forbidden('You can only upload payment proof for your own bookings');
+    throw new AppError('FORBIDDEN', 'You can only upload payment proof for your own bookings');
   }
 
   // Check if payment method is EFT
   if (booking.payment_method !== 'eft') {
-    throw AppError.badRequest('Payment proof upload is only for EFT payments');
+    throw new AppError('BAD_REQUEST', 'Payment proof upload is only for EFT payments');
   }
 
   // Check if booking is in pending status
   if (booking.payment_status !== 'pending' && booking.payment_status !== 'verification_pending') {
-    throw AppError.badRequest(`Cannot upload proof for booking with payment status: ${booking.payment_status}`);
+    throw new AppError('BAD_REQUEST', `Cannot upload proof for booking with payment status: ${booking.payment_status}`);
   }
 
   // Update booking with payment proof
@@ -2989,7 +3359,7 @@ export const uploadPaymentProof = async (
     .single();
 
   if (updateError) {
-    throw AppError.database('Failed to update booking with payment proof', updateError);
+    throw new AppError('DATABASE_ERROR', 'Failed to update booking with payment proof');
   }
 
   // Send notification to property owner
@@ -3049,7 +3419,7 @@ export const verifyEFTPayment = async (
 
   // Validate rejection reason if rejecting
   if (verifyData.action === 'reject' && !verifyData.rejection_reason) {
-    throw AppError.badRequest('Rejection reason is required when rejecting payment proof');
+    throw new AppError('BAD_REQUEST', 'Rejection reason is required when rejecting payment proof');
   }
 
   // Get booking
@@ -3060,23 +3430,23 @@ export const verifyEFTPayment = async (
     .single();
 
   if (bookingError || !booking) {
-    throw AppError.notFound('Booking not found');
+    throw new AppError('NOT_FOUND', 'Booking not found');
   }
 
   // Check authorization - only property owner can verify
   const property = booking.properties as any;
   if (property.owner_id !== verifiedBy) {
-    throw AppError.forbidden('Only the property owner can verify payment proofs');
+    throw new AppError('FORBIDDEN', 'Only the property owner can verify payment proofs');
   }
 
   // Check if payment is awaiting verification
   if (booking.payment_status !== 'verification_pending') {
-    throw AppError.badRequest(`Cannot verify payment with status: ${booking.payment_status}`);
+    throw new AppError('BAD_REQUEST', `Cannot verify payment with status: ${booking.payment_status}`);
   }
 
   // Check if payment proof was uploaded
   if (!booking.payment_proof_url) {
-    throw AppError.badRequest('No payment proof found for this booking');
+    throw new AppError('BAD_REQUEST', 'No payment proof found for this booking');
   }
 
   const now = new Date().toISOString();
@@ -3100,7 +3470,7 @@ export const verifyEFTPayment = async (
       .single();
 
     if (updateError) {
-      throw AppError.database('Failed to approve payment', updateError);
+      throw new AppError('DATABASE_ERROR', 'Failed to approve payment');
     }
 
     // Send confirmation to guest
@@ -3139,7 +3509,7 @@ export const verifyEFTPayment = async (
       .single();
 
     if (updateError) {
-      throw AppError.database('Failed to reject payment', updateError);
+      throw new AppError('DATABASE_ERROR', 'Failed to reject payment');
     }
 
     // Send rejection notification to guest

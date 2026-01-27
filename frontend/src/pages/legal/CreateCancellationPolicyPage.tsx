@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout';
 import { Alert } from '@/components/ui';
 import { legalService } from '@/services';
@@ -14,15 +14,23 @@ import type { CreateCancellationPolicyData } from '@/types/legal.types';
 
 export const CreateCancellationPolicyPage: React.FC = () => {
   const navigate = useNavigate();
+  const { propertyId } = useParams<{ propertyId?: string }>();
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (data: CreateCancellationPolicyData) => {
     setError(null);
     try {
       await legalService.createCancellationPolicy(data);
-      navigate('/legal#cancellation', {
-        state: { message: 'Cancellation policy created successfully' },
-      });
+      // Navigate back to property legal tab if in property context, otherwise to legal page
+      if (propertyId) {
+        navigate(`/manage/properties/${propertyId}#legal`, {
+          state: { message: 'Cancellation policy created successfully' },
+        });
+      } else {
+        navigate('/legal#cancellation', {
+          state: { message: 'Cancellation policy created successfully' },
+        });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create policy';
       setError(errorMessage);
@@ -31,7 +39,12 @@ export const CreateCancellationPolicyPage: React.FC = () => {
   };
 
   const handleCancel = () => {
-    navigate('/legal#cancellation');
+    // Navigate back to property legal tab if in property context, otherwise to legal page
+    if (propertyId) {
+      navigate(`/manage/properties/${propertyId}#legal`);
+    } else {
+      navigate('/legal#cancellation');
+    }
   };
 
   return (

@@ -4,8 +4,9 @@
  * Step 5 of the booking wizard: Review all details and confirm.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BookingFooter } from '../components/BookingFooter';
+import { TermsModal } from '@/components/features';
 import type { ReviewStepProps } from '../CreateBookingPage.types';
 import { BOOKING_SOURCE_LABELS, formatCurrency } from '@/types/booking.types';
 
@@ -99,8 +100,13 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
   onCancel,
   submitting,
 }) => {
-  // Get property name
-  const propertyName = properties.find((p) => p.id === formData.property_id)?.name || 'Unknown';
+  // State
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Get property
+  const currentProperty = properties.find((p) => p.id === formData.property_id);
+  const propertyName = currentProperty?.name || 'Unknown';
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -289,6 +295,36 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             </p>
           </div>
         )}
+
+        {/* Terms & Conditions Checkbox */}
+        {currentProperty?.terms_and_conditions && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="terms"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-1"
+              />
+              <label htmlFor="terms" className="text-sm text-gray-700 dark:text-gray-300">
+                I confirm that the guest agrees to the{' '}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setShowTermsModal(true);
+                  }}
+                  className="text-primary hover:underline font-medium"
+                >
+                  Terms & Conditions
+                </button>{' '}
+                for this property.{' '}
+                <span className="text-red-500">*</span>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -300,7 +336,19 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         continueLabel="Create Booking"
         isLoading={submitting}
         isFinalStep
+        disabled={currentProperty?.terms_and_conditions ? !termsAccepted : false}
       />
+
+      {/* Terms Modal */}
+      {currentProperty?.terms_and_conditions && (
+        <TermsModal
+          isOpen={showTermsModal}
+          onClose={() => setShowTermsModal(false)}
+          termsHtml={currentProperty.terms_and_conditions}
+          propertyName={propertyName}
+          propertyId={currentProperty.id}
+        />
+      )}
     </div>
   );
 };

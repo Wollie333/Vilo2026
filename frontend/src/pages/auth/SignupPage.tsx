@@ -1,11 +1,22 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Mail } from 'lucide-react';
 import { AuthLayout } from '@/components/layout';
 import { Input, Button, Alert, PhoneInput } from '@/components/ui';
 import { useAuth } from '@/hooks';
 
 export const SignupPage: React.FC = () => {
+  const navigate = useNavigate();
   const { signup, isLoading, error } = useAuth();
+  const location = useLocation();
+
+  // Check if user was redirected from checkout
+  const isFromCheckout = location.state?.from?.pathname?.startsWith('/checkout');
+
+  const from = location.state?.from;
+  const fromPath = from?.pathname || '/dashboard';
+  const fromSearch = from?.search || '';
+  const fullPath = fromPath + fromSearch;
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -15,7 +26,6 @@ export const SignupPage: React.FC = () => {
     confirmPassword: '',
   });
   const [formError, setFormError] = useState('');
-  const [success, setSuccess] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -70,7 +80,10 @@ export const SignupPage: React.FC = () => {
         password: formData.password,
         phone: formData.phone || undefined,
       });
-      setSuccess(true);
+
+      // After successful signup, user is authenticated
+      // Redirect to the original destination (e.g., checkout) or dashboard
+      navigate(fullPath, { replace: true });
     } catch (err) {
       // Error is already handled in context
     }
@@ -78,37 +91,14 @@ export const SignupPage: React.FC = () => {
 
   const displayError = formError || error;
 
-  if (success) {
-    return (
-      <AuthLayout
-        title="Check your email"
-        subtitle="We've sent you a verification link"
-      >
-        <div className="space-y-6">
-          <Alert variant="success">
-            Your account has been created! Please check your email to verify
-            your account. Once verified, an admin will review and approve your
-            account.
-          </Alert>
-
-          <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-            Already verified?{' '}
-            <Link
-              to="/login"
-              className="font-medium text-primary hover:text-primary-600"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </AuthLayout>
-    );
-  }
-
   return (
     <AuthLayout
       title="Create an account"
-      subtitle="Join Vilo to manage your vacation rentals"
+      subtitle={
+        isFromCheckout
+          ? "Create your account to complete your subscription"
+          : "Join Vilo to manage your vacation rentals"
+      }
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {displayError && (
@@ -129,29 +119,18 @@ export const SignupPage: React.FC = () => {
           disabled={isLoading}
         />
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Email address
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <Input
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="you@example.com"
-              autoComplete="email"
-              className="pl-10"
-              fullWidth
-              disabled={isLoading}
-            />
-          </div>
-        </div>
+        <Input
+          label="Email address"
+          name="email"
+          type="email"
+          value={formData.email}
+          onChange={handleChange}
+          placeholder="you@example.com"
+          autoComplete="email"
+          leftIcon={<Mail className="w-5 h-5" />}
+          fullWidth
+          disabled={isLoading}
+        />
 
         <PhoneInput
           label="Phone (optional)"

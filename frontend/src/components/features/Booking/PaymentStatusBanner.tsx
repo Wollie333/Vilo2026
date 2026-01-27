@@ -213,7 +213,7 @@ export const PaymentStatusBanner: React.FC<PaymentStatusBannerProps> = ({
         return null;
 
       // Payment Rejected
-      case 'pending':
+      case 'rejected':
         if (rejectionReason) {
           return (
             <div className={`rounded-lg border-2 p-4 ${className} bg-red-50 dark:bg-red-900/20 border-red-400 dark:border-red-600`}>

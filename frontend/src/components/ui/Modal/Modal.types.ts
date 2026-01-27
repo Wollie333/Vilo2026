@@ -10,7 +10,7 @@ export interface ModalProps {
   /** Modal content */
   children: ReactNode;
   /** Size variant */
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
   /** Whether to close on overlay click */
   closeOnOverlayClick?: boolean;
   /** Whether to show close button */

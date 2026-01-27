@@ -89,8 +89,8 @@ export const BookingManagementPage: React.FC = () => {
   const [filters, setFilters] = useState<BookingListParams>({
     page: 1,
     limit: 20,
-    sortBy: 'check_in_date',
-    sortOrder: 'asc',
+    sortBy: 'created_at', // Sort by booking creation date (when booking was made)
+    sortOrder: 'desc', // Newest bookings first
   });
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -112,21 +112,37 @@ export const BookingManagementPage: React.FC = () => {
   useEffect(() => {
     const fetchBookings = async () => {
       try {
+        console.log('=== [BOOKING_MANAGEMENT_PAGE] Fetching bookings ===');
         setLoading(true);
         setError(null);
 
         const params: BookingListParams = {
           ...filters,
+          bookingType: 'received', // Only show bookings received at user's properties
           search: searchTerm || undefined,
         };
 
+        console.log('[BOOKING_MANAGEMENT_PAGE] Calling service with params:', params);
         const response = await bookingService.listBookings(params);
+        console.log('[BOOKING_MANAGEMENT_PAGE] Service returned:', response);
+        console.log('[BOOKING_MANAGEMENT_PAGE] response.bookings:', response.bookings);
+        console.log('[BOOKING_MANAGEMENT_PAGE] response.bookings length:', response.bookings?.length || 0);
+
         setBookings(response.bookings || []);
-        setCurrentPage(response.pagination?.page || 1);
-        setTotalPages(response.pagination?.totalPages || 1);
-        setTotalCount(response.pagination?.total || 0);
+        console.log('[BOOKING_MANAGEMENT_PAGE] State updated with bookings');
+
+        // Response structure: { bookings, total, page, limit, totalPages }
+        setCurrentPage(response.page || 1);
+        setTotalPages(response.totalPages || 1);
+        setTotalCount(response.total || 0);
+
+        console.log('[BOOKING_MANAGEMENT_PAGE] Pagination:', {
+          currentPage: response.page || 1,
+          totalPages: response.totalPages || 1,
+          totalCount: response.total || 0
+        });
       } catch (err) {
-        console.error('Failed to fetch bookings:', err);
+        console.error('[BOOKING_MANAGEMENT_PAGE] Failed to fetch bookings:', err);
         setError(err instanceof Error ? err.message : 'Failed to load bookings');
         setBookings([]);
         setCurrentPage(1);
@@ -134,6 +150,7 @@ export const BookingManagementPage: React.FC = () => {
         setTotalCount(0);
       } finally {
         setLoading(false);
+        console.log('[BOOKING_MANAGEMENT_PAGE] Loading complete');
       }
     };
 
@@ -170,8 +187,8 @@ export const BookingManagementPage: React.FC = () => {
     setFilters({
       page: 1,
       limit: 20,
-      sortBy: 'check_in_date',
-      sortOrder: 'asc',
+      sortBy: 'created_at',
+      sortOrder: 'desc',
     });
     setSearchTerm('');
   };
@@ -206,6 +223,25 @@ export const BookingManagementPage: React.FC = () => {
         </div>
       </AuthenticatedLayout>
     );
+  }
+
+  // Debug log for render
+  console.log('[BOOKING_MANAGEMENT_PAGE] Rendering with state:', {
+    bookingsCount: bookings.length,
+    loading,
+    error,
+    totalCount,
+    currentPage,
+    totalPages
+  });
+  console.log('[BOOKING_MANAGEMENT_PAGE] Bookings in state:', bookings);
+
+  if (bookings.length > 0) {
+    console.log('[BOOKING_MANAGEMENT_PAGE] First booking structure:', bookings[0]);
+    console.log('[BOOKING_MANAGEMENT_PAGE] First booking has property?', !!bookings[0].property);
+    console.log('[BOOKING_MANAGEMENT_PAGE] First booking has properties?', !!(bookings[0] as any).properties);
+    console.log('[BOOKING_MANAGEMENT_PAGE] Property field:', bookings[0].property);
+    console.log('[BOOKING_MANAGEMENT_PAGE] Properties field:', (bookings[0] as any).properties);
   }
 
   return (
@@ -414,12 +450,12 @@ export const BookingManagementPage: React.FC = () => {
               </label>
               <Select
                 options={[
+                  { value: 'created_at', label: 'Booking Date (When Made)' },
                   { value: 'check_in_date', label: 'Check-In Date' },
                   { value: 'check_out_date', label: 'Check-Out Date' },
-                  { value: 'created_at', label: 'Booking Date' },
                   { value: 'total_amount', label: 'Amount' }
                 ]}
-                value={filters.sortBy || 'check_in_date'}
+                value={filters.sortBy || 'created_at'}
                 onChange={(e) => handleFilterChange('sortBy', e.target.value)}
               />
             </div>
@@ -431,10 +467,10 @@ export const BookingManagementPage: React.FC = () => {
               </label>
               <Select
                 options={[
-                  { value: 'asc', label: 'Ascending' },
-                  { value: 'desc', label: 'Descending' }
+                  { value: 'desc', label: 'Newest First' },
+                  { value: 'asc', label: 'Oldest First' }
                 ]}
-                value={filters.sortOrder || 'asc'}
+                value={filters.sortOrder || 'desc'}
                 onChange={(e) => handleFilterChange('sortOrder', e.target.value as 'asc' | 'desc')}
               />
             </div>

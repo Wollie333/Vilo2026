@@ -58,6 +58,15 @@ export interface PlanFormData {
 
   // Permission IDs
   permission_ids: string[];
+
+  // CMS fields for checkout page customization
+  slug: string;
+  custom_headline: string;
+  custom_description: string;
+  custom_features: string[];
+  custom_cta_text: string;
+  checkout_badge: string;
+  checkout_accent_color: string;
 }
 
 interface SubscriptionPlansTabProps {
@@ -101,6 +110,14 @@ export const getDefaultFormState = (): PlanFormData => ({
     one_off: false,
   },
   permission_ids: [],
+  // CMS fields for checkout page
+  slug: '',
+  custom_headline: '',
+  custom_description: '',
+  custom_features: [],
+  custom_cta_text: 'Get Started',
+  checkout_badge: '',
+  checkout_accent_color: '#047857',
 });
 
 // Initialize form from existing subscription (using JSONB limits)
@@ -140,16 +157,27 @@ export const initFormFromSubscription = (sub: SubscriptionType): PlanFormData =>
   // Convert price from cents to dollars
   const priceInDollars = (sub.price_cents / 100).toFixed(2);
 
-  // Get pricing tiers (convert from cents to dollars)
-  const pricing = sub.pricing || { monthly: 0, annual: 0 };
-  const monthlyPrice = (pricing.monthly / 100).toFixed(2);
-  const annualPrice = (pricing.annual / 100).toFixed(2);
-
-  // Get pricing_tiers for enhanced billing types
+  // Get pricing_tiers for enhanced billing types (NEW format)
   const pricingTiers = sub.pricing_tiers || {};
+
+  // Read prices from pricing_tiers (correct source)
+  const monthlyPrice = pricingTiers.monthly?.price_cents
+    ? (pricingTiers.monthly.price_cents / 100).toFixed(2)
+    : '0.00';
+  const annualPrice = pricingTiers.annual?.price_cents
+    ? (pricingTiers.annual.price_cents / 100).toFixed(2)
+    : '0.00';
   const oneOffPrice = pricingTiers.one_off?.price_cents
     ? (pricingTiers.one_off.price_cents / 100).toFixed(2)
     : '0.00';
+
+  console.log('📖 [initFormFromSubscription] Loading plan prices:', {
+    planName: sub.name,
+    pricing_tiers: pricingTiers,
+    monthlyPrice,
+    annualPrice,
+    oneOffPrice,
+  });
 
   // Get billing types (default to false if not set)
   const billingTypes = sub.billing_types || { monthly: false, annual: false, one_off: false };
@@ -170,6 +198,14 @@ export const initFormFromSubscription = (sub: SubscriptionType): PlanFormData =>
     limits,
     billing_types: billingTypes,
     permission_ids: [], // TODO: Load from backend when permissions are stored
+    // CMS fields for checkout page
+    slug: sub.slug || '',
+    custom_headline: sub.custom_headline || '',
+    custom_description: sub.custom_description || '',
+    custom_features: sub.custom_features || [],
+    custom_cta_text: sub.custom_cta_text || 'Get Started',
+    checkout_badge: sub.checkout_badge || '',
+    checkout_accent_color: sub.checkout_accent_color || '#047857',
   };
 };
 
@@ -350,11 +386,19 @@ export const SubscriptionPlansTab: React.FC<SubscriptionPlansTabProps> = ({
           monthly_price_cents: formData.billing_types.monthly ? monthlyPriceCents : undefined,
           annual_price_cents: formData.billing_types.annual ? annualPriceCents : undefined,
           one_off_price_cents: formData.billing_types.one_off ? oneOffPriceCents : undefined,
+          // CMS fields
+          slug: formData.slug,
+          custom_headline: formData.custom_headline?.trim() || null,
+          custom_description: formData.custom_description?.trim() || null,
+          custom_features: formData.custom_features.length > 0 ? formData.custom_features : [],
+          custom_cta_text: formData.custom_cta_text?.trim() || null,
+          checkout_badge: formData.checkout_badge?.trim() || null,
+          checkout_accent_color: formData.checkout_accent_color || null,
         });
         savedPlanId = newPlan.id;
       } else if (mode === 'edit' && selectedId) {
         // Update existing subscription with enhanced multi-billing support
-        await billingService.updateSubscriptionType(selectedId, {
+        const updatePayload = {
           display_name: formData.display_name,
           description: formData.description || undefined,
           price_cents: priceCents,
@@ -371,7 +415,25 @@ export const SubscriptionPlansTab: React.FC<SubscriptionPlansTabProps> = ({
           monthly_price_cents: formData.billing_types.monthly ? monthlyPriceCents : undefined,
           annual_price_cents: formData.billing_types.annual ? annualPriceCents : undefined,
           one_off_price_cents: formData.billing_types.one_off ? oneOffPriceCents : undefined,
+          // CMS fields for checkout page customization
+          slug: formData.slug,
+          custom_headline: formData.custom_headline?.trim() || null,
+          custom_description: formData.custom_description?.trim() || null,
+          custom_features: formData.custom_features.length > 0 ? formData.custom_features : [],
+          custom_cta_text: formData.custom_cta_text?.trim() || null,
+          checkout_badge: formData.checkout_badge?.trim() || null,
+          checkout_accent_color: formData.checkout_accent_color || null,
+        };
+
+        console.log('🔍 UPDATE PAYLOAD:', JSON.stringify(updatePayload, null, 2));
+        console.log('🔍 Form Data CMS Fields:', {
+          slug: formData.slug,
+          custom_headline: formData.custom_headline,
+          custom_description: formData.custom_description,
+          checkout_badge: formData.checkout_badge,
         });
+
+        await billingService.updateSubscriptionType(selectedId, updatePayload);
         savedPlanId = selectedId;
       } else {
         throw new Error('Invalid save mode');

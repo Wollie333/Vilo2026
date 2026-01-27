@@ -13,7 +13,7 @@ import { CancellationPolicyForm } from './components/CancellationPolicyForm';
 import type { CancellationPolicy, CreateCancellationPolicyData } from '@/types/legal.types';
 
 export const EditCancellationPolicyPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, propertyId } = useParams<{ id: string; propertyId?: string }>();
   const navigate = useNavigate();
   const [policy, setPolicy] = useState<CancellationPolicy | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,9 +46,16 @@ export const EditCancellationPolicyPage: React.FC = () => {
     setError(null);
     try {
       await legalService.updateCancellationPolicy(id, data);
-      navigate('/legal#cancellation', {
-        state: { message: 'Cancellation policy updated successfully' },
-      });
+      // Navigate back to property legal tab if in property context, otherwise to legal page
+      if (propertyId) {
+        navigate(`/manage/properties/${propertyId}#legal`, {
+          state: { message: 'Cancellation policy updated successfully' },
+        });
+      } else {
+        navigate('/legal#cancellation', {
+          state: { message: 'Cancellation policy updated successfully' },
+        });
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update policy';
       setError(errorMessage);
@@ -57,7 +64,12 @@ export const EditCancellationPolicyPage: React.FC = () => {
   };
 
   const handleCancel = () => {
-    navigate('/legal#cancellation');
+    // Navigate back to property legal tab if in property context, otherwise to legal page
+    if (propertyId) {
+      navigate(`/manage/properties/${propertyId}#legal`);
+    } else {
+      navigate('/legal#cancellation');
+    }
   };
 
   if (isLoading) {

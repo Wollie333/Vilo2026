@@ -21,6 +21,7 @@ export interface Company {
   address_country: string | null;
   // Tax/Legal
   vat_number: string | null;
+  vat_percentage: number | null;
   registration_number: string | null;
   // Social Media
   linkedin_url: string | null;
@@ -30,6 +31,8 @@ export interface Company {
   youtube_url: string | null;
   // Status
   is_active: boolean;
+  // Features
+  enable_book_via_chat?: boolean;
   // Timestamps
   created_at: string;
   updated_at: string;
@@ -60,6 +63,7 @@ export interface CreateCompanyData {
   address_country?: string;
   // Tax/Legal
   vat_number?: string;
+  vat_percentage?: number;
   registration_number?: string;
   // Social Media
   linkedin_url?: string;
@@ -86,6 +90,7 @@ export interface UpdateCompanyData {
   address_country?: string;
   // Tax/Legal
   vat_number?: string;
+  vat_percentage?: number;
   registration_number?: string;
   // Social Media
   linkedin_url?: string;
@@ -95,6 +100,8 @@ export interface UpdateCompanyData {
   youtube_url?: string;
   // Status
   is_active?: boolean;
+  // Features
+  enable_book_via_chat?: boolean;
 }
 
 // ============================================================================

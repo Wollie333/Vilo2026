@@ -1,5 +1,5 @@
 import { api } from './api.service';
-import type { UserProfile, UserWithRoles, UserStatus } from '@/types/auth.types';
+import type { UserProfile, UserWithRoles, UserStatus, UserStats } from '@/types/auth.types';
 import type { PaginatedResponse } from '@/types/api.types';
 
 export interface UserFilters {
@@ -46,6 +46,14 @@ export interface CreateUserData {
   phone?: string;
   status?: 'active' | 'pending';
   userTypeId?: string;
+
+  // Subscription configuration (optional)
+  subscription?: {
+    subscription_type_id: string;
+    status?: 'active' | 'trial';
+    trial_ends_at?: string;
+    expires_at?: string;
+  };
 }
 
 export interface ActivityLogEntry {
@@ -190,6 +198,111 @@ class UsersService {
     return response.data.user;
   }
 
+  async getUserProperties(userId: string): Promise<any[]> {
+    const response = await api.get<{ properties: any[]; total: number }>(`/users/${userId}/properties`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch user properties');
+    }
+    return response.data.properties;
+  }
+
+  async unassignProperty(userId: string, propertyId: string): Promise<void> {
+    const response = await api.delete(`/users/${userId}/properties/${propertyId}`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to unassign property');
+    }
+  }
+
+  async getTeamMembers(userId: string): Promise<any[]> {
+    const response = await api.get<{ members: any[]; total: number }>(`/users/${userId}/team`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch team members');
+    }
+    return response.data.members;
+  }
+
+  async inviteTeamMember(
+    userId: string,
+    data: { email: string; full_name: string; phone?: string; roleIds?: string[] }
+  ): Promise<any> {
+    const response = await api.post<{ member: any }>(`/users/${userId}/team`, data);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to invite team member');
+    }
+    return response.data.member;
+  }
+
+  async removeTeamMember(userId: string, memberId: string): Promise<void> {
+    const response = await api.delete(`/users/${userId}/team/${memberId}`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to remove team member');
+    }
+  }
+
+  async getCustomersByUser(userId: string): Promise<any[]> {
+    const response = await api.get<{ customers: any[]; total: number }>(`/users/${userId}/customers`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch customers');
+    }
+    return response.data.customers;
+  }
+
+  async getUserRooms(userId: string): Promise<any[]> {
+    const response = await api.get<{ rooms: any[]; total: number }>(`/users/${userId}/rooms`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch rooms');
+    }
+    return response.data.rooms;
+  }
+
+  async getUserAddons(userId: string): Promise<any[]> {
+    const response = await api.get<{ addons: any[]; total: number }>(`/users/${userId}/addons`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch addons');
+    }
+    return response.data.addons;
+  }
+
+  async getUserPolicies(userId: string): Promise<any> {
+    const response = await api.get<{ policies: any[]; propertyPolicies: any[] }>(`/users/${userId}/policies`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch policies');
+    }
+    return response.data;
+  }
+
+  async getUserTerms(userId: string): Promise<any[]> {
+    const response = await api.get<{ properties: any[]; total: number }>(`/users/${userId}/terms`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch terms');
+    }
+    return response.data.properties;
+  }
+
+  async getUserPaymentIntegrations(userId: string): Promise<any[]> {
+    const response = await api.get<{ integrations: any[]; total: number }>(`/users/${userId}/payment-integrations`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch payment integrations');
+    }
+    return response.data.integrations;
+  }
+
+  async getUserSubscription(userId: string): Promise<any> {
+    const response = await api.get<{ subscription: any; usage: any }>(`/users/${userId}/subscription`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch subscription');
+    }
+    return response.data;
+  }
+
+  async getUserPaymentHistory(userId: string): Promise<any> {
+    const response = await api.get<{ invoices: any[]; checkouts: any[]; stats: any }>(`/users/${userId}/payment-history`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch payment history');
+    }
+    return response.data;
+  }
+
   async listPendingUsers(): Promise<UserProfile[]> {
     const response = await this.listUsers({ status: 'pending' });
     return response.data || [];
@@ -237,6 +350,18 @@ class UsersService {
     );
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch activity');
+    }
+    return response.data;
+  }
+
+  /**
+   * Get user statistics (property count, room count, team count, etc.)
+   * Super admin only - GET /api/users/:userId/stats
+   */
+  async getUserStatsByUserId(userId: string): Promise<UserStats> {
+    const response = await api.get<UserStats>(`/users/${userId}/stats`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch user stats');
     }
     return response.data;
   }

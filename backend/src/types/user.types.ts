@@ -28,6 +28,17 @@ export interface RoleWithPermissions extends Role {
   permissions: Permission[];
 }
 
+export interface UserType {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string | null;
+  category: 'saas' | 'customer';
+  is_system_type: boolean;
+  can_have_subscription: boolean;
+  can_have_team: boolean;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -50,6 +61,8 @@ export interface UserProfile {
   company_name: string | null;
   preferences: Record<string, unknown>;
   status: UserStatus;
+  user_type_id: string | null;
+  user_type?: UserType;
   email_verified_at: string | null;
   approved_at: string | null;
   approved_by: string | null;
@@ -163,4 +176,14 @@ export interface AssignPermissionsRequest {
 export interface AssignPropertiesRequest {
   propertyIds: string[];
   replaceExisting?: boolean;
+}
+
+export interface UserStats {
+  propertyCount: number;
+  roomCount: number;
+  addonCount: number;
+  teamMemberCount: number;
+  bookingCount: number;
+  reviewCount: number;
+  customerCount: number;
 }

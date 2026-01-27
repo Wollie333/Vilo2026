@@ -238,14 +238,25 @@ const formatActivityFeed = (auditLogs: any[]): ActivityItem[] => {
 const countActiveBookings = async (userId: string): Promise<number> => {
   const supabase = getAdminClient();
 
+  // First get the user's property IDs
+  const { data: properties } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('owner_id', userId);
+
+  // If no properties, return 0
+  if (!properties || properties.length === 0) {
+    return 0;
+  }
+
+  const propertyIds = properties.map(p => p.id);
+
+  // Now count bookings for those properties (including pending)
   const { count, error } = await supabase
     .from('bookings')
     .select('*', { count: 'exact', head: true })
-    .in('booking_status', ['confirmed', 'checked_in'])
-    .in(
-      'property_id',
-      supabase.from('properties').select('id').eq('owner_id', userId)
-    );
+    .in('booking_status', ['pending', 'confirmed', 'checked_in'])
+    .in('property_id', propertyIds);
 
   if (error) throw new AppError('INTERNAL_ERROR', 'Failed to count active bookings');
 
@@ -277,7 +288,7 @@ const calculateAverageOccupancy = async (userId: string): Promise<number> => {
     .from('bookings')
     .select('check_in_date, check_out_date')
     .in('property_id', propertyIds)
-    .in('booking_status', ['confirmed', 'checked_in', 'checked_out', 'completed'])
+    .in('booking_status', ['pending', 'confirmed', 'checked_in', 'checked_out', 'completed'])
     .gte('check_out_date', startOfMonth)
     .lte('check_in_date', endOfMonth);
 
@@ -312,7 +323,7 @@ const calculateMonthlyRevenue = async (userId: string): Promise<number> => {
     .from('bookings')
     .select('total_amount, properties!inner(owner_id)')
     .eq('properties.owner_id', userId)
-    .in('booking_status', ['confirmed', 'checked_in', 'checked_out', 'completed'])
+    .in('booking_status', ['pending', 'confirmed', 'checked_in', 'checked_out', 'completed'])
     .gte('created_at', startOfMonth);
 
   if (!bookings) return 0;
@@ -398,12 +409,12 @@ const getUpcomingEvents = async (userId: string): Promise<UpcomingEvent[]> => {
 const getPropertyPerformanceSummary = async (userId: string): Promise<PropertySummaryData[]> => {
   const supabase = getAdminClient();
 
-  const { data: properties } = await supabase
+  const { data: properties, error } = await supabase
     .from('properties')
     .select(`
       id,
       name,
-      thumbnail_url,
+      featured_image_url,
       bookings(
         id,
         total_amount,
@@ -415,7 +426,12 @@ const getPropertyPerformanceSummary = async (userId: string): Promise<PropertySu
     .eq('owner_id', userId)
     .limit(10);
 
-  if (!properties) return [];
+  if (error) {
+    console.error('[DASHBOARD] Error fetching property performance:', error);
+    return [];
+  }
+
+  if (!properties || !Array.isArray(properties)) return [];
 
   const summary: PropertySummaryData[] = [];
   const now = new Date();
@@ -425,7 +441,7 @@ const getPropertyPerformanceSummary = async (userId: string): Promise<PropertySu
   for (const property of properties) {
     const bookings = property.bookings || [];
     const confirmedBookings = bookings.filter((b: any) =>
-      ['confirmed', 'checked_in', 'checked_out', 'completed'].includes(b.booking_status)
+      ['pending', 'confirmed', 'checked_in', 'checked_out', 'completed'].includes(b.booking_status)
     );
 
     // Calculate revenue (this month)
@@ -451,7 +467,7 @@ const getPropertyPerformanceSummary = async (userId: string): Promise<PropertySu
       revenue,
       bookingsCount: confirmedBookings.length,
       rating: undefined, // TODO: Implement reviews
-      image: property.thumbnail_url
+      image: property.featured_image_url
     });
   }
 
@@ -487,7 +503,7 @@ const getMonthlyOccupancyTrend = async (userId: string): Promise<ChartDataPoint[
       .from('bookings')
       .select('check_in_date, check_out_date')
       .in('property_id', propertyIds)
-      .in('booking_status', ['confirmed', 'checked_in', 'checked_out', 'completed'])
+      .in('booking_status', ['pending', 'confirmed', 'checked_in', 'checked_out', 'completed'])
       .gte('check_out_date', month.startDate)
       .lte('check_in_date', month.endDate);
 
@@ -528,7 +544,7 @@ const getMonthlyRevenueTrend = async (userId: string): Promise<ChartDataPoint[]>
       .from('bookings')
       .select('total_amount, properties!inner(owner_id)')
       .eq('properties.owner_id', userId)
-      .in('booking_status', ['confirmed', 'checked_in', 'checked_out', 'completed'])
+      .in('booking_status', ['pending', 'confirmed', 'checked_in', 'checked_out', 'completed'])
       .gte('created_at', month.startDate)
       .lte('created_at', month.endDate);
 
@@ -549,21 +565,33 @@ const getMonthlyRevenueTrend = async (userId: string): Promise<ChartDataPoint[]>
  * Get Property Owner Dashboard Data
  */
 export const getPropertyOwnerDashboard = async (userId: string) => {
+  console.log('=== [DASHBOARD] getPropertyOwnerDashboard called ===');
+  console.log('[DASHBOARD] User ID:', userId);
+
   return getCachedDashboardData(
     `property-owner:${userId}`,
     async () => {
+      console.log('[DASHBOARD] Fetching fresh property owner dashboard data...');
       const supabase = getAdminClient();
 
       // Get property count
+      console.log('[DASHBOARD] Step 1: Getting property count...');
       const { count: propertyCount } = await supabase
         .from('properties')
         .select('*', { count: 'exact', head: true })
         .eq('owner_id', userId);
+      console.log('[DASHBOARD] Property count:', propertyCount);
 
       // Get metrics
+      console.log('[DASHBOARD] Step 2: Getting metrics...');
       const activeBookings = await countActiveBookings(userId);
+      console.log('[DASHBOARD] Active bookings:', activeBookings);
+
       const avgOccupancy = await calculateAverageOccupancy(userId);
+      console.log('[DASHBOARD] Avg occupancy:', avgOccupancy);
+
       const monthlyRevenue = await calculateMonthlyRevenue(userId);
+      console.log('[DASHBOARD] Monthly revenue:', monthlyRevenue);
 
       // Get last month's revenue for comparison
       const lastMonthStart = new Date();
@@ -618,15 +646,25 @@ export const getPropertyOwnerDashboard = async (userId: string) => {
       ];
 
       // Get historical data
+      console.log('[DASHBOARD] Step 3: Getting occupancy trend...');
       const occupancyData = await getMonthlyOccupancyTrend(userId);
+      console.log('[DASHBOARD] Occupancy data points:', occupancyData?.length);
+
+      console.log('[DASHBOARD] Step 4: Getting revenue trend...');
       const revenueData = await getMonthlyRevenueTrend(userId);
+      console.log('[DASHBOARD] Revenue data points:', revenueData?.length);
 
       // Get upcoming events
+      console.log('[DASHBOARD] Step 5: Getting upcoming events...');
       const upcomingEvents = await getUpcomingEvents(userId);
+      console.log('[DASHBOARD] Upcoming events count:', upcomingEvents?.length);
 
       // Get property summary
+      console.log('[DASHBOARD] Step 6: Getting property performance summary...');
       const propertySummary = await getPropertyPerformanceSummary(userId);
+      console.log('[DASHBOARD] Property summary count:', propertySummary?.length);
 
+      console.log('[DASHBOARD] ✅ All dashboard data fetched successfully');
       return {
         propertyMetrics,
         occupancyData,
@@ -684,19 +722,13 @@ export const getGuestDashboard = async (userId: string) => {
           label: 'Reviews Given',
           value: 0, // TODO: Implement reviews
           variant: 'success'
-        },
-        {
-          id: 'loyalty-points',
-          label: 'Loyalty Points',
-          value: 0, // TODO: Implement loyalty program
-          variant: 'warning'
         }
       ];
 
       // Get upcoming bookings
       const { data: upcomingBookingsData } = await supabase
         .from('bookings')
-        .select('*, properties(id, name, thumbnail_url)')
+        .select('*, properties(id, name, featured_image_url)')
         .eq('guest_id', userId)
         .gte('check_in_date', today)
         .in('booking_status', ['confirmed', 'pending'])
@@ -721,7 +753,7 @@ export const getGuestDashboard = async (userId: string) => {
       // Get past bookings
       const { data: pastBookingsData } = await supabase
         .from('bookings')
-        .select('*, properties(id, name, thumbnail_url)')
+        .select('*, properties(id, name, featured_image_url)')
         .eq('guest_id', userId)
         .lt('check_out_date', today)
         .in('booking_status', ['checked_out', 'completed'])
@@ -758,7 +790,6 @@ export const getGuestDashboard = async (userId: string) => {
         bookingMetrics,
         upcomingStays: upcomingBookings,
         pastStays: pastBookings,
-        loyaltyPoints: 0,
         recentActivity
       };
     }
@@ -904,123 +935,154 @@ const getMonthlyPlatformRevenue = async (): Promise<ChartDataPoint[]> => {
  * Get Super Admin Dashboard Data
  */
 export const getSuperAdminDashboard = async () => {
+  console.log('=== [DASHBOARD] getSuperAdminDashboard called ===');
+
   return getCachedDashboardData(
     'superadmin:global',
     async () => {
-      const supabase = getAdminClient();
+      try {
+        console.log('[DASHBOARD] Fetching super admin dashboard data...');
+        const supabase = getAdminClient();
 
-      // Platform metrics
-      const { count: totalUsers } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true });
+        // Platform metrics
+        console.log('[DASHBOARD] Getting user count...');
+        const { count: totalUsers, error: usersError } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true });
 
-      const { count: activeSubscriptions } = await supabase
-        .from('user_subscriptions')
-        .select('*', { count: 'exact', head: true })
-        .eq('subscription_status', 'active');
-
-      // Calculate this month's revenue
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-      const { data: monthlySubscriptions } = await supabase
-        .from('user_subscriptions')
-        .select('subscription_types(price)')
-        .eq('subscription_status', 'active')
-        .gte('created_at', startOfMonth);
-
-      const monthlyRevenue = monthlySubscriptions
-        ? monthlySubscriptions.reduce((sum, sub: any) => sum + (sub.subscription_types?.price || 0), 0)
-        : 0;
-
-      const platformMetrics: DashboardMetric[] = [
-        {
-          id: 'total-users',
-          label: 'Total Users',
-          value: totalUsers || 0,
-          variant: 'primary'
-        },
-        {
-          id: 'monthly-revenue',
-          label: 'Monthly Revenue',
-          value: formatCurrency(monthlyRevenue),
-          variant: 'success'
-        },
-        {
-          id: 'active-subscriptions',
-          label: 'Active Subscriptions',
-          value: activeSubscriptions || 0,
-          variant: 'info'
-        },
-        {
-          id: 'system-uptime',
-          label: 'System Uptime',
-          value: '99.9%',
-          variant: 'success'
+        if (usersError) {
+          console.error('[DASHBOARD] Error getting user count:', usersError);
         }
-      ];
 
-      // Get user growth data
-      const userGrowthData = await getMonthlyUserGrowth();
+        console.log('[DASHBOARD] Getting active subscriptions...');
+        const { count: activeSubscriptions, error: subsError } = await supabase
+          .from('user_subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .eq('subscription_status', 'active');
 
-      // Get revenue data
-      const revenueData = await getMonthlyPlatformRevenue();
-
-      // Get recent activity
-      const { data: auditLogs } = await supabase
-        .from('audit_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      const recentActivity = formatActivityFeed(auditLogs || []);
-
-      // System health indicators (mock for now)
-      const systemHealth: SystemHealthIndicator[] = [
-        {
-          id: 'api',
-          name: 'API Server',
-          status: 'healthy',
-          value: 'Operational',
-          lastChecked: new Date().toISOString()
-        },
-        {
-          id: 'database',
-          name: 'Database',
-          status: 'healthy',
-          value: 'Operational',
-          lastChecked: new Date().toISOString()
-        },
-        {
-          id: 'storage',
-          name: 'Storage',
-          status: 'healthy',
-          value: 'Operational',
-          lastChecked: new Date().toISOString()
-        },
-        {
-          id: 'email',
-          name: 'Email Service',
-          status: 'healthy',
-          value: 'Operational',
-          lastChecked: new Date().toISOString()
-        },
-        {
-          id: 'payments',
-          name: 'Payment Gateway',
-          status: 'healthy',
-          value: 'Operational',
-          lastChecked: new Date().toISOString()
+        if (subsError) {
+          console.error('[DASHBOARD] Error getting subscriptions:', subsError);
         }
-      ];
 
-      return {
-        platformMetrics,
-        userGrowthData,
-        revenueData,
-        recentActivity,
-        systemHealth
-      };
+        // Calculate this month's revenue
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+        console.log('[DASHBOARD] Getting monthly revenue...');
+        const { data: monthlySubscriptions, error: revenueError } = await supabase
+          .from('user_subscriptions')
+          .select('subscription_types(price)')
+          .eq('subscription_status', 'active')
+          .gte('created_at', startOfMonth);
+
+        if (revenueError) {
+          console.error('[DASHBOARD] Error getting revenue:', revenueError);
+        }
+
+        const monthlyRevenue = monthlySubscriptions
+          ? monthlySubscriptions.reduce((sum, sub: any) => sum + (sub.subscription_types?.price || 0), 0)
+          : 0;
+
+        const platformMetrics: DashboardMetric[] = [
+          {
+            id: 'total-users',
+            label: 'Total Users',
+            value: totalUsers || 0,
+            variant: 'primary'
+          },
+          {
+            id: 'monthly-revenue',
+            label: 'Monthly Revenue',
+            value: formatCurrency(monthlyRevenue),
+            variant: 'success'
+          },
+          {
+            id: 'active-subscriptions',
+            label: 'Active Subscriptions',
+            value: activeSubscriptions || 0,
+            variant: 'info'
+          },
+          {
+            id: 'system-uptime',
+            label: 'System Uptime',
+            value: '99.9%',
+            variant: 'success'
+          }
+        ];
+
+        // Get user growth data
+        console.log('[DASHBOARD] Getting user growth data...');
+        const userGrowthData = await getMonthlyUserGrowth();
+
+        // Get revenue data
+        console.log('[DASHBOARD] Getting revenue data...');
+        const revenueData = await getMonthlyPlatformRevenue();
+
+        // Get recent activity
+        console.log('[DASHBOARD] Getting recent activity...');
+        const { data: auditLogs, error: auditError } = await supabase
+          .from('audit_log')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (auditError) {
+          console.error('[DASHBOARD] Error getting audit logs:', auditError);
+        }
+
+        const recentActivity = formatActivityFeed(auditLogs || []);
+
+        // System health indicators (mock for now)
+        const systemHealth: SystemHealthIndicator[] = [
+          {
+            id: 'api',
+            name: 'API Server',
+            status: 'healthy',
+            value: 'Operational',
+            lastChecked: new Date().toISOString()
+          },
+          {
+            id: 'database',
+            name: 'Database',
+            status: 'healthy',
+            value: 'Operational',
+            lastChecked: new Date().toISOString()
+          },
+          {
+            id: 'storage',
+            name: 'Storage',
+            status: 'healthy',
+            value: 'Operational',
+            lastChecked: new Date().toISOString()
+          },
+          {
+            id: 'email',
+            name: 'Email Service',
+            status: 'healthy',
+            value: 'Operational',
+            lastChecked: new Date().toISOString()
+          },
+          {
+            id: 'payments',
+            name: 'Payment Gateway',
+            status: 'healthy',
+            value: 'Operational',
+            lastChecked: new Date().toISOString()
+          }
+        ];
+
+        console.log('[DASHBOARD] ✅ Super admin dashboard data fetched successfully');
+        return {
+          platformMetrics,
+          userGrowthData,
+          revenueData,
+          recentActivity,
+          systemHealth
+        };
+      } catch (error) {
+        console.error('[DASHBOARD] ❌ Error in getSuperAdminDashboard:', error);
+        throw error;
+      }
     }
   );
 };

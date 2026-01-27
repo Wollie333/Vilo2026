@@ -298,7 +298,7 @@ export const PortalBookingDetailPage: React.FC = () => {
   // Handle message host
   const handleMessageHost = () => {
     if (!booking?.property_id) return;
-    navigate(`/chat?property=${booking.property_id}&booking=${booking.id}`);
+    navigate(`/manage/chat/conversations?property=${booking.property_id}&booking=${booking.id}`);
   };
 
   // Render loading

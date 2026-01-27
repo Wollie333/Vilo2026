@@ -109,8 +109,22 @@ class BillingService {
     return response.data.subscriptionType;
   }
 
+  async getSubscriptionTypeBySlug(slug: string): Promise<SubscriptionType> {
+    const response = await api.get<{ subscriptionType: SubscriptionType }>(`/billing/subscription-types/slug/${slug}`);
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch subscription plan');
+    }
+    return response.data.subscriptionType;
+  }
+
   async createSubscriptionType(data: CreateSubscriptionTypeData): Promise<SubscriptionType> {
+    console.log('📤 [BILLING SERVICE] Sending create request');
+    console.log('📤 [BILLING SERVICE] Data:', JSON.stringify(data, null, 2));
+
     const response = await api.post<{ subscriptionType: SubscriptionType }>('/billing/subscription-types', data);
+
+    console.log('📥 [BILLING SERVICE] Response:', JSON.stringify(response, null, 2));
+
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to create subscription type');
     }
@@ -118,7 +132,25 @@ class BillingService {
   }
 
   async updateSubscriptionType(id: string, data: UpdateSubscriptionTypeData): Promise<SubscriptionType> {
+    console.log('📤 API CALL: PATCH /billing/subscription-types/' + id);
+    console.log('📤 Request Data:', JSON.stringify(data, null, 2));
+
     const response = await api.patch<{ subscriptionType: SubscriptionType }>(`/billing/subscription-types/${id}`, data);
+
+    console.log('📥 API Response:', {
+      success: response.success,
+      hasData: !!response.data,
+      error: response.error,
+    });
+
+    if (response.data?.subscriptionType) {
+      console.log('📥 Updated Subscription:', {
+        slug: response.data.subscriptionType.slug,
+        custom_headline: response.data.subscriptionType.custom_headline,
+        checkout_badge: response.data.subscriptionType.checkout_badge,
+      });
+    }
+
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to update subscription type');
     }
@@ -129,6 +161,17 @@ class BillingService {
     const response = await api.delete(`/billing/subscription-types/${id}`);
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to delete subscription type');
+    }
+  }
+
+  /**
+   * Force delete subscription type (deletes checkout history)
+   * WARNING: This is destructive and removes billing history
+   */
+  async forceDeleteSubscriptionType(id: string): Promise<void> {
+    const response = await api.delete(`/billing/subscription-types/${id}/force`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to force delete subscription type');
     }
   }
 
@@ -184,6 +227,20 @@ class BillingService {
     const response = await api.post(`/billing/subscriptions/user/${userId}/cancel`, { cancellation_reason: reason });
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to cancel subscription');
+    }
+  }
+
+  async pauseUserSubscription(userId: string): Promise<void> {
+    const response = await api.post(`/billing/subscriptions/user/${userId}/pause`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to pause subscription');
+    }
+  }
+
+  async resumeUserSubscription(userId: string): Promise<void> {
+    const response = await api.post(`/billing/subscriptions/user/${userId}/resume`);
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to resume subscription');
     }
   }
 
@@ -243,6 +300,39 @@ class BillingService {
       throw new Error(response.error?.message || 'Failed to check user limit');
     }
     return response.data.limitCheck;
+  }
+
+  // ============================================================================
+  // USER UPGRADE REQUESTS
+  // ============================================================================
+
+  /**
+   * Get current user's pending upgrade request (if any)
+   * Returns null if no pending upgrade exists
+   */
+  async getPendingUpgrade(): Promise<any> {
+    const response = await api.get<{ request: any }>('/billing/my-pending-upgrade');
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch pending upgrade');
+    }
+    return response.data.request;
+  }
+
+  /**
+   * Respond to an upgrade request (accept or decline)
+   * @param requestId - The upgrade request ID
+   * @param accepted - Whether to accept (true) or decline (false)
+   * @param notes - Optional user response notes
+   */
+  async respondToUpgrade(requestId: string, accepted: boolean, notes?: string): Promise<any> {
+    const response = await api.post<{ request: any }>(`/billing/upgrade-requests/${requestId}/respond`, {
+      accepted,
+      user_response_notes: notes,
+    });
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to respond to upgrade request');
+    }
+    return response.data.request;
   }
 
   // ============================================================================

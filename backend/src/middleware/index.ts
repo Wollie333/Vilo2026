@@ -15,6 +15,7 @@ export {
   isSuperAdmin,
   requirePropertyRole,
   requireOwnershipOrAdmin,
+  requireCompanyOwnership,
 } from './rbac.middleware';
 
 // Permission checking
@@ -44,3 +45,12 @@ export {
   notFoundHandler,
   asyncHandler,
 } from './errorHandler.middleware';
+
+// Subscription access control
+export {
+  requireActiveSubscription,
+  requireWriteAccess,
+  checkTrialStatus,
+  blockIfPaused,
+  requireMinimumPlan,
+} from './subscription-access.middleware';

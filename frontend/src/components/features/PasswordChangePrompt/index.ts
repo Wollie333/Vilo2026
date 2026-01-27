@@ -1,0 +1,1 @@
+export { PasswordChangePrompt } from './PasswordChangePrompt';

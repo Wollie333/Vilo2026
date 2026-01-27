@@ -58,3 +58,23 @@ export const getUserClient = (accessToken: string): SupabaseClient => {
     }
   );
 };
+
+// Default export for convenience - uses admin client (bypasses RLS)
+// Initialize eagerly to avoid lazy initialization issues
+let defaultClient: SupabaseClient | null = null;
+
+export const supabase = (() => {
+  if (!defaultClient) {
+    defaultClient = createClient(
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+  }
+  return defaultClient;
+})();

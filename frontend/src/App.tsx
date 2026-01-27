@@ -13,6 +13,7 @@ import {
   SignupPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  SetPasswordPage,
   VerifyEmailPage,
   PlanSignupPage,
 } from '@/pages/auth';
@@ -23,17 +24,23 @@ import {
   CreateUserPage,
   PendingApprovalsPage,
   BillingSettingsPage,
+  CreatePlanPage,
+  EditPlanPage,
+  CreateMemberTypePage,
+  EditMemberTypePage,
   RefundListPage,
   RefundDetailPage,
   CreditMemoListPage,
 } from '@/pages/admin';
+import { EmailManagementPage } from '@/pages/admin/email';
+import { TemplateEditorPage } from '@/pages/admin/email/TemplateEditorPage';
 import {
   CreditNoteListPage,
   IssueCreditNotePage,
 } from '@/pages/admin/credit-notes';
 import { ProfilePage } from '@/pages/profile';
 import { NotificationsPage } from '@/pages/notifications';
-import { ChatPage } from '@/pages/chat';
+import { ChatPage, ChatHubPage } from '@/pages/chat';
 import {
   CompanyListPage,
   CompanyDetailPage,
@@ -44,6 +51,10 @@ import {
   PropertyDetailPage,
   CreatePropertyPage,
 } from '@/pages/properties';
+import {
+  CustomerListPage,
+  CustomerDetailPage,
+} from '@/pages/customers';
 import {
   RoomListPage,
   RoomDetailPage,
@@ -77,6 +88,7 @@ import {
   WishlistPage,
 } from '@/pages/directory';
 import { BookingWizardPage } from '@/pages/booking-wizard';
+import { PaymentCallbackPage } from '@/pages/booking-wizard/PaymentCallbackPage';
 import { ForHostsPage } from '@/pages/ForHostsPage';
 import { ListYourPropertyPage } from '@/pages/ListYourPropertyPage';
 import { AllFeaturesPage } from '@/pages/AllFeaturesPage';
@@ -84,15 +96,25 @@ import { FeaturePageRouter } from '@/pages/features';
 import {
   PortalBookingsPage,
   PortalBookingDetailPage,
+  PortalPropertiesPage,
+  PortalPropertyDetailPage,
 } from '@/pages/portal';
-import { LegalPage, CreateCancellationPolicyPage, EditCancellationPolicyPage } from '@/pages/legal';
+import { CreateCancellationPolicyPage, EditCancellationPolicyPage } from '@/pages/legal';
 import { AddonsPage, CreateAddonPage, EditAddonPage } from '@/pages/addons';
 import { MyRefundsPage, RefundDetailPage as GuestRefundDetailPage } from '@/pages/refunds';
 import { WriteReviewPage, ReviewListPage } from '@/pages/reviews';
+import { QuotesListPage } from '@/pages/quotes';
 import { BookingManagementPage } from '@/pages/booking-management';
 import { PricingPage } from '@/pages/pricing';
+import { PlanCheckoutPage } from '@/pages/plans';
 import { CheckoutPage, CheckoutCallbackPage } from '@/pages/checkout';
 import { FailedCheckoutsPage } from '@/pages/analytics';
+import { PaymentSettingsPage } from '@/pages/settings/PaymentSettingsPage';
+import { GuestDashboardPage } from '@/pages/guest';
+import { WhatsAppSettingsPage } from '@/pages/settings/WhatsAppSettingsPage';
+import { WhatsAppTemplatesPage } from '@/pages/settings/WhatsAppTemplatesPage';
+import { SupportDashboardPage } from '@/pages/support/SupportDashboardPage';
+import { SupportTicketDetailPage } from '@/pages/support/SupportTicketDetailPage';
 import {
   DesignSystemOverview,
   ButtonsShowcase,
@@ -145,7 +167,7 @@ function App() {
             <SubscriptionProvider>
               <PropertyProvider>
                 <Routes>
-            {/* PUBLIC DIRECTORY ROUTES (Root domain) */}
+            {/* PUBLIC DIRECTORY ROUTES */}
             <Route path="/" element={<DirectoryHomePage />} />
             <Route path="/search" element={<SearchResultsPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
@@ -155,6 +177,7 @@ function App() {
             <Route path="/for-hosts/feature/:slug" element={<FeaturePageRouter />} />
             <Route path="/accommodation/:slug" element={<PublicPropertyDetailPage />} />
             <Route path="/accommodation/:slug/book" element={<BookingWizardPage />} />
+            <Route path="/booking-wizard/payment-callback" element={<PaymentCallbackPage />} />
             <Route path="/accommodation/:slug/checkout" element={<GuestCheckoutPage />} />
             {/* Wishlist disabled for now */}
             {/* <Route path="/wishlist" element={<WishlistPage />} /> */}
@@ -192,12 +215,23 @@ function App() {
                 </PublicRoute>
               }
             />
+            <Route
+              path="/auth/set-password"
+              element={
+                <PublicRoute>
+                  <SetPasswordPage />
+                </PublicRoute>
+              }
+            />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/pending-approval" element={<PendingApprovalPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
             {/* Public pricing page */}
             <Route path="/pricing" element={<PricingPage />} />
+
+            {/* Individual plan checkout pages (public) */}
+            <Route path="/plans/:slug" element={<PlanCheckoutPage />} />
 
             {/* Plan signup page (public - with plan context) */}
             <Route
@@ -237,6 +271,16 @@ function App() {
               }
             />
 
+            {/* GUEST PORTAL ROUTES (Guest users) */}
+            <Route
+              path="/guest/dashboard"
+              element={
+                <ProtectedRoute>
+                  <GuestDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* PROPERTY MANAGEMENT ROUTES (Authenticated users) */}
             {/* Redirect /manage to /manage/dashboard */}
             <Route
@@ -271,28 +315,59 @@ function App() {
                 </ProtectedRoute>
               }
             />
-
-            {/* Chat routes */}
+            <Route
+              path="/manage/settings/payments"
+              element={
+                <ProtectedRoute>
+                  <PaymentSettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/settings/whatsapp"
+              element={
+                <ProtectedRoute>
+                  <WhatsAppSettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings/whatsapp"
+              element={
+                <ProtectedRoute>
+                  <WhatsAppSettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* Unified Chat Hub - Messages, Support & WhatsApp */}
             <Route
               path="/manage/chat"
               element={
                 <ProtectedRoute>
                   <ChatProvider>
-                    <ChatPage />
+                    <ChatHubPage />
                   </ChatProvider>
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="/manage/chat/:conversationId"
-              element={
-                <ProtectedRoute>
-                  <ChatProvider>
-                    <ChatPage />
-                  </ChatProvider>
-                </ProtectedRoute>
-              }
-            />
+            >
+              {/* Nested routes for Chat Hub */}
+              <Route index element={<Navigate to="/manage/chat/conversations" replace />} />
+
+              {/* Messages Tab (includes all conversation types + support tickets) */}
+              <Route path="conversations" element={<ChatPage />} />
+              <Route path="conversations/:conversationId" element={<ChatPage />} />
+
+              {/* Legacy WhatsApp route - redirect to settings */}
+              <Route path="whatsapp" element={<Navigate to="/settings/whatsapp" replace />} />
+
+              {/* Legacy support routes - redirect to conversations */}
+              <Route path="support" element={<Navigate to="/manage/chat/conversations?type=support" replace />} />
+              <Route path="support/:id" element={<Navigate to="/manage/chat/conversations" replace />} />
+            </Route>
+
+            {/* Legacy routes - redirect to new structure */}
+            <Route path="/support" element={<Navigate to="/manage/chat/conversations?type=support" replace />} />
+            <Route path="/support/tickets/:id" element={<Navigate to="/manage/chat/conversations" replace />} />
 
             {/* Business routes */}
             <Route
@@ -340,6 +415,24 @@ function App() {
               element={
                 <ProtectedRoute>
                   <PropertyDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Customer routes */}
+            <Route
+              path="/manage/customers"
+              element={
+                <ProtectedRoute>
+                  <CustomerListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/customers/:id"
+              element={
+                <ProtectedRoute>
+                  <CustomerDetailPage />
                 </ProtectedRoute>
               }
             />
@@ -500,6 +593,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+            {/* Quote Request routes */}
+            <Route
+              path="/manage/quotes"
+              element={
+                <ProtectedRoute>
+                  <QuotesListPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/reviews/write"
               element={
@@ -528,6 +631,22 @@ function App() {
             />
 
             {/* Portal (Guest booking management) routes */}
+            <Route
+              path="/portal/properties"
+              element={
+                <ProtectedRoute>
+                  <PortalPropertiesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal/properties/:slug"
+              element={
+                <ProtectedRoute>
+                  <PortalPropertyDetailPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/portal/bookings"
               element={
@@ -598,14 +717,17 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
+            {/* OLD: Legal page (to be removed after migration) */}
+            {/* <Route
               path="/manage/legal"
               element={
                 <ProtectedRoute>
                   <LegalPage />
                 </ProtectedRoute>
               }
-            />
+            /> */}
+
+            {/* Legacy cancellation policy routes (no property context) */}
             <Route
               path="/legal/cancellation-policies/new"
               element={
@@ -616,6 +738,24 @@ function App() {
             />
             <Route
               path="/legal/cancellation-policies/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EditCancellationPolicyPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Property-scoped cancellation policy routes (new) */}
+            <Route
+              path="/manage/properties/:propertyId/legal/cancellation-policies/new"
+              element={
+                <ProtectedRoute>
+                  <CreateCancellationPolicyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage/properties/:propertyId/legal/cancellation-policies/:id/edit"
               element={
                 <ProtectedRoute>
                   <EditCancellationPolicyPage />
@@ -663,6 +803,64 @@ function App() {
               element={
                 <SuperAdminRoute>
                   <BillingSettingsPage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/billing/plans/new"
+              element={
+                <SuperAdminRoute>
+                  <CreatePlanPage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/billing/plans/:planId/edit"
+              element={
+                <SuperAdminRoute>
+                  <EditPlanPage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/billing/member-types/new"
+              element={
+                <SuperAdminRoute>
+                  <CreateMemberTypePage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/billing/member-types/:typeId/edit"
+              element={
+                <SuperAdminRoute>
+                  <EditMemberTypePage />
+                </SuperAdminRoute>
+              }
+            />
+
+            {/* Email Management routes - Super Admin Only */}
+            <Route
+              path="/admin/email"
+              element={
+                <SuperAdminRoute>
+                  <EmailManagementPage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/email/templates/new"
+              element={
+                <SuperAdminRoute>
+                  <TemplateEditorPage />
+                </SuperAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/email/templates/:id"
+              element={
+                <SuperAdminRoute>
+                  <TemplateEditorPage />
                 </SuperAdminRoute>
               }
             />

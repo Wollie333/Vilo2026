@@ -19,6 +19,7 @@ import {
 } from '@/components/ui';
 import { PaymentHistoryList } from '@/components/features';
 import { billingService } from '@/services';
+import { useAuth } from '@/context/AuthContext';
 import type { UserBillingInfo, SubscriptionStatus } from '@/types/billing.types';
 import { LIMIT_KEY_LABELS, SUBSCRIPTION_STATUS_LABELS, SUBSCRIPTION_STATUS_COLORS } from '@/types/billing.types';
 
@@ -63,9 +64,13 @@ const LimitItem: React.FC<LimitItemProps> = ({ limitKey, value }) => {
 };
 
 export const BillingTab: React.FC = () => {
+  const { user } = useAuth();
   const [billingInfo, setBillingInfo] = useState<UserBillingInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     const fetchBillingInfo = async () => {
@@ -83,6 +88,76 @@ export const BillingTab: React.FC = () => {
 
     fetchBillingInfo();
   }, []);
+
+  const handlePauseSubscription = async () => {
+    if (!billingInfo?.subscription || !user?.id) return;
+
+    if (!window.confirm('Pause your subscription? Billing will be suspended until you resume.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await billingService.pauseUserSubscription(user.id);
+
+      // Refresh billing info
+      const info = await billingService.getMyBillingInfo();
+      setBillingInfo(info);
+    } catch (err) {
+      console.error('Failed to pause subscription:', err);
+      setError(err instanceof Error ? err.message : 'Failed to pause subscription');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResumeSubscription = async () => {
+    if (!billingInfo?.subscription || !user?.id) return;
+
+    if (!window.confirm('Resume your subscription? Billing will restart.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await billingService.resumeUserSubscription(user.id);
+
+      // Refresh billing info
+      const info = await billingService.getMyBillingInfo();
+      setBillingInfo(info);
+    } catch (err) {
+      console.error('Failed to resume subscription:', err);
+      setError(err instanceof Error ? err.message : 'Failed to resume subscription');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!billingInfo?.subscription || !user?.id) return;
+
+    try {
+      setIsCancelling(true);
+      // Use current user's ID from auth context
+      await billingService.cancelUserSubscription(
+        user.id,
+        cancelReason || undefined
+      );
+
+      // Refresh billing info
+      const info = await billingService.getMyBillingInfo();
+      setBillingInfo(info);
+
+      // Close modal
+      setShowCancelModal(false);
+      setCancelReason('');
+    } catch (err) {
+      console.error('Failed to cancel subscription:', err);
+      setError(err instanceof Error ? err.message : 'Failed to cancel subscription');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -146,19 +221,27 @@ export const BillingTab: React.FC = () => {
                 </div>
                 <div className="text-right">
                   {(() => {
-                    const pricing = subscription.subscription_type.pricing || { monthly: 0, annual: 0 };
-                    const billingDays = subscription.subscription_type.billing_cycle_days;
-                    // Determine which price to show based on billing cycle
-                    const isAnnual = billingDays === 365;
-                    const displayPrice = isAnnual ? pricing.annual : pricing.monthly;
+                    // Get price from pricing_tiers based on user's billing_interval
+                    const pricingTiers = subscription.subscription_type.pricing_tiers;
+                    const billingInterval = subscription.billing_interval || 'monthly';
+
+                    let displayPrice = 0;
+                    if (billingInterval === 'monthly') {
+                      displayPrice = pricingTiers?.monthly?.price_cents || 0;
+                    } else if (billingInterval === 'annual') {
+                      displayPrice = pricingTiers?.annual?.price_cents || 0;
+                    } else if (billingInterval === 'one_off') {
+                      displayPrice = pricingTiers?.one_off?.price_cents || 0;
+                    }
+
                     return (
                       <>
                         <p className="text-2xl font-bold text-gray-900 dark:text-white">
                           {formatPrice(displayPrice, subscription.subscription_type.currency)}
                         </p>
-                        {subscription.subscription_type.is_recurring && billingDays && (
+                        {billingInterval !== 'one_off' && (
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            per {isAnnual ? 'year' : billingDays === 30 ? 'month' : `${billingDays} days`}
+                            per {billingInterval === 'annual' ? 'year' : 'month'}
                           </p>
                         )}
                       </>
@@ -176,6 +259,33 @@ export const BillingTab: React.FC = () => {
                   <span className="text-sm text-info">
                     Trial period: {trialDaysRemaining} days remaining
                   </span>
+                </div>
+              )}
+
+              {/* Cancellation Notice */}
+              {subscription.status === 'cancelled' && subscription.cancelled_at && (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <span className="text-red-600 dark:text-red-400 text-lg mt-0.5">⚠️</span>
+                    <div className="flex-1">
+                      <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                        Subscription cancelled on {formatDate(subscription.cancelled_at)}
+                      </p>
+                      {subscription.expires_at && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                          Access remains until {formatDate(subscription.expires_at)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {subscription.cancellation_reason && (
+                    <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Reason for cancellation:</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                        {subscription.cancellation_reason}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -209,6 +319,46 @@ export const BillingTab: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Subscription Actions */}
+              {!billingInfo?.is_team_member && (
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
+                  <div className="flex flex-wrap gap-2">
+                    {/* Resume Button (for paused subscriptions) */}
+                    {subscription.status === 'paused' && (
+                      <Button
+                        variant="primary"
+                        onClick={handleResumeSubscription}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Resume Subscription
+                      </Button>
+                    )}
+
+                    {/* Pause Button (for active/trial subscriptions) */}
+                    {(subscription.status === 'active' || subscription.status === 'trial') && !subscription.cancelled_at && (
+                      <Button
+                        variant="outline"
+                        onClick={handlePauseSubscription}
+                        className="text-yellow-600 border-yellow-300 hover:bg-yellow-50 dark:border-yellow-800 dark:hover:bg-yellow-900/20"
+                      >
+                        Pause Subscription
+                      </Button>
+                    )}
+
+                    {/* Cancel Button (for active/trial subscriptions) */}
+                    {(subscription.status === 'active' || subscription.status === 'trial') && !subscription.cancelled_at && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowCancelModal(true)}
+                        className="text-red-600 border-red-300 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20"
+                      >
+                        Cancel Subscription
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-6">
@@ -307,6 +457,63 @@ export const BillingTab: React.FC = () => {
           <PaymentHistoryList pageSize={5} />
         </Card.Body>
       </Card>
+
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && subscription && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="max-w-md w-full mx-4">
+            <Card.Header>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Cancel Subscription
+              </h3>
+            </Card.Header>
+            <Card.Body>
+              <Alert variant="warning" className="mb-4">
+                {subscription.expires_at ? (
+                  <>Your subscription will remain active until {formatDate(subscription.expires_at)}. After that, your account will be suspended.</>
+                ) : (
+                  <>Your subscription will be cancelled immediately and your account will be suspended.</>
+                )}
+              </Alert>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Reason for cancellation (optional)
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+                  rows={3}
+                  placeholder="Help us improve by sharing why you're cancelling..."
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCancelModal(false);
+                    setCancelReason('');
+                  }}
+                  disabled={isCancelling}
+                  className="flex-1"
+                >
+                  Keep Subscription
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleCancelSubscription}
+                  isLoading={isCancelling}
+                  className="flex-1 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+                >
+                  Confirm Cancellation
+                </Button>
+              </div>
+            </Card.Body>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

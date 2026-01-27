@@ -130,6 +130,22 @@ router.post(
   usersController.assignProperties
 );
 
+// Get user properties - requires users:read
+router.get(
+  '/:id/properties',
+  validateParams(userIdParamSchema),
+  requirePermission('users', 'read'),
+  usersController.getUserProperties
+);
+
+// Unassign property from user - requires users:manage
+router.delete(
+  '/:id/properties/:propertyId',
+  validateParams(userIdParamSchema),
+  requirePermission('users', 'manage'),
+  usersController.unassignProperty
+);
+
 // Suspend user - requires users:manage
 router.post(
   '/:id/suspend',
@@ -153,6 +169,160 @@ router.post(
   requireOwnershipOrAdmin((req) => req.params.id),
   avatarUpload.single('avatar') as unknown as RequestHandler,
   usersController.uploadAvatar
+);
+
+// ============================================================================
+// SUPER ADMIN USER MANAGEMENT ROUTES
+// ============================================================================
+
+/**
+ * GET /api/users/:userId/bookings
+ * Get all bookings for a user (as guest + as property owner)
+ */
+router.get(
+  '/:userId/bookings',
+  requireSuperAdmin(),
+  usersController.getUserBookings
+);
+
+/**
+ * GET /api/users/:userId/reviews
+ * Get all reviews for a user (written by + received for properties)
+ */
+router.get(
+  '/:userId/reviews',
+  requireSuperAdmin(),
+  usersController.getUserReviews
+);
+
+/**
+ * GET /api/users/:userId/refunds
+ * Get all refund requests for a user
+ */
+router.get(
+  '/:userId/refunds',
+  requireSuperAdmin(),
+  usersController.getUserRefunds
+);
+
+/**
+ * GET /api/users/:userId/stats
+ * Get user statistics (property count, room count, team count, etc.)
+ */
+router.get(
+  '/:userId/stats',
+  requireSuperAdmin(),
+  usersController.getUserStats
+);
+
+/**
+ * GET /api/users/:userId/team
+ * Get team members for a user
+ */
+router.get(
+  '/:userId/team',
+  requireSuperAdmin(),
+  usersController.getTeamMembers
+);
+
+/**
+ * POST /api/users/:userId/team
+ * Invite a team member
+ */
+router.post(
+  '/:userId/team',
+  requireSuperAdmin(),
+  usersController.inviteTeamMember
+);
+
+/**
+ * DELETE /api/users/:userId/team/:memberId
+ * Remove a team member
+ */
+router.delete(
+  '/:userId/team/:memberId',
+  requireSuperAdmin(),
+  usersController.removeTeamMember
+);
+
+/**
+ * GET /api/users/:userId/customers
+ * Get customers for a user
+ */
+router.get(
+  '/:userId/customers',
+  requireSuperAdmin(),
+  usersController.getCustomersByUser
+);
+
+/**
+ * GET /api/users/:userId/rooms
+ * Get all rooms for a user's properties
+ */
+router.get(
+  '/:userId/rooms',
+  requireSuperAdmin(),
+  usersController.getUserRooms
+);
+
+/**
+ * GET /api/users/:userId/addons
+ * Get all addons for a user's properties
+ */
+router.get(
+  '/:userId/addons',
+  requireSuperAdmin(),
+  usersController.getUserAddons
+);
+
+/**
+ * GET /api/users/:userId/policies
+ * Get all cancellation policies for a user's properties
+ */
+router.get(
+  '/:userId/policies',
+  requireSuperAdmin(),
+  usersController.getUserPolicies
+);
+
+/**
+ * GET /api/users/:userId/terms
+ * Get property terms and conditions for a user
+ */
+router.get(
+  '/:userId/terms',
+  requireSuperAdmin(),
+  usersController.getUserTerms
+);
+
+/**
+ * GET /api/users/:userId/payment-integrations
+ * Get payment integrations for a user's company
+ */
+router.get(
+  '/:userId/payment-integrations',
+  requireSuperAdmin(),
+  usersController.getUserPaymentIntegrations
+);
+
+/**
+ * GET /api/users/:userId/subscription
+ * Get subscription details and usage for a user
+ */
+router.get(
+  '/:userId/subscription',
+  requireSuperAdmin(),
+  usersController.getUserSubscription
+);
+
+/**
+ * GET /api/users/:userId/payment-history
+ * Get payment history for a user
+ */
+router.get(
+  '/:userId/payment-history',
+  requireSuperAdmin(),
+  usersController.getUserPaymentHistory
 );
 
 export default router;

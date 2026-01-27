@@ -11,6 +11,8 @@ export type ConversationType = 'guest_inquiry' | 'team' | 'support';
 export type ParticipantRole = 'owner' | 'admin' | 'member' | 'guest';
 export type MessageType = 'text' | 'system' | 'media';
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageChannel = 'internal' | 'whatsapp' | 'email' | 'sms';
+export type WhatsAppDeliveryStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
 
 // ============================================================================
 // Core Entities
@@ -62,6 +64,7 @@ export interface ChatMessage {
   sender_id: string;
   content: string;
   message_type: MessageType;
+  message_channel?: MessageChannel; // WhatsApp integration
   reply_to_id: string | null;
   is_edited: boolean;
   edited_at: string | null;
@@ -79,6 +82,15 @@ export interface ChatMessage {
   reactions: ChatReaction[];
   // Frontend-only status for optimistic updates
   status?: MessageStatus;
+  // WhatsApp metadata (if sent via WhatsApp)
+  whatsapp_metadata?: {
+    status: WhatsAppDeliveryStatus;
+    sent_at: string | null;
+    delivered_at: string | null;
+    read_at: string | null;
+    failed_at: string | null;
+    failure_reason: string | null;
+  };
 }
 
 export interface Conversation {
@@ -99,6 +111,25 @@ export interface Conversation {
   participants: ChatParticipant[];
   last_message: ChatMessage | null;
   unread_count: number;
+  // Metadata for special conversation types (promo claims, support tickets, etc.)
+  metadata?: {
+    type?: 'promo_claim' | string;
+    promotion_id?: string;
+    is_new_lead?: boolean;
+    [key: string]: any;
+  };
+  support_ticket?: {
+    id: string;
+    ticket_number: string;
+    status: string;
+    priority: string;
+    category: string | null;
+    sla_due_at: string | null;
+    sla_breached: boolean;
+  } | null;
+  // WhatsApp conversation tracking
+  guest_phone_number?: string | null;
+  last_inbound_whatsapp_at?: string | null;
 }
 
 // ============================================================================

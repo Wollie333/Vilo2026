@@ -37,6 +37,7 @@ export const createCompanySchema = z.object({
   address_postal_code: z.string().max(20).optional().nullable(),
   address_country: z.string().max(100).optional().nullable(),
   vat_number: z.string().max(100).optional().nullable(),
+  vat_percentage: z.number().min(0).max(100).optional().nullable(),
   registration_number: z.string().max(100).optional().nullable(),
   linkedin_url: optionalUrl(),
   facebook_url: optionalUrl(),
@@ -60,6 +61,7 @@ export const updateCompanySchema = z.object({
   address_postal_code: z.string().max(20).optional().nullable(),
   address_country: z.string().max(100).optional().nullable(),
   vat_number: z.string().max(100).optional().nullable(),
+  vat_percentage: z.number().min(0).max(100).optional().nullable(),
   registration_number: z.string().max(100).optional().nullable(),
   linkedin_url: optionalUrl(),
   facebook_url: optionalUrl(),
@@ -67,6 +69,7 @@ export const updateCompanySchema = z.object({
   twitter_url: optionalUrl(),
   youtube_url: optionalUrl(),
   is_active: z.boolean().optional(),
+  enable_book_via_chat: z.boolean().optional(),
 });
 
 export const companyIdParamSchema = z.object({

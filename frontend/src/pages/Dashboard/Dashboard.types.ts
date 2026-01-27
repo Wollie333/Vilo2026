@@ -109,6 +109,5 @@ export interface GuestDashboardData {
   bookingMetrics: DashboardMetric[];
   upcomingStays: UpcomingEvent[];
   pastStays: UpcomingEvent[];
-  loyaltyPoints: number;
   recentActivity: ActivityItem[];
 }

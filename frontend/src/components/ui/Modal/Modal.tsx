@@ -7,6 +7,9 @@ const sizeStyles = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+  '3xl': 'max-w-3xl',
+  '4xl': 'max-w-4xl',
   full: 'max-w-full mx-4',
 };
 
@@ -20,7 +23,7 @@ const CloseIcon = () => (
   </svg>
 );
 
-const ModalHeader: React.FC<ModalHeaderProps> = ({
+export const ModalHeader: React.FC<ModalHeaderProps> = ({
   children,
   onClose,
   showCloseButton = true,
@@ -52,11 +55,11 @@ const ModalHeader: React.FC<ModalHeaderProps> = ({
   );
 };
 
-const ModalBody: React.FC<ModalBodyProps> = ({ children, className = '' }) => (
+export const ModalBody: React.FC<ModalBodyProps> = ({ children, className = '' }) => (
   <div className={`px-5 py-3 ${className}`}>{children}</div>
 );
 
-const ModalFooter: React.FC<ModalFooterProps> = ({ children, className = '' }) => (
+export const ModalFooter: React.FC<ModalFooterProps> = ({ children, className = '' }) => (
   <div
     className={`px-5 py-3 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg rounded-b-md ${className}`}
   >
@@ -111,7 +114,7 @@ export const Modal: React.FC<ModalProps> & {
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto"
+      className="fixed inset-0 z-[100] overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}

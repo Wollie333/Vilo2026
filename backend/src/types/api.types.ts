@@ -7,7 +7,15 @@ export type ApiErrorCode =
   | 'RATE_LIMITED'
   | 'INTERNAL_ERROR'
   | 'BAD_REQUEST'
-  | 'PAYMENT_LOCK';
+  | 'PAYMENT_LOCK'
+  | 'REFUND_LOCK'
+  | 'NOT_IMPLEMENTED'
+  | 'DATABASE_ERROR'
+  | 'INVALID_STATUS_TRANSITION'
+  | 'INVALID_PAYMENT_TRANSITION'
+  | 'CONFIGURATION_REQUIRED'
+  | 'TEMPLATE_REQUIRED'
+  | 'EXTERNAL_API_ERROR';
 
 export interface ApiError {
   code: ApiErrorCode;

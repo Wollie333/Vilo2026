@@ -429,7 +429,8 @@ class RoomService {
       check_out: data.check_out_date,
     };
 
-    const response = await api.post<AvailabilityCheckResponse>(`/rooms/${data.room_id}/availability`, requestBody);
+    // Use public endpoint for guest bookings (no authentication required)
+    const response = await api.post<AvailabilityCheckResponse>(`/rooms/${data.room_id}/availability/public`, requestBody);
 
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to check availability');

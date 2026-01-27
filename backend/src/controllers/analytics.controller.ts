@@ -11,7 +11,7 @@ export const getFailedCheckoutAnalyticsController = async (req: Request, res: Re
     const userId = req.user?.id;
 
     if (!userId) {
-      throw new AppError('Unauthorized', 401);
+      throw new AppError('UNAUTHORIZED', 'User not authenticated');
     }
 
     // Parse filters from query params

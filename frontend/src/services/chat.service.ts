@@ -4,6 +4,7 @@
  */
 
 import { api } from './api.service';
+import { API_URL } from '../config';
 import type {
   Conversation,
   ConversationListParams,
@@ -368,6 +369,138 @@ class ChatService {
     if (!response.success) {
       throw new Error(response.error?.message || 'Failed to update participant');
     }
+  }
+
+  // ============================================================================
+  // WhatsApp Reply Methods
+  // ============================================================================
+
+  /**
+   * Send a WhatsApp reply from the chat interface
+   */
+  async replyWhatsApp(
+    conversationId: string,
+    data: { content: string; recipientPhone: string }
+  ): Promise<void> {
+    const response = await api.post(
+      `${this.basePath}/conversations/${conversationId}/reply-whatsapp`,
+      data
+    );
+
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to send WhatsApp reply');
+    }
+  }
+
+  /**
+   * Check if 24-hour conversation window is active
+   */
+  async checkWhatsAppWindow(conversationId: string): Promise<{
+    windowActive: boolean;
+    message: string;
+  }> {
+    const response = await api.get(
+      `${this.basePath}/conversations/${conversationId}/whatsapp-window`
+    );
+
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to check conversation window');
+    }
+
+    return response.data;
+  }
+
+  /**
+   * Get detailed 24-hour conversation window status
+   */
+  async getWhatsAppWindowStatus(conversationId: string): Promise<{
+    windowActive: boolean;
+    lastInboundAt: string | null;
+    hoursRemaining: number | null;
+    expiresAt: string | null;
+  }> {
+    const response = await api.get(
+      `${this.basePath}/conversations/${conversationId}/whatsapp-window/status`
+    );
+
+    if (!response.success) {
+      throw new Error(response.error?.message || 'Failed to get window status');
+    }
+
+    return response.data;
+  }
+
+  // ============================================================================
+  // Guest Chat
+  // ============================================================================
+
+  /**
+   * Start a guest chat (creates guest account if needed, initiates conversation)
+   * This is a public endpoint - no authentication required
+   */
+  async startGuestChat(data: {
+    property_id: string;
+    property_owner_id: string;
+    guest_email: string;
+    guest_name: string;
+  }): Promise<{
+    conversation_id: string;
+    guest_user_id: string;
+    is_new_user: boolean;
+  }> {
+    // Use direct fetch without auth headers since this is a public endpoint
+    const response = await fetch(`${API_URL}/chat/guest/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error?.message || 'Failed to start guest chat');
+    }
+
+    return result.data;
+  }
+
+  // ============================================================================
+  // Promo Claims
+  // ============================================================================
+
+  /**
+   * Claim a promotion (creates guest account, chat conversation)
+   * This is a public endpoint - no authentication required
+   */
+  async claimPromotion(data: {
+    promotion_id: string;
+    property_id: string;
+    guest_name: string;
+    guest_email: string;
+    guest_phone: string;
+  }): Promise<{
+    conversation_id: string;
+    guest_user_id: string;
+    is_new_user: boolean;
+  }> {
+    // Use direct fetch without auth headers since this is a public endpoint
+    const response = await fetch(`${API_URL}/discovery/promotions/claim`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error?.message || 'Failed to claim promotion');
+    }
+
+    return result.data;
   }
 }
 

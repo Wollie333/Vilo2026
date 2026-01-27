@@ -41,6 +41,65 @@ import {
 // ============================================================================
 
 /**
+ * Generate a URL-friendly slug from a room name
+ */
+const generateSlug = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 150);
+};
+
+/**
+ * Generate a unique slug for a room within a property
+ */
+const generateUniqueRoomSlug = async (
+  propertyId: string,
+  name: string,
+  excludeRoomId?: string
+): Promise<string> => {
+  const supabase = getAdminClient();
+  const baseSlug = generateSlug(name);
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (true) {
+    let query = supabase
+      .from('rooms')
+      .select('id')
+      .eq('property_id', propertyId)
+      .eq('slug', slug);
+
+    if (excludeRoomId) {
+      query = query.neq('id', excludeRoomId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('[RoomService] Slug check error:', error);
+      // If check fails, append timestamp to be safe
+      return `${baseSlug}-${Date.now()}`;
+    }
+
+    if (!data || data.length === 0) {
+      // Slug is unique
+      return slug;
+    }
+
+    // Slug exists, try with counter
+    counter++;
+    slug = `${baseSlug}-${counter}`;
+
+    // Safety check - prevent infinite loop
+    if (counter > 100) {
+      return `${baseSlug}-${Date.now()}`;
+    }
+  }
+};
+
+/**
  * List rooms with filters
  */
 export const listRooms = async (
@@ -258,9 +317,11 @@ export const getRoomById = async (
   ]);
 
   // Extract promotions from junction table results
+  console.log('[RoomService] getRoomById - Raw promotions result:', JSON.stringify(promotionsResult, null, 2));
   const promotions = (promotionsResult.data || [])
     .map((assignment: any) => assignment.room_promotions)
     .filter(Boolean);
+  console.log('[RoomService] getRoomById - Extracted promotions:', JSON.stringify(promotions, null, 2));
 
   // Extract payment rules from junction table results
   const paymentRules = (paymentRulesResult.data || [])
@@ -298,6 +359,12 @@ export const createRoom = async (
     throw new AppError('VALIDATION_ERROR', 'Base price per night is required and must be >= 0');
   }
 
+  // 💰 PRICE DEBUG: Log input price to track transformations
+  console.log('=== 💰 [ROOM_SERVICE] createRoom - PRICE DEBUG ===');
+  console.log('💰 [ROOM_SERVICE] Input price:', input.base_price_per_night);
+  console.log('💰 [ROOM_SERVICE] Input price type:', typeof input.base_price_per_night);
+  console.log('💰 [ROOM_SERVICE] Full input object:', JSON.stringify(input, null, 2));
+
   if (!input.max_guests || input.max_guests < 1) {
     throw new AppError('VALIDATION_ERROR', 'Max guests must be at least 1');
   }
@@ -319,12 +386,18 @@ export const createRoom = async (
     throw new AppError('FORBIDDEN', 'You do not own this property');
   }
 
+  // Generate unique slug for the room
+  console.log('[RoomService] Generating unique slug for room:', input.name);
+  const slug = await generateUniqueRoomSlug(input.property_id, input.name);
+  console.log('[RoomService] Generated slug:', slug);
+
   // Insert the room
   const { data, error } = await supabase
     .from('rooms')
     .insert({
       property_id: input.property_id,
       name: input.name.trim(),
+      slug: slug,
       description: input.description?.trim() || null,
       room_size_sqm: input.room_size_sqm || null,
       pricing_mode: input.pricing_mode || 'per_unit',
@@ -356,6 +429,12 @@ export const createRoom = async (
     console.error('Failed to create room:', error);
     throw new AppError('INTERNAL_ERROR', 'Failed to create room');
   }
+
+  // 💰 PRICE DEBUG: Log stored price from database
+  console.log('💰 [ROOM_SERVICE] Database insert successful - Room ID:', data.id);
+  console.log('💰 [ROOM_SERVICE] Stored price:', data.base_price_per_night);
+  console.log('💰 [ROOM_SERVICE] Stored price type:', typeof data.base_price_per_night);
+  console.log('💰 [ROOM_SERVICE] Full stored object:', JSON.stringify(data, null, 2));
 
   // Prepare all related inserts to run in parallel
   const bedsPromise = input.beds && input.beds.length > 0
@@ -448,6 +527,13 @@ export const updateRoom = async (
   console.log('[RoomService] updateRoom started for room:', id);
   console.log('[RoomService] Update input:', JSON.stringify(input, null, 2));
 
+  // 💰 PRICE DEBUG: Log input price if it's being updated
+  if (input.base_price_per_night !== undefined) {
+    console.log('=== 💰 [ROOM_SERVICE] updateRoom - PRICE DEBUG ===');
+    console.log('💰 [ROOM_SERVICE] Input price:', input.base_price_per_night);
+    console.log('💰 [ROOM_SERVICE] Input price type:', typeof input.base_price_per_night);
+  }
+
   const supabase = getAdminClient();
 
   // Verify ownership (need this for audit log old_data)
@@ -461,7 +547,16 @@ export const updateRoom = async (
   };
 
   // Only update fields that are provided
-  if (input.name !== undefined) updateData.name = input.name.trim();
+  if (input.name !== undefined) {
+    updateData.name = input.name.trim();
+    // Regenerate slug if name changes
+    if (input.name.trim() !== current.name) {
+      console.log('[RoomService] Name changed, regenerating slug...');
+      const newSlug = await generateUniqueRoomSlug(current.property_id, input.name, id);
+      updateData.slug = newSlug;
+      console.log('[RoomService] New slug:', newSlug);
+    }
+  }
   if (input.description !== undefined) updateData.description = input.description?.trim() || null;
   if (input.room_size_sqm !== undefined) updateData.room_size_sqm = input.room_size_sqm;
   if (input.pricing_mode !== undefined) updateData.pricing_mode = input.pricing_mode;
@@ -503,6 +598,13 @@ export const updateRoom = async (
   if (error || !updatedRoom) {
     console.error('[RoomService] Update failed:', error);
     throw new AppError('INTERNAL_ERROR', 'Failed to update room');
+  }
+
+  // 💰 PRICE DEBUG: Log stored price from database after update
+  if (input.base_price_per_night !== undefined) {
+    console.log('💰 [ROOM_SERVICE] Database update successful - Room ID:', updatedRoom.id);
+    console.log('💰 [ROOM_SERVICE] Stored price:', updatedRoom.base_price_per_night);
+    console.log('💰 [ROOM_SERVICE] Stored price type:', typeof updatedRoom.base_price_per_night);
   }
 
   // Create audit log (non-blocking)
@@ -1346,9 +1448,21 @@ export const checkAvailability = async (
   roomId: string,
   request: AvailabilityCheckRequest
 ): Promise<AvailabilityCheckResponse> => {
+  console.log('=== [ROOM_SERVICE] checkAvailability called ===');
+  console.log('[ROOM_SERVICE] Room ID:', roomId);
+  console.log('[ROOM_SERVICE] Check-in:', request.check_in);
+  console.log('[ROOM_SERVICE] Check-out:', request.check_out);
+  console.log('[ROOM_SERVICE] Exclude booking ID:', request.exclude_booking_id);
+
   const supabase = getAdminClient();
 
   const room = await getRoomById(roomId);
+  console.log('[ROOM_SERVICE] Room details:', {
+    id: room.id,
+    name: room.name,
+    inventory_mode: room.inventory_mode,
+    total_units: room.total_units,
+  });
 
   const { data, error } = await supabase
     .rpc('check_room_availability', {
@@ -1360,15 +1474,33 @@ export const checkAvailability = async (
     .single();
 
   if (error) {
-    console.error('Availability check error:', error);
-    // Return available if function fails
-    return {
-      room_id: roomId,
-      is_available: true,
-      available_units: room.total_units,
-      total_units: room.total_units,
-      conflicting_bookings: [],
-    };
+    console.error('[ROOM_SERVICE] ❌ Availability check error:', error);
+    console.error('[ROOM_SERVICE] Error details:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+
+    // CRITICAL FIX: Do NOT return available when check fails
+    // This was causing double bookings!
+    throw new AppError(
+      'INTERNAL_ERROR',
+      `Failed to check room availability: ${error.message}. Please try again or contact support.`
+    );
+  }
+
+  console.log('[ROOM_SERVICE] Availability check result:', {
+    is_available: data.is_available,
+    available_units: data.available_units,
+    total_units: room.total_units,
+    conflicting_bookings_count: data.conflicting_bookings?.length || 0,
+  });
+
+  if (!data.is_available) {
+    console.log('[ROOM_SERVICE] ⚠️ Room NOT available - conflicting bookings:', data.conflicting_bookings);
+  } else {
+    console.log('[ROOM_SERVICE] ✅ Room is available');
   }
 
   return {

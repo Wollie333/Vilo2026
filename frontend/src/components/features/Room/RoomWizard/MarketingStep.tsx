@@ -52,10 +52,56 @@ const SeasonalRateEditor: React.FC<SeasonalRateEditorProps> = ({
       is_active: true,
     }
   );
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+
+    // Validate required fields
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Season name is required';
+    }
+
+    if (!formData.start_date) {
+      newErrors.start_date = 'Start date is required';
+    }
+
+    if (!formData.end_date) {
+      newErrors.end_date = 'End date is required';
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (formData.start_date && !dateRegex.test(formData.start_date)) {
+      newErrors.start_date = 'Invalid date format';
+    }
+
+    if (formData.end_date && !dateRegex.test(formData.end_date)) {
+      newErrors.end_date = 'Invalid date format';
+    }
+
+    // Validate end date is on or after start date
+    if (formData.start_date && formData.end_date && dateRegex.test(formData.start_date) && dateRegex.test(formData.end_date)) {
+      const startDate = new Date(formData.start_date);
+      const endDate = new Date(formData.end_date);
+
+      if (endDate < startDate) {
+        newErrors.end_date = 'End date must be on or after start date';
+      }
+    }
+
+    if (formData.price_per_night <= 0) {
+      newErrors.price_per_night = 'Price must be greater than 0';
+    }
+
+    setErrors(newErrors);
+
+    // Only save if no errors
+    if (Object.keys(newErrors).length === 0) {
+      onSave(formData);
+    }
   };
 
   return (
@@ -67,8 +113,12 @@ const SeasonalRateEditor: React.FC<SeasonalRateEditorProps> = ({
       <Input
         label="Season Name *"
         value={formData.name}
-        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        onChange={(e) => {
+          setFormData({ ...formData, name: e.target.value });
+          if (errors.name) setErrors({ ...errors, name: '' });
+        }}
         placeholder="e.g., Peak Season, Summer Holidays"
+        error={errors.name}
         required
         fullWidth
       />
@@ -77,17 +127,25 @@ const SeasonalRateEditor: React.FC<SeasonalRateEditorProps> = ({
         <DateInput
           label="Start Date"
           value={formData.start_date}
-          onChange={(value) => setFormData({ ...formData, start_date: value })}
+          onChange={(value) => {
+            setFormData({ ...formData, start_date: value });
+            if (errors.start_date) setErrors({ ...errors, start_date: '' });
+          }}
           required
           placeholder="Select start date"
+          error={errors.start_date}
         />
         <DateInput
           label="End Date"
           value={formData.end_date}
-          onChange={(value) => setFormData({ ...formData, end_date: value })}
+          onChange={(value) => {
+            setFormData({ ...formData, end_date: value });
+            if (errors.end_date) setErrors({ ...errors, end_date: '' });
+          }}
           required
           placeholder="Select end date"
-          minDate={formData.start_date ? new Date(formData.start_date) : undefined}
+          minDate={formData.start_date && /^\d{4}-\d{2}-\d{2}$/.test(formData.start_date) ? new Date(formData.start_date) : undefined}
+          error={errors.end_date}
         />
       </div>
 
@@ -97,7 +155,11 @@ const SeasonalRateEditor: React.FC<SeasonalRateEditorProps> = ({
         min={0}
         step={0.01}
         value={formData.price_per_night || ''}
-        onChange={(e) => setFormData({ ...formData, price_per_night: parseFloat(e.target.value) || 0 })}
+        onChange={(e) => {
+          setFormData({ ...formData, price_per_night: parseFloat(e.target.value) || 0 });
+          if (errors.price_per_night) setErrors({ ...errors, price_per_night: '' });
+        }}
+        error={errors.price_per_night}
         required
         fullWidth
       />

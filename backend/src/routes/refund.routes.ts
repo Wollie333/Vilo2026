@@ -122,7 +122,7 @@ router.get(
 router.post(
   '/refunds/:id/documents',
   authenticate,
-  upload.single('file'),
+  upload.single('file') as any,
   refundController.uploadDocument
 );
 
@@ -263,7 +263,7 @@ router.post(
   authenticate,
   requireAdmin,
   requirePermission('refunds', 'manage'),
-  upload.single('file'),
+  upload.single('file') as any,
   refundController.uploadDocument
 );
 

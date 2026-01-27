@@ -42,7 +42,7 @@ export interface UpdateUserTypeRequest {
 // Subscription Status (replaces billing_statuses table)
 // ============================================================================
 
-export type SubscriptionStatus = 'active' | 'trial' | 'cancelled' | 'expired' | 'past_due';
+export type SubscriptionStatus = 'active' | 'trial' | 'cancelled' | 'expired' | 'past_due' | 'paused';
 
 // ============================================================================
 // Pricing Tiers (Enhanced for Multi-Billing Support)
@@ -97,67 +97,100 @@ export interface SubscriptionType {
   name: string;
   display_name: string;
   description: string | null;
-  billing_cycle_days: number | null;
-  is_recurring: boolean;
-  price_cents: number; // Legacy field - use pricing object instead
   currency: string;
   trial_period_days: number | null;
   is_active: boolean;
   sort_order: number;
   limits: Record<string, number>; // JSONB limits embedded in subscription type
-  pricing: PricingTiers; // JSONB pricing tiers (monthly/annual) - LEGACY
 
-  // NEW: Enhanced multi-billing support
+  // Multi-billing support
   billing_types: BillingTypesEnabled; // Which billing types are enabled
   pricing_tiers: PricingTiersEnhanced; // Detailed config per billing type
 
+  // CMS fields for checkout page customization
+  slug: string; // URL-friendly identifier for /plans/:slug
+  custom_headline?: string | null; // Custom headline for checkout page
+  custom_description?: string | null; // Detailed description for checkout
+  custom_features?: string[] | null; // JSONB array of custom feature strings
+  custom_cta_text?: string | null; // Custom CTA button text
+  checkout_badge?: string | null; // Badge text (e.g., "Most Popular")
+  checkout_accent_color?: string | null; // Hex color for branding
+
   created_at: string;
   updated_at: string;
+
+  // NOTE: Legacy fields removed by migration 096:
+  // - price_cents (use pricing_tiers.monthly.price_cents or pricing_tiers.annual.price_cents)
+  // - billing_cycle_days (use pricing_tiers.monthly.billing_cycle_days)
+  // - is_recurring (check billing_types.monthly or billing_types.annual)
+  // - pricing (replaced by pricing_tiers)
 }
 
 export interface CreateSubscriptionTypeRequest {
   name: string;
   display_name: string;
   description?: string;
-  billing_cycle_days?: number;
-  is_recurring?: boolean;
-  price_cents?: number; // Legacy - use pricing instead
   currency?: string;
   trial_period_days?: number | null;
   is_active?: boolean;
   sort_order?: number;
   limits?: Record<string, number>; // Limits can be set on creation
-  pricing?: Partial<PricingTiers>; // Pricing tiers can be set on creation - LEGACY
 
-  // NEW: Multi-billing support
+  // Multi-billing support
   billing_types?: BillingTypesEnabled; // Which billing types to enable
   pricing_tiers?: PricingTiersEnhanced; // Config for each billing type
   // Alternative: Individual price inputs (UI convenience)
   monthly_price_cents?: number;
   annual_price_cents?: number;
   one_off_price_cents?: number;
+
+  // CMS fields for checkout page customization
+  slug: string; // Required: URL-friendly identifier
+  custom_headline?: string;
+  custom_description?: string;
+  custom_features?: string[];
+  custom_cta_text?: string;
+  checkout_badge?: string;
+  checkout_accent_color?: string;
+
+  // Legacy fields (accepted for backward compatibility but ignored):
+  billing_cycle_days?: number;
+  is_recurring?: boolean;
+  price_cents?: number;
+  pricing?: Partial<PricingTiers>;
 }
 
 export interface UpdateSubscriptionTypeRequest {
   display_name?: string;
   description?: string;
-  billing_cycle_days?: number;
-  is_recurring?: boolean;
-  price_cents?: number; // Legacy - use pricing instead
   currency?: string;
   trial_period_days?: number | null;
   is_active?: boolean;
   sort_order?: number;
   limits?: Record<string, number>; // Limits can be updated
-  pricing?: Partial<PricingTiers>; // Pricing tiers can be updated - LEGACY
 
-  // NEW: Multi-billing support
+  // Multi-billing support
   billing_types?: BillingTypesEnabled; // Which billing types to enable
   pricing_tiers?: PricingTiersEnhanced; // Config for each billing type
   // Alternative: Individual price inputs (UI convenience)
   monthly_price_cents?: number;
   annual_price_cents?: number;
   one_off_price_cents?: number;
+
+  // CMS fields for checkout page customization
+  slug?: string; // URL-friendly identifier
+  custom_headline?: string;
+  custom_description?: string;
+  custom_features?: string[];
+  custom_cta_text?: string;
+  checkout_badge?: string;
+  checkout_accent_color?: string;
+
+  // Legacy fields (accepted for backward compatibility but ignored):
+  billing_cycle_days?: number;
+  is_recurring?: boolean;
+  price_cents?: number;
+  pricing?: Partial<PricingTiers>;
 }
 
 // ============================================================================
@@ -175,6 +208,7 @@ export interface UserSubscription {
   is_active: boolean;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  paused_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -238,7 +272,7 @@ export interface UserBillingInfo {
 export interface SubscriptionTypeListParams {
   is_active?: boolean;
   is_recurring?: boolean;
-  sortBy?: 'sort_order' | 'name' | 'price_cents' | 'created_at';
+  sortBy?: 'sort_order' | 'name' | 'created_at';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -493,4 +527,113 @@ export interface SubscriptionLimit {
  */
 export interface SubscriptionTypeWithLimits extends Omit<SubscriptionType, 'limits'> {
   limits: SubscriptionLimit[];
+}
+
+// ============================================================================
+// SUBSCRIPTION UPGRADE REQUESTS
+// ============================================================================
+
+export type UpgradeRequestStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
+export const UPGRADE_REQUEST_STATUS_LABELS: Record<UpgradeRequestStatus, string> = {
+  pending: 'Pending',
+  accepted: 'Accepted',
+  declined: 'Declined',
+  expired: 'Expired',
+};
+
+export const UPGRADE_REQUEST_STATUS_COLORS: Record<UpgradeRequestStatus, string> = {
+  pending: 'yellow',
+  accepted: 'green',
+  declined: 'red',
+  expired: 'gray',
+};
+
+export interface SubscriptionUpgradeRequest {
+  id: string;
+  user_id: string;
+  current_subscription_id: string;
+  requested_subscription_type_id: string;
+  requested_by_admin_id: string;
+  status: UpgradeRequestStatus;
+  admin_notes: string | null;
+  user_response_notes: string | null;
+  requested_at: string;
+  responded_at: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionUpgradeRequestWithDetails extends SubscriptionUpgradeRequest {
+  user: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  current_subscription: UserSubscriptionWithDetails;
+  requested_subscription_type: SubscriptionType;
+  requested_by_admin: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
+export interface CreateUpgradeRequestInput {
+  user_id: string;
+  target_plan_id: string;
+  admin_notes?: string;
+}
+
+export interface RespondToUpgradeInput {
+  accepted: boolean;
+  user_response_notes?: string;
+}
+
+export interface UpgradeRequestListParams {
+  user_id?: string;
+  status?: UpgradeRequestStatus;
+  requested_by_admin_id?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface UpgradeRequestListResponse {
+  requests: SubscriptionUpgradeRequestWithDetails[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// ============================================================================
+// SUBSCRIPTION DISPLAY INFO (for Admin UI)
+// ============================================================================
+
+export interface SubscriptionDisplayInfo {
+  subscription: UserSubscriptionWithDetails;
+  plan_name: string;
+  plan_display_name: string;
+  current_price_cents: number;
+  current_price_formatted: string;
+  billing_interval: 'monthly' | 'annual' | 'one_off' | null;
+  billing_interval_label: string;
+  next_billing_date: string | null;
+  status: SubscriptionStatus;
+  status_label: string;
+  status_color: string;
+  days_remaining: number | null;
+  is_paused: boolean;
+  is_cancelled: boolean;
+  is_active: boolean;
+  can_pause: boolean;
+  can_cancel: boolean;
+  can_resume: boolean;
+  can_upgrade: boolean;
+  paused_reason: string | null;
+  paused_by_admin: { id: string; full_name: string } | null;
+  cancelled_reason: string | null;
+  cancelled_by_admin: { id: string; full_name: string } | null;
+  access_end_date: string | null;
 }

@@ -44,10 +44,10 @@ export const ListYourPropertyPage: React.FC = () => {
             {/* Hero CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mb-4">
               <Link
-                to="/signup"
+                to="/pricing"
                 className="inline-flex items-center gap-2 bg-primary dark:bg-primary text-white px-8 py-4 rounded-full font-medium shadow-lg shadow-primary/25 dark:shadow-primary/40 hover:bg-primary/90 dark:hover:bg-primary/80 transition-all"
               >
-                Start Listing for Free
+                Get Listed
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -70,19 +70,19 @@ export const ListYourPropertyPage: React.FC = () => {
                 <svg className="w-4 h-4 text-emerald-400 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Free to list your property
+                Quick setup in minutes
               </span>
               <span className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-emerald-400 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Setup in minutes
+                Professional tools included
               </span>
               <span className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-emerald-400 dark:text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                No hidden fees
+                Transparent pricing
               </span>
             </div>
           </div>
@@ -152,11 +152,11 @@ export const ListYourPropertyPage: React.FC = () => {
 
                   <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-dark-border mt-4">
                     <div>
-                      <span className="text-2xl font-bold text-gray-900 dark:text-white">R3,500</span>
+                      <span className="text-2xl font-bold text-gray-900 dark:text-white">R800</span>
                       <span className="text-sm text-gray-500 dark:text-gray-400"> / night</span>
                     </div>
                     <Link
-                      to="/signup"
+                      to="/pricing"
                       className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
                       List Like This
@@ -197,7 +197,7 @@ export const ListYourPropertyPage: React.FC = () => {
                 Create Account
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Sign up for free — no credit card required to get started
+                Choose a plan and get started with your property listing
               </p>
             </div>
 
@@ -258,10 +258,10 @@ export const ListYourPropertyPage: React.FC = () => {
 
           <div className="text-center mt-12">
             <Link
-              to="/signup"
+              to="/pricing"
               className="inline-flex items-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-medium shadow-lg hover:bg-primary/90 transition-all"
             >
-              Get Started Now
+              View Plans & Pricing
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
@@ -307,20 +307,20 @@ export const ListYourPropertyPage: React.FC = () => {
             {/* Stats Card */}
             <div className="bg-gray-800 dark:bg-black rounded-3xl p-10 text-white border border-gray-700 dark:border-gray-800">
               <div className="text-sm text-gray-400 dark:text-gray-500 mb-2">Average host earnings</div>
-              <div className="text-5xl font-bold text-emerald-400 dark:text-emerald-300 mb-1">R35,000</div>
+              <div className="text-5xl font-bold text-emerald-400 dark:text-emerald-300 mb-1">R12,800</div>
               <div className="text-sm text-gray-500 dark:text-gray-600 mb-8">per month with consistent bookings</div>
               <div className="border-t border-gray-700 dark:border-gray-800 pt-8 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 dark:text-gray-500 text-sm">Avg. nightly rate</span>
-                  <span className="font-bold text-white">R1,800</span>
+                  <span className="font-bold text-white">R800</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 dark:text-gray-500 text-sm">Occupancy rate</span>
-                  <span className="font-bold text-white">75%</span>
+                  <span className="font-bold text-white">52%</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 dark:text-gray-500 text-sm">Monthly nights booked</span>
-                  <span className="font-bold text-white">~20 nights</span>
+                  <span className="font-bold text-white">~16 nights</span>
                 </div>
               </div>
             </div>
@@ -340,10 +340,10 @@ export const ListYourPropertyPage: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
               <Link
-                to="/signup"
+                to="/pricing"
                 className="inline-flex items-center gap-2 bg-white text-primary px-8 py-4 rounded-full font-medium shadow-lg hover:bg-gray-100 transition-all"
               >
-                Start Your Listing
+                View Plans & Get Listed
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

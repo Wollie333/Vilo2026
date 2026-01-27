@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { propertyTypeSchema } from '../types/property.types';
 
 // ============================================================================
 // Helpers - Convert empty strings to undefined for optional fields
@@ -100,7 +101,7 @@ export const updatePropertySchema = z.object({
   // ============================================================================
 
   // Property Type & Categories
-  property_type: z.string().max(50).optional().nullable(),
+  property_type: propertyTypeSchema.optional().nullable(),
   categories: z.array(z.string()).optional(),
 
   // Location

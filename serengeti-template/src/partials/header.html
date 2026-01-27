@@ -1,0 +1,75 @@
+<!-- Header Navigation - Hotel FT Style -->
+<header class="header" id="site-header">
+  <div class="header__container">
+    <!-- Logo -->
+    <a href="/index.html" class="header__logo">
+      <span class="text-2xl font-bold">F+.</span>
+    </a>
+
+    <!-- Desktop Navigation -->
+    <nav class="hidden md:block">
+      <ul class="nav__list">
+        <li><a href="/index.html" class="nav__link">Home</a></li>
+        <li><a href="/about.html" class="nav__link">About Us</a></li>
+        <li><a href="/accommodation.html" class="nav__link">Room</a></li>
+        <li><a href="/blog.html" class="nav__link">Blog</a></li>
+        <li><a href="/contact.html" class="nav__link">Contact</a></li>
+      </ul>
+    </nav>
+
+    <!-- Right side actions -->
+    <div class="flex items-center gap-4">
+      <!-- Cart icon -->
+      <button class="text-gray-700 hover:text-primary-500 transition-colors hidden md:block">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+      </button>
+
+      <!-- Login button -->
+      <a href="#" class="hidden md:block text-gray-700 hover:text-primary-500 transition-colors font-medium">
+        Login
+      </a>
+
+      <!-- Mobile menu toggle -->
+      <button class="md:hidden text-gray-700" id="mobile-menu-toggle">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile Menu Overlay -->
+<div class="mobile-menu" id="mobile-menu">
+  <div class="p-6">
+    <!-- Close button -->
+    <div class="flex justify-end mb-8">
+      <button id="mobile-menu-close" class="text-gray-700 hover:text-primary-500">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile navigation links -->
+    <nav>
+      <ul class="space-y-6">
+        <li><a href="/index.html" class="text-lg text-gray-700 hover:text-primary-500 transition-colors block">Home</a></li>
+        <li><a href="/about.html" class="text-lg text-gray-700 hover:text-primary-500 transition-colors block">About Us</a></li>
+        <li><a href="/accommodation.html" class="text-lg text-gray-700 hover:text-primary-500 transition-colors block">Room</a></li>
+        <li><a href="/blog.html" class="text-lg text-gray-700 hover:text-primary-500 transition-colors block">Blog</a></li>
+        <li><a href="/contact.html" class="text-lg text-gray-700 hover:text-primary-500 transition-colors block">Contact</a></li>
+      </ul>
+    </nav>
+
+    <!-- Mobile login -->
+    <div class="mt-8 pt-8 border-t border-gray-200">
+      <a href="#" class="btn btn-primary w-full justify-center">Login</a>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile menu backdrop -->
+<div class="fixed inset-0 bg-black/50 z-40 hidden" id="mobile-menu-backdrop"></div>

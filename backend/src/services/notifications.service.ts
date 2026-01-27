@@ -76,6 +76,33 @@ export const createNotification = async (
     throw new AppError('BAD_REQUEST', 'User ID is required');
   }
 
+  // Ensure user_profile exists before creating notification
+  const { data: existingProfile } = await supabase
+    .from('user_profiles')
+    .select('user_id')
+    .eq('user_id', userId)
+    .single();
+
+  if (!existingProfile) {
+    // Get user info from auth.users to create profile
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+
+    if (authUser?.user) {
+      // Create user_profile if it doesn't exist
+      await supabase
+        .from('user_profiles')
+        .insert({
+          user_id: userId,
+          full_name: authUser.user.user_metadata?.full_name || authUser.user.email?.split('@')[0] || 'User',
+          email: authUser.user.email,
+        })
+        .select()
+        .single();
+
+      logger.info('Created missing user_profile for notification', { userId });
+    }
+  }
+
   // Create the notification
   const { data: notification, error } = await supabase
     .from('notifications')
@@ -619,11 +646,19 @@ async function sendEmailForNotification(
  * Convenience wrapper for refund system notifications
  */
 export interface SendNotificationParams {
-  template_key: string; // Template name (e.g., 'refund_requested')
-  recipient_ids: string[]; // Array of user IDs to notify
-  data: Record<string, any>; // Template variables
+  template_key?: string; // Template name (e.g., 'refund_requested')
+  recipient_ids?: string[]; // Array of user IDs to notify
+  data?: Record<string, any>; // Template variables
   priority?: 'low' | 'normal' | 'high'; // Notification priority
   send_email?: boolean; // Whether to send email (default: true)
+  // Legacy fields for backward compatibility
+  user_id?: string;
+  type?: string;
+  title?: string;
+  message?: string;
+  action_url?: string;
+  action_label?: string;
+  variant?: 'info' | 'success' | 'warning' | 'error';
 }
 
 export const sendNotification = async (params: SendNotificationParams): Promise<void> => {

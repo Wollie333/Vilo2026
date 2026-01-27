@@ -139,6 +139,21 @@ export function Sidebar({
     return initialExpanded;
   });
 
+  // Track which sections are collapsed - persists in localStorage
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('vilo-collapsed-sections');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Save collapsed sections to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('vilo-collapsed-sections', JSON.stringify([...collapsedSections]));
+  }, [collapsedSections]);
+
   // Auto-expand parent when child becomes active
   useEffect(() => {
     items.forEach((item) => {
@@ -155,6 +170,18 @@ export function Sidebar({
         newSet.delete(itemId);
       } else {
         newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSection = (sectionName: string) => {
+    setCollapsedSections((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionName)) {
+        newSet.delete(sectionName);
+      } else {
+        newSet.add(sectionName);
       }
       return newSet;
     });
@@ -245,33 +272,45 @@ export function Sidebar({
         hover:[&::-webkit-scrollbar-thumb]:bg-gray-500
         dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500
       ">
-        {groupedItems.map((group, idx) => (
-          <div key={idx} className={idx > 0 ? 'mt-5' : ''}>
-            {/* Section header */}
-            {group.section && !isCollapsed && (
-              <div className="px-2.5 mb-1.5">
-                <span className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                  {group.section}
-                </span>
-              </div>
-            )}
-            {/* Section items */}
-            <div className="space-y-1">
-              {group.items.map((item) => (
-                <NavItemComponent
-                  key={item.id}
-                  item={item}
-                  isActive={activeItemId === item.id}
-                  isCollapsed={isCollapsed}
-                  onClick={onItemClick || (() => {})}
-                  activeItemId={activeItemId}
-                  isExpanded={expandedItems.has(item.id)}
-                  onToggleExpand={() => toggleExpand(item.id)}
-                />
-              ))}
+        {groupedItems.map((group, idx) => {
+          const sectionCollapsed = group.section ? collapsedSections.has(group.section) : false;
+
+          return (
+            <div key={idx} className={idx > 0 ? 'mt-5' : ''}>
+              {/* Section header - clickable to collapse/expand */}
+              {group.section && !isCollapsed && (
+                <button
+                  onClick={() => toggleSection(group.section!)}
+                  className="w-full px-2.5 mb-1.5 flex items-center justify-between group hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-md py-1 transition-colors"
+                >
+                  <span className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                    {group.section}
+                  </span>
+                  <span className={`transition-transform duration-200 ${sectionCollapsed ? '-rotate-90' : ''}`}>
+                    <ChevronDownIcon />
+                  </span>
+                </button>
+              )}
+              {/* Section items - hidden when collapsed */}
+              {!sectionCollapsed && (
+                <div className="space-y-1">
+                  {group.items.map((item) => (
+                    <NavItemComponent
+                      key={item.id}
+                      item={item}
+                      isActive={activeItemId === item.id}
+                      isCollapsed={isCollapsed}
+                      onClick={onItemClick || (() => {})}
+                      activeItemId={activeItemId}
+                      isExpanded={expandedItems.has(item.id)}
+                      onToggleExpand={() => toggleExpand(item.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
     </aside>
   );

@@ -47,6 +47,11 @@ export const DatesRoomsStep: React.FC<DatesRoomsStepProps> = ({
 
   // Handle date selection from modal
   const handleDateSelect = (selectedCheckIn: Date, selectedCheckOut?: Date) => {
+    console.log('📅 [DatesRoomsStep] Received date selection:', {
+      checkIn: selectedCheckIn.toLocaleDateString(),
+      checkOut: selectedCheckOut?.toLocaleDateString()
+    });
+
     onCheckInChange(selectedCheckIn);
     if (selectedCheckOut) {
       onCheckOutChange(selectedCheckOut);
@@ -84,14 +89,46 @@ export const DatesRoomsStep: React.FC<DatesRoomsStepProps> = ({
     return selectedRooms.some((r) => r.room_id === roomId);
   };
 
-  // Update guest counts
+  // Get room's max guests from available rooms
+  const getRoomMaxGuests = (roomId: string): number => {
+    const room = availableRooms.find(r => r.id === roomId);
+    return room?.max_guests || 99; // Default to 99 if not found
+  };
+
+  // Update guest counts with max occupancy validation
   const updateAdults = (roomId: string, adults: number) => {
     if (adults < 1) return;
+
+    const room = selectedRooms.find(r => r.room_id === roomId);
+    if (!room) return;
+
+    const maxGuests = getRoomMaxGuests(roomId);
+    const totalGuests = adults + room.children;
+
+    // Prevent exceeding max occupancy
+    if (totalGuests > maxGuests) {
+      alert(`Maximum ${maxGuests} guests allowed for this room. Please reduce the number of guests.`);
+      return;
+    }
+
     onRoomUpdate(roomId, { adults });
   };
 
   const updateChildren = (roomId: string, children: number) => {
     if (children < 0) return;
+
+    const room = selectedRooms.find(r => r.room_id === roomId);
+    if (!room) return;
+
+    const maxGuests = getRoomMaxGuests(roomId);
+    const totalGuests = room.adults + children;
+
+    // Prevent exceeding max occupancy
+    if (totalGuests > maxGuests) {
+      alert(`Maximum ${maxGuests} guests allowed for this room. Please reduce the number of guests.`);
+      return;
+    }
+
     const ages = children > 0 ? Array(children).fill(0) : [];
     onRoomUpdate(roomId, { children, children_ages: ages });
   };
@@ -125,7 +162,10 @@ export const DatesRoomsStep: React.FC<DatesRoomsStepProps> = ({
 
         {/* Date Input Button */}
         <button
-          onClick={() => setShowDatePicker(true)}
+          onClick={() => {
+            console.log('📅 [DatesRoomsStep] Opening date picker modal');
+            setShowDatePicker(true);
+          }}
           className="w-full p-4 border-2 border-gray-300 dark:border-dark-border rounded-lg hover:border-primary transition-colors text-left"
         >
           <div className="flex items-center gap-4">
@@ -310,6 +350,30 @@ export const DatesRoomsStep: React.FC<DatesRoomsStepProps> = ({
                   </button>
                 </div>
 
+                {/* Guest Count Summary */}
+                {(() => {
+                  const maxGuests = getRoomMaxGuests(room.room_id);
+                  const totalGuests = room.adults + room.children;
+                  const isAtMax = totalGuests >= maxGuests;
+                  const isNearMax = totalGuests >= maxGuests - 1;
+
+                  return (
+                    <div className={`mb-3 p-2 rounded-lg text-sm flex items-center justify-between ${
+                      isAtMax
+                        ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
+                        : isNearMax
+                        ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400'
+                        : 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    }`}>
+                      <span className="flex items-center gap-1">
+                        <HiUserGroup className="w-4 h-4" />
+                        Total: {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-xs">Max: {maxGuests}</span>
+                    </div>
+                  );
+                })()}
+
                 {/* Guest Counts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Adults */}
@@ -330,11 +394,13 @@ export const DatesRoomsStep: React.FC<DatesRoomsStepProps> = ({
                         value={room.adults}
                         onChange={(e) => updateAdults(room.room_id, parseInt(e.target.value) || 1)}
                         min={1}
+                        max={getRoomMaxGuests(room.room_id)}
                         className="w-16 text-center px-2 py-1 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                       />
                       <button
                         onClick={() => updateAdults(room.room_id, room.adults + 1)}
-                        className="w-8 h-8 rounded-lg border border-gray-300 dark:border-dark-border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-hover"
+                        disabled={room.adults + room.children >= getRoomMaxGuests(room.room_id)}
+                        className="w-8 h-8 rounded-lg border border-gray-300 dark:border-dark-border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <HiPlus className="w-4 h-4" />
                       </button>
@@ -359,11 +425,13 @@ export const DatesRoomsStep: React.FC<DatesRoomsStepProps> = ({
                         value={room.children}
                         onChange={(e) => updateChildren(room.room_id, parseInt(e.target.value) || 0)}
                         min={0}
+                        max={getRoomMaxGuests(room.room_id) - room.adults}
                         className="w-16 text-center px-2 py-1 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                       />
                       <button
                         onClick={() => updateChildren(room.room_id, room.children + 1)}
-                        className="w-8 h-8 rounded-lg border border-gray-300 dark:border-dark-border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-hover"
+                        disabled={room.adults + room.children >= getRoomMaxGuests(room.room_id)}
+                        className="w-8 h-8 rounded-lg border border-gray-300 dark:border-dark-border flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <HiPlus className="w-4 h-4" />
                       </button>

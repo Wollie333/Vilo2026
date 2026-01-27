@@ -48,6 +48,7 @@ import {
   EnhancedRoomCard,
   EnhancedAddonCard,
 } from '@/components/features';
+import { ReviewCard } from '@/components/features/Review';
 import {
   RefundApprovalForm,
   RefundProcessingPanel,
@@ -181,6 +182,16 @@ export const BookingDetailPage: React.FC = () => {
   // Payment banner visibility
   const [paymentBannerVisible, setPaymentBannerVisible] = useState(true);
 
+  // Review status
+  const [reviewStatus, setReviewStatus] = useState<{
+    eligible: boolean;
+    hasReview: boolean;
+    review: any | null;
+    daysRemaining: number;
+    reason?: string;
+  } | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+
   // ============================================================================
   // Data Fetching
   // ============================================================================
@@ -249,12 +260,28 @@ export const BookingDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const fetchReviewStatus = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      setReviewLoading(true);
+      const status = await reviewService.getBookingReviewStatus(id);
+      setReviewStatus(status);
+    } catch (err) {
+      console.error('Failed to load review status:', err);
+      setReviewStatus(null);
+    } finally {
+      setReviewLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchBooking();
     fetchPaymentSchedule();
     fetchRefunds();
     fetchHistory();
-  }, [fetchBooking, fetchPaymentSchedule, fetchRefunds, fetchHistory]);
+    fetchReviewStatus();
+  }, [fetchBooking, fetchPaymentSchedule, fetchRefunds, fetchHistory, fetchReviewStatus]);
 
   // Check if edit mode from URL
   useEffect(() => {
@@ -811,6 +838,10 @@ export const BookingDetailPage: React.FC = () => {
             <TabsTrigger value="history" variant="underline" className="inline-flex items-center whitespace-nowrap">
               <HiOutlineClock className="w-4 h-4 mr-2 flex-shrink-0" />
               <span>History ({history?.length || 0})</span>
+            </TabsTrigger>
+            <TabsTrigger value="reviews" variant="underline" className="inline-flex items-center whitespace-nowrap">
+              <HiOutlineStar className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span>Reviews {reviewStatus?.hasReview ? '(1)' : ''}</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -1847,6 +1878,127 @@ export const BookingDetailPage: React.FC = () => {
                   icon={HiOutlineClock}
                   title="No History Available"
                   description="History will appear here as actions are taken on this booking"
+                />
+              )}
+            </Card.Body>
+          </Card>
+        )}
+
+        {/* Reviews Tab */}
+        {activeTab === 'reviews' && (
+          <Card>
+            <Card.Header className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <HiOutlineStar className="w-5 h-5" />
+                <span>Guest Review</span>
+              </div>
+              {reviewStatus?.eligible && !reviewStatus.hasReview && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={async () => {
+                    if (!booking) return;
+                    try {
+                      setActionLoading('review');
+                      await reviewService.sendReviewRequest(booking.id);
+                      setSuccess('Review request sent successfully to guest');
+                      fetchReviewStatus();
+                    } catch (err: unknown) {
+                      const errorMessage = err instanceof Error ? err.message : 'Failed to send review request';
+                      setError(errorMessage);
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  }}
+                  isLoading={actionLoading === 'review'}
+                  disabled={!!actionLoading}
+                >
+                  <HiOutlineMail className="w-4 h-4 mr-2" />
+                  Send Review Request
+                </Button>
+              )}
+            </Card.Header>
+            <Card.Body>
+              {reviewLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size="md" />
+                </div>
+              ) : reviewStatus?.hasReview && reviewStatus.review ? (
+                <>
+                  {/* Show existing review */}
+                  <ReviewCard
+                    review={reviewStatus.review}
+                    showModeration={currentUser?.user_type === 'property_manager' || currentUser?.user_type === 'super_admin'}
+                    showActions={currentUser?.user_type === 'property_manager' || currentUser?.user_type === 'super_admin'}
+                  />
+
+                  {/* Show refund context if applicable */}
+                  {booking && booking.refund_status && booking.refund_status !== 'none' && (
+                    <Alert variant="info" className="mt-4">
+                      <div className="flex items-center gap-2">
+                        <HiOutlineInformationCircle className="w-5 h-5" />
+                        <span>
+                          Note: This booking was {booking.refund_status === 'full' ? 'fully' : 'partially'} refunded.
+                          The guest submitted this review {booking.refund_status === 'full' ? 'despite the full refund' : 'after the partial refund'}.
+                        </span>
+                      </div>
+                    </Alert>
+                  )}
+                </>
+              ) : reviewStatus?.eligible ? (
+                <>
+                  {/* Guest is eligible but hasn't reviewed yet */}
+                  <EmptyState
+                    icon={HiOutlineStar}
+                    title="No Review Yet"
+                    description={`Guest has ${reviewStatus.daysRemaining} days remaining to submit a review.`}
+                    action={
+                      <Button
+                        variant="primary"
+                        onClick={async () => {
+                          if (!booking) return;
+                          try {
+                            setActionLoading('review');
+                            await reviewService.sendReviewRequest(booking.id);
+                            setSuccess('Review request sent successfully to guest');
+                            fetchReviewStatus();
+                          } catch (err: unknown) {
+                            const errorMessage = err instanceof Error ? err.message : 'Failed to send review request';
+                            setError(errorMessage);
+                          } finally {
+                            setActionLoading(null);
+                          }
+                        }}
+                        isLoading={actionLoading === 'review'}
+                      >
+                        <HiOutlineMail className="w-4 h-4 mr-2" />
+                        Send Review Request
+                      </Button>
+                    }
+                  />
+
+                  {/* Show review request history */}
+                  {booking && booking.review_sent_at && (
+                    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
+                        <HiOutlineCheckCircle className="w-5 h-5" />
+                        <span>
+                          Review request sent on{' '}
+                          {new Date(booking.review_sent_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <EmptyState
+                  icon={HiOutlineStar}
+                  title="Review Not Available"
+                  description={reviewStatus?.reason || 'This booking is not eligible for a review.'}
                 />
               )}
             </Card.Body>

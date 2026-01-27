@@ -38,4 +38,21 @@ router.post('/paystack/refund', webhookController.handlePaystackRefundWebhook);
  */
 router.post('/paypal/refund', webhookController.handlePayPalRefundWebhook);
 
+// ============================================================================
+// COMPANY-SPECIFIC PAYMENT WEBHOOKS
+// These endpoints receive webhook calls for specific company integrations
+// ============================================================================
+
+/**
+ * POST /api/webhooks/company/:companyId/paystack
+ * Paystack payment webhook endpoint for specific company
+ */
+router.post('/company/:companyId/paystack', webhookController.handleCompanyPaystackWebhook);
+
+/**
+ * POST /api/webhooks/company/:companyId/paypal
+ * PayPal payment webhook endpoint for specific company
+ */
+router.post('/company/:companyId/paypal', webhookController.handleCompanyPayPalWebhook);
+
 export default router;

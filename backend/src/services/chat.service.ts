@@ -163,6 +163,8 @@ export const getConversations = async (
   const { data: participantData } = await participantQuery;
   const conversationIds = participantData?.map((p) => p.conversation_id) || [];
 
+  console.log('[GET CONVERSATIONS] User:', userId, 'Conversations found:', conversationIds.length);
+
   if (conversationIds.length === 0) {
     return {
       conversations: [],
@@ -209,6 +211,12 @@ export const getConversations = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to fetch conversations');
   }
 
+  console.log('[GET CONVERSATIONS] Fetched', conversations?.length || 0, 'conversations');
+  if (conversations && conversations.length > 0) {
+    const types = conversations.map(c => c.type);
+    console.log('[GET CONVERSATIONS] Types:', types);
+  }
+
   // Enrich conversations with details
   const enrichedConversations: ConversationWithDetails[] = await Promise.all(
     (conversations || []).map(async (conv) => {
@@ -251,12 +259,24 @@ export const getConversations = async (
       // Get unread count
       const unreadCount = await getUnreadCount(conv.id, userId);
 
+      // Get support ticket metadata if this is a support conversation
+      let supportTicket = null;
+      if (conv.type === 'support') {
+        const { data: ticket } = await supabase
+          .from('support_tickets')
+          .select('id, ticket_number, status, priority, category, sla_due_at, sla_breached')
+          .eq('conversation_id', conv.id)
+          .single();
+        supportTicket = ticket;
+      }
+
       return {
         ...conv,
         property,
         participants: (participants || []) as ChatParticipantWithUser[],
         last_message: lastMessage,
         unread_count: unreadCount,
+        support_ticket: supportTicket,
       };
     })
   );
@@ -334,12 +354,24 @@ export const getConversation = async (
   // Get unread count
   const unreadCount = await getUnreadCount(conversationId, userId);
 
+  // Get support ticket metadata if this is a support conversation
+  let supportTicket = null;
+  if (conversation.type === 'support') {
+    const { data: ticket } = await supabase
+      .from('support_tickets')
+      .select('id, ticket_number, status, priority, category, sla_due_at, sla_breached')
+      .eq('conversation_id', conversationId)
+      .single();
+    supportTicket = ticket;
+  }
+
   return {
     ...conversation,
     property,
     participants: (participants || []) as ChatParticipantWithUser[],
     last_message: lastMessage,
     unread_count: unreadCount,
+    support_ticket: supportTicket,
   };
 };
 
@@ -365,6 +397,9 @@ export const createConversation = async (
     .single();
 
   if (error || !conversation) {
+    console.error('❌ [ChatService] Failed to create conversation');
+    console.error('  Error:', JSON.stringify(error, null, 2));
+    console.error('  Request:', JSON.stringify(request, null, 2));
     logger.error('Failed to create conversation', { error, request });
     throw new AppError('INTERNAL_ERROR', 'Failed to create conversation');
   }
@@ -422,10 +457,10 @@ export const archiveConversation = async (
 ): Promise<ChatConversation> => {
   const supabase = getAdminClient();
 
-  // Check if user is admin/owner
-  const isAdmin = await isConversationAdmin(conversationId, userId);
-  if (!isAdmin) {
-    throw new AppError('FORBIDDEN', 'Only conversation admins can archive');
+  // Check if user is a participant (any participant can archive for themselves)
+  const hasAccess = await isParticipant(conversationId, userId);
+  if (!hasAccess) {
+    throw new AppError('FORBIDDEN', 'You are not a participant in this conversation');
   }
 
   const { data, error } = await supabase
@@ -1060,4 +1095,175 @@ export const addAttachment = async (
   }
 
   return created;
+};
+
+// ============================================================================
+// Guest Chat
+// ============================================================================
+
+/**
+ * Start a guest chat
+ * Creates guest account if needed, initiates conversation
+ * Public endpoint - no authentication required
+ */
+export const startGuestChat = async (data: {
+  property_id: string;
+  property_owner_id: string;
+  guest_email: string;
+  guest_name: string;
+}): Promise<{
+  conversation_id: string;
+  guest_user_id: string;
+  is_new_user: boolean;
+}> => {
+  console.log('=== [CHAT_SERVICE] startGuestChat called ===');
+  console.log('[CHAT_SERVICE] Input:', JSON.stringify(data, null, 2));
+
+  const { property_id, property_owner_id, guest_email, guest_name } = data;
+
+  try {
+    // Step 1: Check if user exists
+    console.log('[CHAT_SERVICE] Checking if user exists...');
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const existingUser = existingUsers?.users?.find(
+      (u) => u.email?.toLowerCase() === guest_email.toLowerCase()
+    );
+
+    let guestUserId: string;
+    let isNewUser = false;
+
+    if (existingUser) {
+      console.log('[CHAT_SERVICE] User exists:', existingUser.id);
+      guestUserId = existingUser.id;
+    } else {
+      console.log('[CHAT_SERVICE] Creating new guest user...');
+
+      // Create new user account
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        email: guest_email.toLowerCase(),
+        email_confirm: true,
+        user_metadata: {
+          full_name: guest_name,
+          name: guest_name,
+        },
+      });
+
+      if (createError || !newUser.user) {
+        console.error('[CHAT_SERVICE] Failed to create user:', createError);
+        throw new AppError('INTERNAL_ERROR', 'Failed to create guest account');
+      }
+
+      console.log('[CHAT_SERVICE] User created:', newUser.user.id);
+      guestUserId = newUser.user.id;
+      isNewUser = true;
+
+      // Insert into users table
+      const { error: insertError } = await supabase.from('users').insert({
+        id: guestUserId,
+        email: guest_email.toLowerCase(),
+        full_name: guest_name,
+        role: 'guest',
+        is_active: true,
+      });
+
+      if (insertError) {
+        console.error('[CHAT_SERVICE] Failed to insert user record:', insertError);
+        // Continue anyway - the auth user is created
+      }
+
+      // Send password setup email
+      const { error: resetError } = await supabase.auth.admin.generateLink({
+        type: 'recovery',
+        email: guest_email.toLowerCase(),
+      });
+
+      if (resetError) {
+        console.error('[CHAT_SERVICE] Failed to send password setup email:', resetError);
+        // Continue anyway - user can request password reset later
+      } else {
+        console.log('[CHAT_SERVICE] Password setup email sent');
+      }
+    }
+
+    // Step 2: Check if conversation already exists
+    console.log('[CHAT_SERVICE] Checking for existing conversation...');
+    const { data: existingConversations } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('property_id', property_id)
+      .eq('type', 'guest_inquiry');
+
+    if (existingConversations && existingConversations.length > 0) {
+      // Check if guest is participant in any of these conversations
+      for (const conv of existingConversations) {
+        const { data: participation } = await supabase
+          .from('conversation_participants')
+          .select('id')
+          .eq('conversation_id', conv.id)
+          .eq('user_id', guestUserId)
+          .single();
+
+        if (participation) {
+          console.log('[CHAT_SERVICE] Using existing conversation:', conv.id);
+          return {
+            conversation_id: conv.id,
+            guest_user_id: guestUserId,
+            is_new_user: isNewUser,
+          };
+        }
+      }
+    }
+
+    // Step 3: Create new conversation
+    console.log('[CHAT_SERVICE] Creating new conversation...');
+    const { data: conversation, error: convError } = await supabase
+      .from('conversations')
+      .insert({
+        type: 'guest_inquiry',
+        property_id: property_id,
+        title: `Chat with ${guest_name}`,
+        created_by: guestUserId,
+      })
+      .select()
+      .single();
+
+    if (convError || !conversation) {
+      console.error('[CHAT_SERVICE] Failed to create conversation:', convError);
+      throw new AppError('INTERNAL_ERROR', 'Failed to create conversation');
+    }
+
+    console.log('[CHAT_SERVICE] Conversation created:', conversation.id);
+
+    // Step 4: Add participants
+    console.log('[CHAT_SERVICE] Adding participants...');
+    const { error: participantsError } = await supabase.from('conversation_participants').insert([
+      {
+        conversation_id: conversation.id,
+        user_id: guestUserId,
+        role: 'member',
+      },
+      {
+        conversation_id: conversation.id,
+        user_id: property_owner_id,
+        role: 'admin',
+      },
+    ]);
+
+    if (participantsError) {
+      console.error('[CHAT_SERVICE] Failed to add participants:', participantsError);
+      throw new AppError('INTERNAL_ERROR', 'Failed to add chat participants');
+    }
+
+    console.log('[CHAT_SERVICE] Participants added successfully');
+
+    return {
+      conversation_id: conversation.id,
+      guest_user_id: guestUserId,
+      is_new_user: isNewUser,
+    };
+  } catch (error: any) {
+    console.error('[CHAT_SERVICE] Error in startGuestChat:', error);
+    console.error('[CHAT_SERVICE] Error stack:', error instanceof Error ? error.stack : 'N/A');
+    throw error;
+  }
 };

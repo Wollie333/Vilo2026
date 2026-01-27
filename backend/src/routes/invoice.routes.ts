@@ -5,6 +5,7 @@ import {
   authenticate,
   loadUserProfile,
   requireAdmin,
+  requireSuperAdmin,
   validateBody,
   validateQuery,
   validateParams,
@@ -75,48 +76,79 @@ router.get(
 );
 
 // ============================================================================
+// TYPE-SPECIFIC USER ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/invoices/subscription
+ * Get subscription invoices for current user (SaaS billing)
+ */
+router.get(
+  '/subscription',
+  invoiceController.getSubscriptionInvoices
+);
+
+/**
+ * GET /api/invoices/booking/issued
+ * Get booking invoices issued by current user (property owner)
+ */
+router.get(
+  '/booking/issued',
+  invoiceController.getIssuedBookingInvoices
+);
+
+/**
+ * GET /api/invoices/booking/received
+ * Get booking invoices received by current user (guest)
+ */
+router.get(
+  '/booking/received',
+  invoiceController.getReceivedBookingInvoices
+);
+
+// ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================
 
 /**
  * GET /api/invoices/admin/settings
- * Get invoice settings
+ * Get invoice settings (SUPER ADMIN ONLY - SaaS platform invoice settings)
  */
 router.get(
   '/admin/settings',
-  requireAdmin(),
+  requireSuperAdmin(),
   invoiceController.getSettings
 );
 
 /**
  * PATCH /api/invoices/admin/settings
- * Update invoice settings
+ * Update invoice settings (SUPER ADMIN ONLY - SaaS platform invoice settings)
  */
 router.patch(
   '/admin/settings',
-  requireAdmin(),
+  requireSuperAdmin(),
   validateBody(updateInvoiceSettingsSchema),
   invoiceController.updateSettings
 );
 
 /**
  * POST /api/invoices/admin/logo
- * Upload invoice logo
+ * Upload invoice logo (SUPER ADMIN ONLY - SaaS platform logo)
  */
 router.post(
   '/admin/logo',
-  requireAdmin(),
+  requireSuperAdmin(),
   logoUpload.single('logo') as unknown as RequestHandler,
   invoiceController.uploadLogo
 );
 
 /**
  * DELETE /api/invoices/admin/logo
- * Delete invoice logo
+ * Delete invoice logo (SUPER ADMIN ONLY - SaaS platform logo)
  */
 router.delete(
   '/admin/logo',
-  requireAdmin(),
+  requireSuperAdmin(),
   invoiceController.deleteLogo
 );
 
@@ -162,5 +194,16 @@ router.post(
   requireAdmin(),
   invoiceController.generateBookingInvoice
 );
+
+/**
+ * POST /api/invoices/admin/checkouts/:checkoutId/generate
+ * Manually generate invoice for a completed checkout (subscription payment)
+ */
+// TEMPORARILY COMMENTED OUT - CAUSING STARTUP ERROR
+// router.post(
+//   '/admin/checkouts/:checkoutId/generate',
+//   requireAdmin(),
+//   invoiceController.generateCheckoutInvoice
+// );
 
 export default router;

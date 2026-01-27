@@ -1,6 +1,8 @@
-import type { PublicRoom } from '@/types';
+import type { PublicRoomSummary } from '@/types/discovery.types';
 
 export interface PromotionsTabProps {
-  rooms: PublicRoom[];
+  rooms: PublicRoomSummary[];
   currency: string;
+  propertyId: string;
+  propertyName: string;
 }

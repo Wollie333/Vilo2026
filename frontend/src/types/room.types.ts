@@ -107,6 +107,7 @@ export interface RoomPromotion {
   valid_from?: string | null;  // Database field name
   valid_until?: string | null;  // Database field name
   is_active: boolean;
+  is_claimable: boolean;  // Whether promo requires guest details to claim
   room_count?: number;  // From promotions_with_room_count view
   created_at: string;
   updated_at: string;
@@ -123,6 +124,7 @@ export interface CreateRoomPromotionRequest {
   start_date?: string;
   end_date?: string;
   is_active?: boolean;
+  is_claimable?: boolean;
 }
 
 export interface UpdateRoomPromotionRequest {
@@ -136,6 +138,7 @@ export interface UpdateRoomPromotionRequest {
   start_date?: string;
   end_date?: string;
   is_active?: boolean;
+  is_claimable?: boolean;
 }
 
 // ============================================================================
@@ -340,6 +343,7 @@ export interface CreateRoomRequest {
     max_uses?: number;
     min_nights?: number;
     is_active?: boolean;
+    is_claimable?: boolean;
   }[];
 }
 

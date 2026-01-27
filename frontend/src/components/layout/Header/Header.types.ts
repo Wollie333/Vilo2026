@@ -19,4 +19,6 @@ export interface HeaderProps {
   onHelpClick?: () => void;
   /** Custom content for right side of header */
   rightContent?: ReactNode;
+  /** Actions to display inline with the title (on the right side of title/subtitle) */
+  headerActions?: ReactNode;
 }

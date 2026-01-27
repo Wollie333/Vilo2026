@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Mail, Globe } from 'lucide-react';
 import { AuthenticatedLayout } from '@/components/layout';
 import { AdminDetailLayout } from '@/components/layout/AdminDetailLayout';
 import type { AdminNavSection } from '@/components/layout/AdminDetailLayout';
@@ -30,13 +31,13 @@ import { useHashTab } from '@/hooks';
 import { propertyService, companyService } from '@/services';
 import type { PropertyWithCompany, UpdatePropertyData } from '@/types/property.types';
 import type { CompanyWithPropertyCount } from '@/types/company.types';
-import { PropertyPreviewCard, ListingDetailsTab } from './components';
+import { PropertyPreviewCard, ListingDetailsTab, PropertyLegalTab, QuoteRequestsManagementTab } from './components';
 
 // Types
-type ViewType = 'overview' | 'info' | 'description' | 'address' | 'contact' | 'settings';
+type ViewType = 'property-overview' | 'property-info' | 'property-description' | 'property-address' | 'property-contact' | 'property-settings';
 
 // View configuration for hash tab
-const PROPERTY_VIEWS = ['overview', 'info', 'description', 'address', 'contact', 'settings'];
+const PROPERTY_VIEWS = ['property-overview', 'property-info', 'property-description', 'property-address', 'property-contact', 'property-settings'];
 
 // Currency options
 const currencyOptions = [
@@ -159,15 +160,67 @@ export const PropertyDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Main tab state (property vs listing)
-  const [mainTab, setMainTab] = useState<'property' | 'listing'>(() => {
-    // Check if hash starts with listing- prefix
-    const hash = location.hash.replace('#', '');
-    return hash.startsWith('listing-') ? 'listing' : 'property';
+  // Default hash values for each main tab
+  const DEFAULT_TAB_HASHES = {
+    property: 'property-overview',
+    listing: 'listing-property-type',
+    legal: 'legal-overview',
+    quotes: 'quotes-overview',
+  };
+
+  // Helper function to determine main tab from hash
+  const getMainTabFromHash = useCallback((hash: string): 'property' | 'listing' | 'legal' | 'quotes' => {
+    const cleanHash = hash.replace('#', '');
+    if (cleanHash.startsWith('listing-')) return 'listing';
+    if (cleanHash.startsWith('legal-')) return 'legal';
+    if (cleanHash.startsWith('quotes-')) return 'quotes';
+    if (cleanHash.startsWith('property-')) return 'property';
+    // Default to property if no prefix or unrecognized hash
+    return 'property';
+  }, []);
+
+  // Main tab state (property vs listing vs legal vs quotes)
+  const [mainTab, setMainTab] = useState<'property' | 'listing' | 'legal' | 'quotes'>(() => {
+    return getMainTabFromHash(location.hash);
   });
 
   // Hash-based tab navigation for property details
-  const [activeView, setActiveView] = useHashTab(PROPERTY_VIEWS, 'overview');
+  const [activeView, setActiveView] = useHashTab(PROPERTY_VIEWS, 'property-overview');
+
+  // Listen for hash changes to update main tab (browser back/forward)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const newMainTab = getMainTabFromHash(window.location.hash);
+      if (newMainTab !== mainTab) {
+        setMainTab(newMainTab);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [mainTab, getMainTabFromHash]);
+
+  // Set initial hash if none exists or if it doesn't match any tab prefix
+  useEffect(() => {
+    const currentHash = window.location.hash.replace('#', '');
+    const hasValidPrefix = currentHash.startsWith('property-') ||
+                           currentHash.startsWith('listing-') ||
+                           currentHash.startsWith('legal-') ||
+                           currentHash.startsWith('quotes-');
+
+    if (!currentHash || !hasValidPrefix) {
+      const newUrl = `${window.location.pathname}${window.location.search}#${DEFAULT_TAB_HASHES.property}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+  }, []);
+
+  // Handler for main tab changes
+  const handleMainTabChange = useCallback((newTab: 'property' | 'listing' | 'legal' | 'quotes') => {
+    setMainTab(newTab);
+    // Update URL hash to default for this tab
+    const newUrl = `${window.location.pathname}${window.location.search}#${DEFAULT_TAB_HASHES[newTab]}`;
+    window.history.replaceState(null, '', newUrl);
+  }, []);
 
   // State
   const [property, setProperty] = useState<PropertyWithCompany | null>(null);
@@ -523,20 +576,20 @@ export const PropertyDetailPage: React.FC = () => {
   const navSections: AdminNavSection[] = useMemo(() => [
     {
       title: 'GENERAL',
-      items: [{ id: 'overview', label: 'Overview', icon: <GridIcon /> }],
+      items: [{ id: 'property-overview', label: 'Overview', icon: <GridIcon /> }],
     },
     {
       title: 'DETAILS',
       items: [
-        { id: 'info', label: 'Basic Info', icon: <InfoIcon />, isComplete: completionStatus.info },
-        { id: 'description', label: 'Description', icon: <DocumentIcon />, isComplete: completionStatus.description },
-        { id: 'address', label: 'Address', icon: <HomeIcon />, isComplete: completionStatus.address },
-        { id: 'contact', label: 'Contact', icon: <PhoneIcon />, isComplete: completionStatus.contact },
+        { id: 'property-info', label: 'Basic Info', icon: <InfoIcon />, isComplete: completionStatus.info },
+        { id: 'property-description', label: 'Description', icon: <DocumentIcon />, isComplete: completionStatus.description },
+        { id: 'property-address', label: 'Address', icon: <HomeIcon />, isComplete: completionStatus.address },
+        { id: 'property-contact', label: 'Contact', icon: <PhoneIcon />, isComplete: completionStatus.contact },
       ],
     },
     {
       title: 'SETTINGS',
-      items: [{ id: 'settings', label: 'Status & Config', icon: <CogIcon />, isComplete: completionStatus.settings }],
+      items: [{ id: 'property-settings', label: 'Status & Config', icon: <CogIcon />, isComplete: completionStatus.settings }],
     },
   ], [completionStatus]);
 
@@ -554,14 +607,6 @@ export const PropertyDetailPage: React.FC = () => {
       </div>
     </div>
   );
-
-  // Debug: Log property to check values
-  console.log('=== PROPERTY DEBUG ===');
-  console.log('is_listed_publicly:', property?.is_listed_publicly);
-  console.log('slug:', property?.slug);
-  console.log('listed_at:', property?.listed_at);
-  console.log('Condition check:', property?.is_listed_publicly && property?.slug);
-  console.log('=====================');
 
   // Right sidebar with PropertyPreviewCard
   const rightSidebar = (
@@ -676,7 +721,7 @@ export const PropertyDetailPage: React.FC = () => {
   // Render content based on active view
   const renderContent = () => {
     switch (activeView) {
-      case 'overview':
+      case 'property-overview':
         return (
           <div className="space-y-6">
             {/* Featured Image Banner */}
@@ -855,7 +900,7 @@ export const PropertyDetailPage: React.FC = () => {
           </div>
         );
 
-      case 'info':
+      case 'property-info':
         return (
           <Card>
             <div className="p-6 space-y-4">
@@ -923,7 +968,7 @@ export const PropertyDetailPage: React.FC = () => {
           </Card>
         );
 
-      case 'description':
+      case 'property-description':
         return (
           <div className="space-y-6">
             <Card>
@@ -983,7 +1028,7 @@ export const PropertyDetailPage: React.FC = () => {
           </div>
         );
 
-      case 'address':
+      case 'property-address':
         return (
           <Card>
             <div className="p-6 space-y-4">
@@ -1049,7 +1094,7 @@ export const PropertyDetailPage: React.FC = () => {
           </Card>
         );
 
-      case 'contact':
+      case 'property-contact':
         return (
           <Card>
             <div className="p-6 space-y-4">
@@ -1065,47 +1110,25 @@ export const PropertyDetailPage: React.FC = () => {
                 defaultCountry="ZA"
               />
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <Input
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => handleFieldChange('email', e.target.value)}
-                    placeholder="bookings@property.com"
-                    className="pl-10"
-                    fullWidth
-                  />
-                </div>
-              </div>
+              <Input
+                label="Email"
+                type="email"
+                value={formData.email || ''}
+                onChange={(e) => handleFieldChange('email', e.target.value)}
+                placeholder="bookings@property.com"
+                leftIcon={<Mail className="w-5 h-5" />}
+                fullWidth
+              />
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Website
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                    </svg>
-                  </div>
-                  <Input
-                    type="url"
-                    value={formData.website || ''}
-                    onChange={(e) => handleFieldChange('website', e.target.value)}
-                    placeholder="https://www.yourproperty.com"
-                    className="pl-10"
-                    fullWidth
-                  />
-                </div>
-              </div>
+              <Input
+                label="Website"
+                type="url"
+                value={formData.website || ''}
+                onChange={(e) => handleFieldChange('website', e.target.value)}
+                placeholder="https://www.yourproperty.com"
+                leftIcon={<Globe className="w-5 h-5" />}
+                fullWidth
+              />
 
               {/* Save/Cancel Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
@@ -1129,7 +1152,7 @@ export const PropertyDetailPage: React.FC = () => {
           </Card>
         );
 
-      case 'settings':
+      case 'property-settings':
         return (
           <div className="space-y-6">
             <Card>
@@ -1228,8 +1251,8 @@ export const PropertyDetailPage: React.FC = () => {
         <span className="ml-2">Back to Properties</span>
       </Button>
 
-      {/* Top-level tabs: Property Details / Listing Details */}
-      <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as 'property' | 'listing')}>
+      {/* Top-level tabs: Property Details / Listing Details / Legal / Quote Requests */}
+      <Tabs value={mainTab} onValueChange={(value) => handleMainTabChange(value as 'property' | 'listing' | 'legal' | 'quotes')}>
         <div className="border-b border-gray-200 dark:border-dark-border mb-6">
           <TabsList variant="underline">
             <TabsTrigger value="property" variant="underline">
@@ -1237,6 +1260,12 @@ export const PropertyDetailPage: React.FC = () => {
             </TabsTrigger>
             <TabsTrigger value="listing" variant="underline">
               Listing Details
+            </TabsTrigger>
+            <TabsTrigger value="legal" variant="underline">
+              Legal
+            </TabsTrigger>
+            <TabsTrigger value="quotes" variant="underline">
+              Quote Requests
             </TabsTrigger>
           </TabsList>
         </div>
@@ -1269,6 +1298,16 @@ export const PropertyDetailPage: React.FC = () => {
             onFeaturedImageSave={handleFeaturedImageSave}
             onUpdate={fetchData}
           />
+        </TabsContent>
+
+        {/* Legal Tab */}
+        <TabsContent value="legal" className="mt-0">
+          <PropertyLegalTab propertyId={id!} />
+        </TabsContent>
+
+        {/* Quote Requests Tab */}
+        <TabsContent value="quotes" className="mt-0">
+          <QuoteRequestsManagementTab propertyId={id!} />
         </TabsContent>
       </Tabs>
     </AuthenticatedLayout>

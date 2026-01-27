@@ -13,6 +13,7 @@ import { PolicyCard } from './PolicyCard';
 import type { CancellationPolicy } from '@/types/legal.types';
 
 interface CancellationPoliciesTabProps {
+  propertyId?: string; // Optional - when provided, scopes management to property context
   policies: CancellationPolicy[];
   isLoading: boolean;
   onRefresh: () => Promise<void>;
@@ -32,6 +33,7 @@ const ShieldCheckIcon = () => (
 );
 
 export const CancellationPoliciesTab: React.FC<CancellationPoliciesTabProps> = ({
+  propertyId,
   policies,
   isLoading,
   onRefresh,
@@ -43,11 +45,21 @@ export const CancellationPoliciesTab: React.FC<CancellationPoliciesTabProps> = (
   const [success, setSuccess] = useState<string | null>(null);
 
   const handleCreate = () => {
-    navigate('/legal/cancellation-policies/new');
+    // Navigate to create page with property context if available
+    if (propertyId) {
+      navigate(`/manage/properties/${propertyId}/legal/cancellation-policies/new`);
+    } else {
+      navigate('/legal/cancellation-policies/new');
+    }
   };
 
   const handleEdit = (policy: CancellationPolicy) => {
-    navigate(`/legal/cancellation-policies/${policy.id}/edit`);
+    // Navigate to edit page with property context if available
+    if (propertyId) {
+      navigate(`/manage/properties/${propertyId}/legal/cancellation-policies/${policy.id}/edit`);
+    } else {
+      navigate(`/legal/cancellation-policies/${policy.id}/edit`);
+    }
   };
 
   const handleDelete = (policy: CancellationPolicy) => {
@@ -96,7 +108,10 @@ export const CancellationPoliciesTab: React.FC<CancellationPoliciesTabProps> = (
             Cancellation Policies
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage cancellation policies used across all properties and rooms
+            {propertyId
+              ? 'Manage cancellation policies for this property'
+              : 'Manage cancellation policies used across all properties and rooms'
+            }
           </p>
         </div>
         <Button
@@ -147,6 +162,7 @@ export const CancellationPoliciesTab: React.FC<CancellationPoliciesTabProps> = (
             <PolicyCard
               key={policy.id}
               policy={policy}
+              propertyId={propertyId}
               onEdit={handleEdit}
               onDelete={handleDelete}
             />

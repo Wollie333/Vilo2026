@@ -3,7 +3,7 @@
  * Handles public property directory and search functionality
  */
 
-import { getAnonClient } from '../config/supabase';
+import { getAnonClient, getAdminClient } from '../config/supabase';
 import type {
   PropertySearchFilters,
   PropertySearchResponse,
@@ -14,6 +14,7 @@ import type {
 } from '../types/discovery.types';
 
 const supabase = getAnonClient();
+const supabaseAdmin = getAdminClient();
 
 /**
  * Search public properties with filters
@@ -433,7 +434,9 @@ export async function getPublicPropertyDetail(
   // OPTIMIZED: Fetch property with all related data in parallel using joins
   // This reduces 13+ sequential queries to 3-4 parallel queries
 
-  // Query 1: Property with nested relations (company, location, policy)
+  console.log('🔍 [Discovery Service] Looking for property with slug:', slug);
+
+  // Query 1: Property with nested relations (company, location)
   const propertyPromise = supabase
     .from('properties')
     .select(`
@@ -441,8 +444,7 @@ export async function getPublicPropertyDetail(
       companies:company_id(name, logo_url),
       countries:country_id(name),
       provinces:province_id(name),
-      cities:city_id(name),
-      cancellation_policies:cancellation_policy(name, description)
+      cities:city_id(name)
     `)
     .eq('slug', slug)
     .eq('is_listed_publicly', true)
@@ -484,7 +486,8 @@ export async function getPublicPropertyDetail(
           end_date,
           price_per_night,
           priority,
-          is_active
+          is_active,
+          name
         )
       `)
       .eq('property_id', propertyData.id)
@@ -505,7 +508,45 @@ export async function getPublicPropertyDetail(
       .order('created_at', { ascending: false });
   })();
 
-  // Query 4: Add-ons - parallel
+  // Query 4: Promotions (both property-level and room-specific) - parallel
+  const promotionsPromise = (async () => {
+    const { data: propertyData } = await propertyPromise;
+    if (!propertyData) return { data: null, error: null };
+
+    console.log('🎟️ [Discovery Service] Fetching promotions for property:', propertyData.id);
+
+    // Use admin client to bypass RLS since promotions should be publicly visible
+    const result = await supabaseAdmin
+      .from('room_promotions')
+      .select(`
+        id,
+        room_id,
+        name,
+        code,
+        description,
+        discount_type,
+        discount_value,
+        valid_from,
+        valid_until,
+        is_active,
+        is_claimable,
+        max_uses,
+        current_uses,
+        min_nights
+      `)
+      .eq('property_id', propertyData.id)
+      .eq('is_active', true);
+
+    console.log('🎟️ [Discovery Service] Promotions query result:', {
+      data: result.data,
+      error: result.error,
+      count: result.data?.length || 0,
+    });
+
+    return result;
+  })();
+
+  // Query 5: Add-ons - parallel
   const addonsPromise = (async () => {
     const { data: propertyData } = await propertyPromise;
     if (!propertyData) return { data: null, error: null };
@@ -519,7 +560,53 @@ export async function getPublicPropertyDetail(
       .order('name', { ascending: true });
   })();
 
-  // Query 5: Wishlist check (conditional) - parallel
+  // Query 6: Cancellation Policy (if property has one)
+  const policyPromise = (async () => {
+    const { data: propertyData } = await propertyPromise;
+
+    console.log('🔍 [DISCOVERY] Checking cancellation policy for property:', {
+      property_id: propertyData?.id,
+      property_name: propertyData?.name,
+      cancellation_policy_value: propertyData?.cancellation_policy,
+      has_policy: !!propertyData?.cancellation_policy
+    });
+
+    if (!propertyData || !propertyData.cancellation_policy) {
+      console.log('⚠️ [DISCOVERY] Property has no cancellation_policy assigned');
+      return { data: null, error: null };
+    }
+
+    // Check if it's a UUID (new schema) or text (old schema)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyData.cancellation_policy);
+
+    console.log('🔍 [DISCOVERY] Cancellation policy type:', {
+      isUUID,
+      value: propertyData.cancellation_policy
+    });
+
+    if (isUUID) {
+      const result = await supabase
+        .from('cancellation_policies')
+        .select('id, name, description, tiers')
+        .eq('id', propertyData.cancellation_policy)
+        .single();
+
+      console.log('✅ [DISCOVERY] Cancellation policy query result:', {
+        found: !!result.data,
+        policy_name: result.data?.name,
+        tiers_count: result.data?.tiers?.length || 0,
+        error: result.error
+      });
+
+      return result;
+    } else {
+      // Old schema: cancellation_policy is the text itself
+      console.log('⚠️ [DISCOVERY] Property uses old text-based cancellation policy (not UUID)');
+      return { data: null, error: null };
+    }
+  })();
+
+  // Query 7: Wishlist check (conditional) - parallel
   const wishlistPromise = userId
     ? (async () => {
         const { data: propertyData } = await propertyPromise;
@@ -539,29 +626,91 @@ export async function getPublicPropertyDetail(
     { data: property, error: propertyError },
     { data: rooms, error: roomsError },
     { data: reviews, error: reviewsError },
+    { data: promotions, error: promotionsError },
     { data: addons, error: addonsError },
+    { data: policyData, error: policyError },
     { data: wishlist, error: wishlistError },
   ] = await Promise.all([
     propertyPromise,
     roomsPromise,
     reviewsPromise,
+    promotionsPromise,
     addonsPromise,
+    policyPromise,
     wishlistPromise,
   ]);
 
+  // Debug logging for query results
+  console.log('📊 [Discovery Service] Query results:', {
+    property: property ? 'OK' : 'NULL',
+    rooms: rooms ? `${rooms.length} rooms` : 'NULL',
+    roomsError: roomsError ? roomsError.message : 'None',
+    reviews: reviews ? `${reviews.length} reviews` : 'NULL',
+    promotions: promotions ? `${promotions.length} promotions` : 'NULL',
+    promotionsError: promotionsError ? promotionsError.message : 'None',
+    addons: addons ? `${addons.length} addons` : 'NULL',
+  });
+
   if (propertyError || !property) {
-    console.error('Failed to fetch property:', propertyError);
+    console.error('❌ [Discovery Service] Failed to fetch property:', propertyError);
+    console.error('   Slug searched:', slug);
+    console.error('   Filters: is_listed_publicly=true, is_active=true');
+
+    // Check if property exists without filters
+    const { data: anyProperty } = await supabase
+      .from('properties')
+      .select('id, slug, name, is_listed_publicly, is_active')
+      .eq('slug', slug)
+      .single();
+
+    console.error('   Property exists (without filters)?', anyProperty ? 'YES' : 'NO');
+    if (anyProperty) {
+      console.error('   Property details:', {
+        id: anyProperty.id,
+        name: anyProperty.name,
+        slug: anyProperty.slug,
+        is_listed_publicly: anyProperty.is_listed_publicly,
+        is_active: anyProperty.is_active,
+      });
+    }
+
     return null;
   }
 
-  // Process rooms data (beds and seasonal rates are now nested)
-  const enrichedRooms = rooms?.map((room: any) => ({
-    ...room,
-    beds: room.room_beds || [],
-    seasonal_rates: (room.room_seasonal_rates || []).filter((sr: any) => sr.is_active),
-    gallery_images: room.gallery_images || [],
-    amenities: room.amenities || [],
-  })) || [];
+  // Separate promotions into property-level and room-specific
+  const propertyLevelPromotions = (promotions || []).filter((p: any) => p.room_id === null);
+  const roomSpecificPromotions = (promotions || []).filter((p: any) => p.room_id !== null);
+
+  console.log('🎟️ [Discovery Service] Promotions breakdown:', {
+    total: promotions?.length || 0,
+    propertyLevel: propertyLevelPromotions.length,
+    roomSpecific: roomSpecificPromotions.length,
+  });
+
+  // Process rooms data (beds, seasonal rates, and promotions)
+  const enrichedRooms = rooms?.map((room: any) => {
+    // Get room-specific promotions for this room
+    const thisRoomPromotions = roomSpecificPromotions.filter((p: any) => p.room_id === room.id);
+
+    // Combine property-level promotions with room-specific promotions
+    const allRoomPromotions = [...propertyLevelPromotions, ...thisRoomPromotions];
+
+    console.log(`🎟️ Room "${room.name}" promotions:`, {
+      propertyLevel: propertyLevelPromotions.length,
+      roomSpecific: thisRoomPromotions.length,
+      total: allRoomPromotions.length,
+      promotions: allRoomPromotions,
+    });
+
+    return {
+      ...room,
+      beds: room.room_beds || [],
+      seasonal_rates: (room.room_seasonal_rates || []).filter((sr: any) => sr.is_active),
+      promotions: allRoomPromotions,
+      gallery_images: room.gallery_images || [],
+      amenities: room.amenities || [],
+    };
+  }) || [];
 
   // Calculate pricing
   const prices = enrichedRooms.map((r) => r.base_price_per_night).filter(Boolean);
@@ -600,7 +749,6 @@ export async function getPublicPropertyDetail(
   const country = (property as any).countries || null;
   const province = (property as any).provinces || null;
   const city = (property as any).cities || null;
-  const cancellationPolicy = (property as any).cancellation_policies || null;
 
   // Check wishlist status
   const is_in_wishlist = !!wishlist;
@@ -638,7 +786,14 @@ export async function getPublicPropertyDetail(
     highlights: property.highlights || [],
     check_in_time: property.check_in_time,
     check_out_time: property.check_out_time,
-    cancellation_policy: cancellationPolicy?.description || null,
+    cancellation_policy: policyData?.description || policyData?.name || property.cancellation_policy || null,
+    cancellation_policy_detail: policyData ? {
+      id: policyData.id,
+      name: policyData.name,
+      description: policyData.description,
+      tiers: policyData.tiers || [],
+    } : null,
+    terms_and_conditions: property.terms_and_conditions || null,
     house_rules: property.house_rules || [],
     whats_included: property.whats_included || [],
     phone: property.phone,
@@ -646,6 +801,7 @@ export async function getPublicPropertyDetail(
     website: property.website,
     company_name: company?.name || null,
     company_logo: company?.logo_url || null,
+    owner_id: property.owner_id, // Include owner ID for chat functionality
     min_price,
     max_price,
     currency: property.currency || 'ZAR',
@@ -659,6 +815,15 @@ export async function getPublicPropertyDetail(
     addons: addons || [],
     is_in_wishlist,
   };
+
+  console.log('📦 [DISCOVERY] Returning property detail with cancellation_policy_detail:', {
+    property_id: property.id,
+    property_name: property.name,
+    has_cancellation_policy_detail: !!propertyDetail.cancellation_policy_detail,
+    policy_detail: propertyDetail.cancellation_policy_detail
+  });
+
+  return propertyDetail;
 }
 
 /**

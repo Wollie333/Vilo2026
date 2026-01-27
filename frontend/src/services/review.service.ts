@@ -86,6 +86,19 @@ class ReviewService {
   }
 
   /**
+   * Get review status for a booking (for BookingDetailPage integration)
+   */
+  async getBookingReviewStatus(bookingId: string): Promise<{
+    eligible: boolean;
+    hasReview: boolean;
+    review: Review | null;
+    daysRemaining: number;
+    reason?: string;
+  }> {
+    return api.get(`/reviews/booking/${bookingId}/status`);
+  }
+
+  /**
    * Create a new review
    */
   async createReview(data: CreateReviewInput): Promise<Review> {
@@ -237,6 +250,17 @@ class ReviewService {
    */
   async deleteReview(reviewId: string): Promise<void> {
     return api.delete(`/reviews/admin/${reviewId}`);
+  }
+
+  /**
+   * Get all reviews for a specific user (super admin only)
+   * Includes reviews written by user + reviews for user's properties
+   */
+  async getUserReviews(
+    userId: string,
+    params?: { status?: string; rating?: number; property_id?: string }
+  ): Promise<Review[]> {
+    return api.get(`/users/${userId}/reviews`, { params });
   }
 
   // ============================================================================

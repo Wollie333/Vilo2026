@@ -42,7 +42,15 @@ export const PricingStep: React.FC<PricingStepProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = <K extends keyof typeof data>(field: K, value: (typeof data)[K]) => {
+    // 💰 PRICE DEBUG: Log when price changes
+    if (field === 'base_price_per_night') {
+      console.log('=== 💰 [PRICING_STEP] Price input changed ===');
+      console.log('💰 [PRICING_STEP] New value:', value);
+      console.log('💰 [PRICING_STEP] Value type:', typeof value);
+    }
+
     onChange({ ...data, [field]: value });
+
     // Clear error when field is edited
     if (errors[field as string]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));

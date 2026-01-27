@@ -4,7 +4,12 @@ import { createAuditLog } from './audit.service';
 import { sendNotification } from './notifications.service';
 import { refundPaystackTransaction, refundPayPalTransaction } from './payment.service';
 import { logger } from '../utils/logger';
-import { formatCurrency } from '../types/booking.types';
+import {
+  sendRefundRequestedEmailToAdmin,
+  sendRefundApprovedEmailToGuest,
+  sendRefundRejectedEmailToGuest,
+  sendRefundCompletedEmailToGuest
+} from './refund-emails.service';
 import type {
   RefundRequest,
   RefundRequestWithDetails,
@@ -28,7 +33,7 @@ import type {
   UploadRefundDocumentDTO,
   RefundDocumentType,
 } from '../types/refund.types';
-import type { BookingWithDetails, BookingPayment } from '../types/booking.types';
+import type { BookingWithDetails, BookingPayment, RefundStatus } from '../types/booking.types';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -124,7 +129,7 @@ export const validateRefundEligibility = async (
     .in('status', ['requested', 'under_review', 'approved', 'processing']);
 
   if (activeError) {
-    logger.error('Error checking active refund requests:', activeError);
+    logger.error('Error checking active refund requests:', { message: activeError.message, code: activeError.code });
     throw new AppError('INTERNAL_ERROR', 'Failed to validate refund eligibility');
   }
 
@@ -227,7 +232,7 @@ export const createRefundRequest = async (
     .single();
 
   if (createError || !refundRequest) {
-    logger.error('Error creating refund request:', createError);
+    logger.error('Error creating refund request:', { message: createError.message, code: createError.code });
     throw new AppError('INTERNAL_ERROR', 'Failed to create refund request');
   }
 
@@ -257,7 +262,7 @@ export const createRefundRequest = async (
           guest_name: `${(booking as any).guest?.first_name || ''} ${(booking as any).guest?.last_name || ''}`.trim() || 'Guest',
           guest_email: (booking as any).guest?.email || '',
           property_name: property.name,
-          requested_amount: formatCurrency(refundRequest.requested_amount, refundRequest.currency),
+          requested_amount: `${refundRequest.currency} ${refundRequest.requested_amount}`,
           reason: refundRequest.reason,
           dashboard_url: process.env.DASHBOARD_URL || 'http://localhost:5173',
         },
@@ -265,6 +270,27 @@ export const createRefundRequest = async (
       }).catch((error) => {
         logger.error('Failed to send refund requested notification:', error);
         // Don't throw - notification failure shouldn't block refund creation
+      });
+    }
+
+    // Send email to admin
+    const { data: ownerUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', property.owner_id)
+      .single();
+
+    if (ownerUser?.email) {
+      await sendRefundRequestedEmailToAdmin({
+        adminEmail: ownerUser.email,
+        guestName: `${(booking as any).guest?.first_name || ''} ${(booking as any).guest?.last_name || ''}`.trim() || 'Guest',
+        bookingReference: (booking as any).booking_reference || bookingId.slice(0, 8),
+        refundAmount: refundRequest.requested_amount,
+        currency: refundRequest.currency,
+        reason: refundRequest.reason,
+        refundId: refundRequest.id,
+      }).catch((error) => {
+        logger.error('Failed to send refund requested email:', error);
       });
     }
   }
@@ -332,7 +358,7 @@ export const withdrawRefundRequest = async (
     .single();
 
   if (updateError || !updatedRefund) {
-    logger.error('Error withdrawing refund request:', updateError);
+    logger.error('Error withdrawing refund request:', { message: updateError.message, code: updateError.code });
     throw new AppError('INTERNAL_ERROR', 'Failed to withdraw refund request');
   }
 
@@ -366,7 +392,7 @@ export const withdrawRefundRequest = async (
           portal_url: process.env.PORTAL_URL || 'http://localhost:5173',
           dashboard_url: process.env.DASHBOARD_URL || 'http://localhost:5173',
         },
-        priority: 'medium',
+        priority: 'normal',
       }).catch((error) => {
         logger.error('Failed to send refund cancelled notification:', error);
       });
@@ -579,6 +605,21 @@ export const listRefundRequests = async (
   };
 };
 
+/**
+ * Get all refund requests for a specific user
+ * Used by super admin to view all user's refund requests
+ */
+export const getRefundsByUser = async (
+  userId: string,
+  params?: Omit<RefundListParams, 'requested_by'>
+): Promise<RefundListResponse> => {
+  // Call listRefundRequests with requested_by set to userId
+  return listRefundRequests({
+    ...params,
+    requested_by: userId,
+  });
+};
+
 // ============================================================================
 // ADMIN APPROVAL WORKFLOW
 // ============================================================================
@@ -697,6 +738,12 @@ export const approveRefund = async (
     .select(`
       id,
       booking_reference,
+      guest:users!bookings_guest_id_fkey(
+        id,
+        email,
+        first_name,
+        last_name
+      ),
       property:properties(id, name)
     `)
     .eq('id', refundRequest.booking_id)
@@ -705,11 +752,11 @@ export const approveRefund = async (
   if (booking) {
     await sendNotification({
       template_key: 'refund_approved',
-      recipient_ids: [refundRequest.requested_by],
+      recipient_ids: [refundRequest.requested_by!],
       data: {
         booking_reference: (booking as any).booking_reference || booking.id.slice(0, 8),
         booking_id: booking.id,
-        approved_amount: formatCurrency(approvedAmount, updated.currency),
+        approved_amount: `${updated.currency} ${approvedAmount}`,
         property_name: (booking as any).property?.name || 'Property',
         admin_notes: input.customer_notes || '',
         portal_url: process.env.PORTAL_URL || 'http://localhost:5173',
@@ -718,6 +765,21 @@ export const approveRefund = async (
     }).catch((error) => {
       logger.error('Failed to send refund approved notification:', error);
     });
+
+    // Send email to guest
+    const guest = (booking as any).guest;
+    if (guest?.email) {
+      await sendRefundApprovedEmailToGuest({
+        guestEmail: guest.email,
+        guestName: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Guest',
+        bookingReference: (booking as any).booking_reference || booking.id.slice(0, 8),
+        approvedAmount: approvedAmount,
+        currency: updated.currency,
+        refundId: id,
+      }).catch((error) => {
+        logger.error('Failed to send refund approved email:', error);
+      });
+    }
   }
 
   logger.info(`Refund request ${id} approved by ${userId} (amount: ${approvedAmount})`);
@@ -829,6 +891,12 @@ export const rejectRefund = async (
     .select(`
       id,
       booking_reference,
+      guest:users!bookings_guest_id_fkey(
+        id,
+        email,
+        first_name,
+        last_name
+      ),
       property:properties(id, name)
     `)
     .eq('id', refundRequest.booking_id)
@@ -837,7 +905,7 @@ export const rejectRefund = async (
   if (booking) {
     await sendNotification({
       template_key: 'refund_rejected',
-      recipient_ids: [refundRequest.requested_by],
+      recipient_ids: [refundRequest.requested_by!],
       data: {
         booking_reference: (booking as any).booking_reference || booking.id.slice(0, 8),
         booking_id: booking.id,
@@ -849,6 +917,20 @@ export const rejectRefund = async (
     }).catch((error) => {
       logger.error('Failed to send refund rejected notification:', error);
     });
+
+    // Send email to guest
+    const guest = (booking as any).guest;
+    if (guest?.email) {
+      await sendRefundRejectedEmailToGuest({
+        guestEmail: guest.email,
+        guestName: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Guest',
+        bookingReference: (booking as any).booking_reference || booking.id.slice(0, 8),
+        rejectionReason: input.customer_notes,
+        refundId: id,
+      }).catch((error) => {
+        logger.error('Failed to send refund rejected email:', error);
+      });
+    }
   }
 
   logger.info(`Refund request ${id} rejected by ${userId}`);
@@ -966,10 +1048,10 @@ export const processRefund = async (
 
   // Send processing started notification
   if (booking?.property) {
-    const adminIds = await getPropertyAdminIds(booking.property.owner_id);
+    const adminIds = await getPropertyAdminIds((booking.property as any)?.owner_id);
     const recipientIds = [
       refundRequest.requested_by,
-      booking.property.owner_id,
+      (booking.property as any)?.owner_id,
       ...adminIds,
     ].filter(Boolean);
 
@@ -980,8 +1062,8 @@ export const processRefund = async (
         refund_reference: refundRequest.id.slice(0, 8),
         booking_reference: booking.booking_reference || refundRequest.booking_id.slice(0, 8),
         booking_id: refundRequest.booking_id,
-        refund_amount: formatCurrency(refundRequest.approved_amount || 0, refundRequest.currency),
-        property_name: booking.property.name,
+        refund_amount: `${refundRequest.currency} ${refundRequest.approved_amount || 0}`,
+        property_name: (booking.property as any)?.name,
         dashboard_url: process.env.DASHBOARD_URL || 'http://localhost:5173',
         portal_url: process.env.PORTAL_URL || 'http://localhost:5173',
       },
@@ -1114,13 +1196,13 @@ export const processRefund = async (
   if (finalStatus === 'completed' && booking?.property) {
     await sendNotification({
       template_key: 'refund_processing_completed',
-      recipient_ids: [refundRequest.requested_by],
+      recipient_ids: [refundRequest.requested_by!],
       data: {
         refund_reference: refundRequest.id.slice(0, 8),
         booking_reference: booking.booking_reference || refundRequest.booking_id.slice(0, 8),
         booking_id: refundRequest.booking_id,
-        refund_amount: formatCurrency(refundRequest.approved_amount || 0, refundRequest.currency),
-        property_name: booking.property.name,
+        refund_amount: `${refundRequest.currency} ${refundRequest.approved_amount || 0}`,
+        property_name: (booking.property as any)?.name,
         portal_url: process.env.PORTAL_URL || 'http://localhost:5173',
       },
       priority: 'high',
@@ -1201,7 +1283,7 @@ export const markManualRefundComplete = async (
     .single();
 
   if (updateError || !updated) {
-    logger.error('Error marking manual refund complete:', updateError);
+    logger.error('Error marking manual refund complete:', { message: updateError.message, code: updateError.code });
     throw new AppError('INTERNAL_ERROR', 'Failed to mark refund as complete');
   }
 
@@ -1209,6 +1291,38 @@ export const markManualRefundComplete = async (
     // TODO: Generate credit memo
     // TODO: Update booking refund status
     logger.info(`Refund ${refundRequestId} completed`);
+
+    // Send completion email to guest
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        booking_reference,
+        guest:users!bookings_guest_id_fkey(
+          id,
+          email,
+          first_name,
+          last_name
+        )
+      `)
+      .eq('id', refundRequest.booking_id)
+      .single();
+
+    if (booking) {
+      const guest = (booking as any).guest;
+      if (guest?.email) {
+        await sendRefundCompletedEmailToGuest({
+          guestEmail: guest.email,
+          guestName: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Guest',
+          bookingReference: (booking as any).booking_reference || booking.id.slice(0, 8),
+          refundedAmount: refundRequest.approved_amount,
+          currency: refundRequest.currency,
+          refundId: refundRequestId,
+        }).catch((error) => {
+          logger.error('Failed to send refund completed email:', error);
+        });
+      }
+    }
   }
 
   // Create audit log
@@ -1249,7 +1363,7 @@ export const getRefundStatus = async (bookingId: string): Promise<RefundStatusSu
     .order('created_at', { ascending: false });
 
   if (refundsError) {
-    logger.error('Error fetching refunds:', refundsError);
+    logger.error('Error fetching refunds:', { message: refundsError.message, code: refundsError.code });
     throw new AppError('INTERNAL_ERROR', 'Failed to fetch refund status');
   }
 
@@ -1285,7 +1399,7 @@ export const updateBookingRefundStatus = async (bookingId: string): Promise<void
     .eq('status', 'completed');
 
   if (refundsError) {
-    logger.error('Error fetching completed refunds:', refundsError);
+    logger.error('Error fetching completed refunds:', { message: refundsError.message, code: refundsError.code });
     return;
   }
 
@@ -1417,7 +1531,7 @@ export const addRefundComment = async (
                 comment_text: data.comment_text,
                 dashboard_url: process.env.DASHBOARD_URL || 'http://localhost:5173',
               },
-              priority: 'medium',
+              priority: 'normal',
             }).catch((error) => {
               logger.error('Failed to send comment notification to admins:', error);
             });
@@ -1434,7 +1548,7 @@ export const addRefundComment = async (
             comment_text: data.comment_text,
             portal_url: process.env.PORTAL_URL || 'http://localhost:5173',
           },
-          priority: 'medium',
+          priority: 'normal',
         }).catch((error) => {
           logger.error('Failed to send comment notification to guest:', error);
         });
@@ -1643,7 +1757,7 @@ export const uploadRefundDocument = async (
       });
 
     if (uploadError) {
-      logger.error('Error uploading file to storage:', uploadError);
+      logger.error('Error uploading file to storage:', { message: uploadError.message });
       throw new AppError('INTERNAL_ERROR', 'Failed to upload file');
     }
 
@@ -1672,7 +1786,7 @@ export const uploadRefundDocument = async (
       .single();
 
     if (insertError) {
-      logger.error('Error inserting document record:', insertError);
+      logger.error('Error inserting document record:', { message: insertError.message, code: insertError.code });
       // Clean up uploaded file
       await supabase.storage.from('refund-documents').remove([storagePath]);
       throw new AppError('INTERNAL_ERROR', 'Failed to save document metadata');
@@ -1730,7 +1844,7 @@ export const uploadRefundDocument = async (
               file_name: file.originalname,
               dashboard_url: process.env.DASHBOARD_URL || 'http://localhost:5173',
             },
-            priority: 'medium',
+            priority: 'normal',
           }).catch((error) => {
             logger.error('Failed to send document uploaded notification:', error);
           });
@@ -1868,7 +1982,7 @@ export const deleteRefundDocument = async (
       .remove([document.storage_path]);
 
     if (storageError) {
-      logger.error('Error deleting file from storage:', storageError);
+      logger.error('Error deleting file from storage:', { message: storageError.message, code: storageError.code });
       // Continue with database deletion even if storage delete fails
     }
 
@@ -1879,7 +1993,7 @@ export const deleteRefundDocument = async (
       .eq('id', documentId);
 
     if (deleteError) {
-      logger.error('Error deleting document record:', deleteError);
+      logger.error('Error deleting document record:', { message: deleteError.message });
       throw new AppError('INTERNAL_ERROR', 'Failed to delete document');
     }
 
@@ -1951,7 +2065,7 @@ export const verifyRefundDocument = async (
       .single();
 
     if (updateError) {
-      logger.error('Error verifying document:', updateError);
+      logger.error('Error verifying document:', { message: updateError.message, code: updateError.code });
       throw new AppError('INTERNAL_ERROR', 'Failed to verify document');
     }
 
@@ -2059,7 +2173,7 @@ export const getDocumentDownloadUrl = async (
       .createSignedUrl(document.storage_path, 3600);
 
     if (urlError || !signedUrl) {
-      logger.error('Error generating signed URL:', urlError);
+      logger.error('Error generating signed URL:', { message: urlError.message, code: urlError.code });
       throw new AppError('INTERNAL_ERROR', 'Failed to generate download URL');
     }
 
@@ -2130,12 +2244,25 @@ export const markRefundAsCompleted = async (refundId: string): Promise<void> => 
     // Get current refund request
     const { data: refundRequest, error: fetchError } = await supabase
       .from('refund_requests')
-      .select('*, booking:bookings(id, booking_reference, property:properties(id, name))')
+      .select(`
+        *,
+        booking:bookings(
+          id,
+          booking_reference,
+          guest:users!bookings_guest_id_fkey(
+            id,
+            email,
+            first_name,
+            last_name
+          ),
+          property:properties(id, name)
+        )
+      `)
       .eq('id', refundId)
       .single();
 
     if (fetchError || !refundRequest) {
-      logger.error('Error fetching refund request:', fetchError);
+      logger.error('Error fetching refund request:', { message: fetchError.message, code: fetchError.code });
       throw new AppError('NOT_FOUND', 'Refund request not found');
     }
 
@@ -2153,7 +2280,7 @@ export const markRefundAsCompleted = async (refundId: string): Promise<void> => 
       .single();
 
     if (updateError || !updated) {
-      logger.error('Error marking refund as completed:', updateError);
+      logger.error('Error marking refund as completed:', { message: updateError.message, code: updateError.code });
       throw new AppError('INTERNAL_ERROR', 'Failed to mark refund as completed');
     }
 
@@ -2162,18 +2289,33 @@ export const markRefundAsCompleted = async (refundId: string): Promise<void> => 
     if (booking) {
       await sendNotification({
         template_key: 'refund_completed',
-        recipient_ids: [refundRequest.requested_by],
+        recipient_ids: [refundRequest.requested_by!],
         data: {
           booking_reference: booking.booking_reference || booking.id.slice(0, 8),
           booking_id: booking.id,
-          total_refunded: formatCurrency(refundRequest.approved_amount, refundRequest.currency),
+          total_refunded: `${refundRequest.currency} ${refundRequest.approved_amount}`,
           property_name: booking.property?.name || 'Property',
           portal_url: process.env.PORTAL_URL || 'http://localhost:5173',
         },
-        priority: 'medium',
+        priority: 'normal',
       }).catch((error) => {
         logger.error('Failed to send refund completed notification:', error);
       });
+
+      // Send email to guest
+      const guest = booking.guest;
+      if (guest?.email) {
+        await sendRefundCompletedEmailToGuest({
+          guestEmail: guest.email,
+          guestName: `${guest.first_name || ''} ${guest.last_name || ''}`.trim() || 'Guest',
+          bookingReference: booking.booking_reference || booking.id.slice(0, 8),
+          refundedAmount: refundRequest.approved_amount,
+          currency: refundRequest.currency,
+          refundId: refundId,
+        }).catch((error) => {
+          logger.error('Failed to send refund completed email:', error);
+        });
+      }
     }
 
     // Create audit log
@@ -2212,7 +2354,7 @@ export const markRefundAsFailed = async (
       .single();
 
     if (fetchError || !refundRequest) {
-      logger.error('Error fetching refund request:', fetchError);
+      logger.error('Error fetching refund request:', { message: fetchError.message, code: fetchError.code });
       throw new AppError('NOT_FOUND', 'Refund request not found');
     }
 
@@ -2230,7 +2372,7 @@ export const markRefundAsFailed = async (
       .single();
 
     if (updateError || !updated) {
-      logger.error('Error marking refund as failed:', updateError);
+      logger.error('Error marking refund as failed:', { message: updateError.message, code: updateError.code });
       throw new AppError('INTERNAL_ERROR', 'Failed to mark refund as failed');
     }
 

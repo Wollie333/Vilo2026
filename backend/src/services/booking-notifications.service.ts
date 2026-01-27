@@ -3,10 +3,14 @@
  *
  * Handles sending notifications for booking-related events.
  * Integrates with the main notification system.
+ *
+ * NOTE: This service uses database templates with fallback to hardcoded templates.
+ * Try template-based sending first, fallback to hardcoded on error.
  */
 
 import { createNotification } from './notifications.service';
 import { sendNotificationEmail, wrapInEmailTemplate } from './email.service';
+import * as emailTemplateService from './email-template.service';
 import { logger } from '../utils/logger';
 import type { BookingWithDetails } from '../types/booking.types';
 
@@ -25,7 +29,7 @@ interface BookingNotificationData {
 // Email Templates
 // ============================================================================
 
-const getBookingConfirmationEmailHtml = (booking: BookingWithDetails): string => {
+const getBookingConfirmationEmailHtml = (booking: BookingWithDetails, temporaryPassword?: string | null): string => {
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-ZA', {
     weekday: 'long',
     year: 'numeric',
@@ -111,6 +115,30 @@ const getBookingConfirmationEmailHtml = (booking: BookingWithDetails): string =>
         <div style="background-color: #fef3c7; border-radius: 8px; padding: 15px; margin: 20px 0;">
           <strong>Special Requests:</strong>
           <p style="margin: 5px 0 0 0;">${booking.special_requests}</p>
+        </div>
+        ` : ''}
+
+        ${temporaryPassword ? `
+        <div style="background-color: #dbeafe; border-left: 4px solid #047857; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #047857; margin-top: 0;">Your Guest Account</h3>
+          <p style="margin: 10px 0;">We've created a guest account so you can manage your booking online.</p>
+
+          <div style="background-color: white; border-radius: 6px; padding: 15px; margin: 15px 0;">
+            <p style="margin: 5px 0;"><strong>Email:</strong> ${booking.guest_email}</p>
+            <p style="margin: 5px 0;"><strong>Temporary Password:</strong> <code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 14px;">${temporaryPassword}</code></p>
+          </div>
+
+          <p style="margin: 15px 0 10px 0;"><strong>To access your booking:</strong></p>
+          <ol style="margin: 0; padding-left: 20px;">
+            <li>Visit <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="color: #047857; text-decoration: none;">Vilo Guest Portal</a></li>
+            <li>Log in with your email and temporary password</li>
+            <li>Set a new password for security</li>
+            <li>View and manage your bookings</li>
+          </ol>
+
+          <p style="margin-top: 15px; font-size: 12px; color: #6b7280;">
+            <strong>Important:</strong> Please change your password after your first login for security.
+          </p>
         </div>
         ` : ''}
 
@@ -282,29 +310,74 @@ const getNewBookingHostEmailHtml = (booking: BookingWithDetails): string => {
  * Send booking confirmation email to guest
  */
 export const sendBookingConfirmationEmail = async (
-  booking: BookingWithDetails
+  booking: BookingWithDetails,
+  temporaryPassword?: string | null
 ): Promise<void> => {
+  const templateKey = temporaryPassword ? 'booking_confirmation_temp_password' : 'booking_confirmation';
+
+  // Try template-based sending first
   try {
-    const htmlContent = getBookingConfirmationEmailHtml(booking);
-    const wrappedHtml = wrapInEmailTemplate(htmlContent, `Booking Confirmed - ${booking.booking_reference}`);
+    logger.info(`[BOOKING_NOTIFICATIONS] Attempting template-based send for ${templateKey}`);
 
-    await sendNotificationEmail(
-      booking.guest_email,
-      `Booking Confirmed - ${booking.booking_reference}`,
-      wrappedHtml,
-      booking.guest_name
-    );
+    const formatCurrency = (amount: number, currency: string = 'ZAR') => {
+      return new Intl.NumberFormat('en-ZA', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 0,
+      }).format(amount);
+    };
 
-    logger.info('Booking confirmation email sent', {
+    await emailTemplateService.sendEmailFromTemplate({
+      template_key: templateKey,
+      recipient_email: booking.guest_email,
+      variables: {
+        guest_name: booking.guest_name,
+        booking_reference: booking.booking_reference,
+        property_name: booking.property?.name || 'Property',
+        check_in_date: new Date(booking.check_in_date).toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        check_out_date: new Date(booking.check_out_date).toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        total_nights: booking.total_nights.toString(),
+        adults: booking.adults.toString(),
+        children: booking.children.toString(),
+        total_amount: formatCurrency(booking.total_amount, booking.currency),
+        temporary_password: temporaryPassword || '',
+      },
+      context_type: 'booking',
+      context_id: booking.id,
+    });
+
+    logger.info('Booking confirmation email sent (template-based)', {
       bookingId: booking.id,
       bookingReference: booking.booking_reference,
       guestEmail: booking.guest_email,
+      isNewGuestAccount: !!temporaryPassword,
     });
-  } catch (error) {
-    logger.error('Failed to send booking confirmation email', {
-      bookingId: booking.id,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+  } catch (templateError) {
+    logger.warn('[BOOKING_NOTIFICATIONS] Template-based send failed, using fallback', { error: templateError });
+
+    // Fallback to hardcoded template
+    try {
+      const htmlContent = getBookingConfirmationEmailHtml(booking, temporaryPassword);
+      const wrappedHtml = wrapInEmailTemplate(htmlContent, `Booking Confirmed - ${booking.booking_reference}`);
+
+      await sendNotificationEmail({
+        to: booking.guest_email,
+        subject: `Booking Confirmed - ${booking.booking_reference}`,
+        html: wrappedHtml,
+      });
+
+      logger.info('Booking confirmation email sent (fallback)', {
+        bookingId: booking.id,
+        bookingReference: booking.booking_reference,
+        guestEmail: booking.guest_email,
+        isNewGuestAccount: !!temporaryPassword,
+      });
+    } catch (error) {
+      logger.error('Failed to send booking confirmation email', {
+        bookingId: booking.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 };
 
@@ -315,27 +388,55 @@ export const sendBookingCancellationEmail = async (
   booking: BookingWithDetails,
   reason?: string
 ): Promise<void> => {
+  // Try template-based sending first
   try {
-    const htmlContent = getBookingCancellationEmailHtml(booking, reason);
-    const wrappedHtml = wrapInEmailTemplate(htmlContent, `Booking Cancelled - ${booking.booking_reference}`);
+    logger.info('[BOOKING_NOTIFICATIONS] Attempting template-based send for booking_cancelled');
 
-    await sendNotificationEmail(
-      booking.guest_email,
-      `Booking Cancelled - ${booking.booking_reference}`,
-      wrappedHtml,
-      booking.guest_name
-    );
+    await emailTemplateService.sendEmailFromTemplate({
+      template_key: 'booking_cancelled',
+      recipient_email: booking.guest_email,
+      variables: {
+        guest_name: booking.guest_name,
+        booking_reference: booking.booking_reference,
+        property_name: booking.property?.name || 'Property',
+        check_in_date: new Date(booking.check_in_date).toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        check_out_date: new Date(booking.check_out_date).toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        cancellation_reason: reason || '',
+      },
+      context_type: 'booking',
+      context_id: booking.id,
+    });
 
-    logger.info('Booking cancellation email sent', {
+    logger.info('Booking cancellation email sent (template-based)', {
       bookingId: booking.id,
       bookingReference: booking.booking_reference,
       guestEmail: booking.guest_email,
     });
-  } catch (error) {
-    logger.error('Failed to send booking cancellation email', {
-      bookingId: booking.id,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+  } catch (templateError) {
+    logger.warn('[BOOKING_NOTIFICATIONS] Template-based send failed, using fallback', { error: templateError });
+
+    // Fallback to hardcoded template
+    try {
+      const htmlContent = getBookingCancellationEmailHtml(booking, reason);
+      const wrappedHtml = wrapInEmailTemplate(htmlContent, `Booking Cancelled - ${booking.booking_reference}`);
+
+      await sendNotificationEmail({
+        to: booking.guest_email,
+        subject: `Booking Cancelled - ${booking.booking_reference}`,
+        html: wrappedHtml,
+      });
+
+      logger.info('Booking cancellation email sent (fallback)', {
+        bookingId: booking.id,
+        bookingReference: booking.booking_reference,
+        guestEmail: booking.guest_email,
+      });
+    } catch (error) {
+      logger.error('Failed to send booking cancellation email', {
+        bookingId: booking.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 };
 
@@ -372,11 +473,11 @@ export const notifyHostNewBooking = async (
       const htmlContent = getNewBookingHostEmailHtml(booking);
       const wrappedHtml = wrapInEmailTemplate(htmlContent, `New Booking - ${booking.booking_reference}`);
 
-      await sendNotificationEmail(
-        hostEmail,
-        `New Booking - ${booking.booking_reference}`,
-        wrappedHtml
-      );
+      await sendNotificationEmail({
+        to: hostEmail,
+        subject: `New Booking - ${booking.booking_reference}`,
+        html: wrappedHtml,
+      });
     }
 
     logger.info('Host notified of new booking', {
@@ -437,57 +538,84 @@ export const sendCheckInReminder = async (
   booking: BookingWithDetails,
   daysUntilCheckIn: number
 ): Promise<void> => {
+  // Try template-based sending first
   try {
-    const subject = daysUntilCheckIn === 0
-      ? `Check-in Today - ${booking.booking_reference}`
-      : `Check-in Reminder - ${daysUntilCheckIn} day${daysUntilCheckIn !== 1 ? 's' : ''} until your stay`;
+    logger.info('[BOOKING_NOTIFICATIONS] Attempting template-based send for booking_checkin_reminder');
 
-    // Simple reminder email
-    const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #047857; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">${daysUntilCheckIn === 0 ? 'Check-in Today!' : 'Upcoming Stay Reminder'}</h1>
-        </div>
+    await emailTemplateService.sendEmailFromTemplate({
+      template_key: 'booking_checkin_reminder',
+      recipient_email: booking.guest_email,
+      variables: {
+        guest_name: booking.guest_name,
+        booking_reference: booking.booking_reference,
+        property_name: booking.property?.name || 'our property',
+        check_in_date: new Date(booking.check_in_date).toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' }),
+        check_out_date: new Date(booking.check_out_date).toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' }),
+        days_until_checkin: daysUntilCheckIn.toString(),
+      },
+      context_type: 'booking',
+      context_id: booking.id,
+    });
 
-        <div style="padding: 20px; background-color: #f9fafb;">
-          <p>Dear ${booking.guest_name},</p>
-
-          <p>${daysUntilCheckIn === 0
-            ? 'Your check-in is today!'
-            : `Just a reminder that your stay at ${booking.property?.name || 'our property'} is coming up in ${daysUntilCheckIn} day${daysUntilCheckIn !== 1 ? 's' : ''}.`
-          }</p>
-
-          <div style="background-color: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Booking Reference:</strong> ${booking.booking_reference}</p>
-            <p><strong>Check-in:</strong> ${new Date(booking.check_in_date).toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' })} from 2:00 PM</p>
-            <p><strong>Check-out:</strong> ${new Date(booking.check_out_date).toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' })} before 10:00 AM</p>
-          </div>
-
-          <p>We look forward to hosting you!</p>
-
-          <p>Best regards,<br>The Vilo Team</p>
-        </div>
-      </div>
-    `;
-
-    const wrappedHtml = wrapInEmailTemplate(htmlContent, subject);
-
-    await sendNotificationEmail(
-      booking.guest_email,
-      subject,
-      wrappedHtml,
-      booking.guest_name
-    );
-
-    logger.info('Check-in reminder sent', {
+    logger.info('Check-in reminder sent (template-based)', {
       bookingId: booking.id,
       daysUntilCheckIn,
     });
-  } catch (error) {
-    logger.error('Failed to send check-in reminder', {
-      bookingId: booking.id,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+  } catch (templateError) {
+    logger.warn('[BOOKING_NOTIFICATIONS] Template-based send failed, using fallback', { error: templateError });
+
+    // Fallback to hardcoded template
+    try {
+      const subject = daysUntilCheckIn === 0
+        ? `Check-in Today - ${booking.booking_reference}`
+        : `Check-in Reminder - ${daysUntilCheckIn} day${daysUntilCheckIn !== 1 ? 's' : ''} until your stay`;
+
+      // Simple reminder email
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #047857; color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0;">${daysUntilCheckIn === 0 ? 'Check-in Today!' : 'Upcoming Stay Reminder'}</h1>
+          </div>
+
+          <div style="padding: 20px; background-color: #f9fafb;">
+            <p>Dear ${booking.guest_name},</p>
+
+            <p>${daysUntilCheckIn === 0
+              ? 'Your check-in is today!'
+              : `Just a reminder that your stay at ${booking.property?.name || 'our property'} is coming up in ${daysUntilCheckIn} day${daysUntilCheckIn !== 1 ? 's' : ''}.`
+            }</p>
+
+            <div style="background-color: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+              <p><strong>Booking Reference:</strong> ${booking.booking_reference}</p>
+              <p><strong>Check-in:</strong> ${new Date(booking.check_in_date).toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' })} from 2:00 PM</p>
+              <p><strong>Check-out:</strong> ${new Date(booking.check_out_date).toLocaleDateString('en-ZA', { weekday: 'long', month: 'long', day: 'numeric' })} before 10:00 AM</p>
+            </div>
+
+            <p>We look forward to hosting you!</p>
+
+            <p>Best regards,<br>The Vilo Team</p>
+          </div>
+        </div>
+      `;
+
+      const wrappedHtml = wrapInEmailTemplate(htmlContent, subject);
+
+      await sendNotificationEmail({
+        to: booking.guest_email,
+        subject,
+        html: wrappedHtml,
+      });
+
+      logger.info('Check-in reminder sent (fallback)', {
+        bookingId: booking.id,
+        daysUntilCheckIn,
+      });
+    } catch (error) {
+      logger.error('Failed to send check-in reminder', {
+        bookingId: booking.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 };
 

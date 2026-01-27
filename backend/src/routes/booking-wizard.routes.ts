@@ -44,4 +44,31 @@ router.post(
   asyncHandler(bookingWizardController.checkEmail.bind(bookingWizardController))
 );
 
+/**
+ * POST /api/booking-wizard/initialize-payment
+ * Initialize payment with Paystack
+ */
+router.post(
+  '/initialize-payment',
+  asyncHandler(bookingWizardController.initializePayment.bind(bookingWizardController))
+);
+
+/**
+ * POST /api/booking-wizard/verify-payment
+ * Verify payment with Paystack
+ */
+router.post(
+  '/verify-payment',
+  asyncHandler(bookingWizardController.verifyPayment.bind(bookingWizardController))
+);
+
+/**
+ * GET /api/booking-wizard/:propertyId/payment-methods
+ * Get available payment methods for a property
+ */
+router.get(
+  '/:propertyId/payment-methods',
+  asyncHandler(bookingWizardController.getPaymentMethods.bind(bookingWizardController))
+);
+
 export default router;

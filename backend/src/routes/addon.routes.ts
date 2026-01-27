@@ -88,7 +88,7 @@ router.post(
   '/:id/image',
   authenticate,
   loadUserProfile,
-  imageUpload.single('image'),
+  imageUpload.single('image') as any,
   addonController.uploadImage
 );
 

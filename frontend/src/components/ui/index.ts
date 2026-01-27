@@ -34,6 +34,11 @@ export {
   SettingsIcon,
   DownloadIcon,
   UploadIcon,
+  // Communication & Contact Icons
+  MailIcon,
+  PhoneIcon,
+  WhatsAppIcon,
+  ChatIcon,
   // Property & Room Icons
   HomeIcon,
   BuildingIcon,
@@ -86,7 +91,7 @@ export type { SpinnerProps } from './Spinner';
 
 export { InitializationLoader } from './InitializationLoader';
 
-export { Modal } from './Modal';
+export { Modal, ModalHeader, ModalBody, ModalFooter } from './Modal';
 export type {
   ModalProps,
   ModalHeaderProps,
@@ -135,6 +140,9 @@ export type { InfoTooltipProps } from './InfoTooltip';
 
 export { Progress, CircularProgress } from './Progress';
 export type { ProgressProps, CircularProgressProps } from './Progress';
+
+export { LimitDisplay } from './LimitDisplay';
+export type { LimitDisplayProps } from './LimitDisplay';
 
 export { Skeleton, SkeletonText, SkeletonCard, SkeletonTable } from './Skeleton';
 export type { SkeletonProps, SkeletonTextProps, SkeletonCardProps, SkeletonTableProps } from './Skeleton';
@@ -251,6 +259,9 @@ export type { GalleryUploadProps } from './GalleryUpload';
 
 export { LocationSelector } from './LocationSelector';
 export type { LocationSelectorProps, LocationData } from './LocationSelector';
+
+export { AddressAutocomplete } from './AddressAutocomplete';
+export type { AddressAutocompleteProps, AddressData } from './AddressAutocomplete';
 
 export { CancellationPolicyEditor } from './CancellationPolicyEditor';
 export type { CancellationPolicyEditorProps } from './CancellationPolicyEditor';

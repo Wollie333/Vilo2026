@@ -35,6 +35,7 @@ import type {
   VerifyEFTPaymentRequest,
   PaymentProofResponse,
 } from '@/types/booking.types';
+import type { Invoice } from '@/types/invoice.types';
 
 class BookingService {
   // ============================================================================
@@ -45,6 +46,9 @@ class BookingService {
    * List bookings with filters
    */
   async listBookings(params?: BookingListParams): Promise<BookingListResponse> {
+    console.log('=== [BOOKING_SERVICE_FRONTEND] listBookings called ===');
+    console.log('[BOOKING_SERVICE_FRONTEND] Params:', params);
+
     const queryParams = new URLSearchParams();
 
     if (params?.property_id) queryParams.set('property_id', params.property_id);
@@ -69,15 +73,26 @@ class BookingService {
     if (params?.created_from) queryParams.set('created_from', params.created_from);
     if (params?.created_to) queryParams.set('created_to', params.created_to);
     if (params?.search) queryParams.set('search', params.search);
+    if (params?.bookingType) queryParams.set('bookingType', params.bookingType);
     if (params?.sortBy) queryParams.set('sortBy', params.sortBy);
     if (params?.sortOrder) queryParams.set('sortOrder', params.sortOrder);
     if (params?.page) queryParams.set('page', String(params.page));
     if (params?.limit) queryParams.set('limit', String(params.limit));
 
     const url = `/bookings${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    console.log('[BOOKING_SERVICE_FRONTEND] Calling API:', url);
+
     const response = await api.get<BookingListResponse>(url);
+    console.log('[BOOKING_SERVICE_FRONTEND] Response:', response);
+    console.log('[BOOKING_SERVICE_FRONTEND] Bookings count:', response.data?.bookings?.length || 0);
+
+    if (response.data?.bookings && response.data.bookings.length > 0) {
+      console.log('[BOOKING_SERVICE_FRONTEND] First booking:', response.data.bookings[0]);
+      console.log('[BOOKING_SERVICE_FRONTEND] All booking references:', response.data.bookings.map(b => b.booking_reference));
+    }
 
     if (!response.success || !response.data) {
+      console.error('[BOOKING_SERVICE_FRONTEND] Failed to fetch bookings:', response.error);
       throw new Error(response.error?.message || 'Failed to fetch bookings');
     }
 
@@ -137,6 +152,20 @@ class BookingService {
 
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch booking');
+    }
+
+    return response.data;
+  }
+
+  /**
+   * Get all bookings for a specific user (super admin only)
+   * Includes bookings where user is guest + bookings for properties they own
+   */
+  async getUserBookings(userId: string, params?: BookingListParams): Promise<BookingListResponse> {
+    const response = await api.get<BookingListResponse>(`/users/${userId}/bookings`, { params });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch user bookings');
     }
 
     return response.data;
@@ -468,12 +497,20 @@ class BookingService {
    * Initiate a guest checkout (public)
    */
   async initiateCheckout(data: InitiateCheckoutRequest): Promise<{ booking_id: string; pricing: CheckoutPricingResponse }> {
+    console.log('=== [BOOKING_SERVICE] initiateCheckout called ===');
+    console.log('[BOOKING_SERVICE] Request data:', JSON.stringify(data, null, 2));
+
     const response = await api.post<{ booking_id: string; pricing: CheckoutPricingResponse }>(
-      '/checkout/initiate',
+      '/booking-wizard/initiate',
       data
     );
 
+    console.log('[BOOKING_SERVICE] Response:', response);
+    console.log('[BOOKING_SERVICE] Response success:', response.success);
+    console.log('[BOOKING_SERVICE] Response data:', response.data);
+
     if (!response.success || !response.data) {
+      console.error('[BOOKING_SERVICE] API error:', response.error);
       throw new Error(response.error?.message || 'Failed to initiate checkout');
     }
 
@@ -484,9 +521,17 @@ class BookingService {
    * Complete checkout
    */
   async completeCheckout(data: CompleteCheckoutRequest): Promise<CompleteCheckoutResponse> {
-    const response = await api.post<CompleteCheckoutResponse>('/checkout/complete', data);
+    console.log('=== [BOOKING_SERVICE] completeCheckout called ===');
+    console.log('[BOOKING_SERVICE] Request data:', JSON.stringify(data, null, 2));
+
+    const response = await api.post<CompleteCheckoutResponse>('/booking-wizard/confirm', data);
+
+    console.log('[BOOKING_SERVICE] Response:', response);
+    console.log('[BOOKING_SERVICE] Response success:', response.success);
+    console.log('[BOOKING_SERVICE] Response data:', response.data);
 
     if (!response.success || !response.data) {
+      console.error('[BOOKING_SERVICE] API error:', response.error);
       throw new Error(response.error?.message || 'Failed to complete checkout');
     }
 
@@ -512,11 +557,11 @@ class BookingService {
 
   /**
    * Generate invoice for a booking
+   * Returns the full invoice object
    */
-  async generateInvoice(bookingId: string): Promise<{ invoice_id: string; invoice_url: string }> {
-    const response = await api.post<{ invoice_id: string; invoice_url: string }>(
-      `/bookings/${bookingId}/invoice`,
-      {}
+  async generateInvoice(bookingId: string): Promise<Invoice> {
+    const response = await api.get<Invoice>(
+      `/bookings/${bookingId}/invoice`
     );
 
     if (!response.success || !response.data) {

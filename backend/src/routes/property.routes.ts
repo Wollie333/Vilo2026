@@ -36,7 +36,26 @@ const imageUpload = multer({
 
 const router = Router();
 
-// All routes require authentication
+// ============================================================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================================================
+
+/**
+ * GET /api/properties/:id/terms/pdf
+ * Download Terms & Conditions as PDF
+ * Public endpoint - accessible without authentication
+ */
+router.get(
+  '/:id/terms/pdf',
+  validateParams(propertyIdParamSchema),
+  propertyController.downloadTermsPDF
+);
+
+// ============================================================================
+// PROTECTED ROUTES (Authentication required)
+// ============================================================================
+
+// All routes below require authentication
 router.use(authenticate);
 router.use(loadUserProfile);
 

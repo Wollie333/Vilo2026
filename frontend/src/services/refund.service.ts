@@ -201,6 +201,26 @@ class RefundService {
   }
 
   /**
+   * Get all refund requests for a specific user (super admin only)
+   * GET /api/users/:userId/refunds
+   */
+  async getUserRefunds(
+    userId: string,
+    params?: Omit<RefundListParams, 'requested_by'>
+  ): Promise<RefundListResponse> {
+    const response = await api.get<RefundListResponse>(
+      `/users/${userId}/refunds`,
+      { params }
+    );
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Failed to fetch user refunds');
+    }
+
+    return response.data;
+  }
+
+  /**
    * Approve a refund request
    * POST /api/admin/refunds/:id/approve
    */

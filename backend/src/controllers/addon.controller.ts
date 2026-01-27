@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { addonService } from '../services/addon.service';
 import { sendSuccess, sendError } from '../utils/response';
+import { getAdminClient } from '../config/supabase';
 import type { CreateAddOnRequest, UpdateAddOnRequest } from '../types/room.types';
 import type { AddonListParams, AddonPriceCalculationRequest } from '../types/addon.types';
 
@@ -148,6 +149,31 @@ export const addonController = {
       }
 
       const addon = await addonService.createAddOn(data);
+
+      // If room_ids are provided, assign addon to those rooms via junction table
+      if (data.room_ids && Array.isArray(data.room_ids) && data.room_ids.length > 0) {
+        console.log('[AddonController] Assigning addon to rooms:', data.room_ids);
+
+        const supabase = getAdminClient();
+        const assignments = data.room_ids.map((roomId: string) => ({
+          room_id: roomId,
+          addon_id: addon.id,
+          assigned_by: (req as any).user?.id || null,
+        }));
+
+        const { error: assignError } = await supabase
+          .from('room_addon_assignments')
+          .insert(assignments);
+
+        if (assignError) {
+          console.error('[AddonController] Failed to assign addon to rooms:', assignError);
+          // Don't throw error - addon is created, just not assigned
+          // The user can manually assign it later
+        } else {
+          console.log('[AddonController] Successfully assigned addon to', data.room_ids.length, 'rooms');
+        }
+      }
+
       sendSuccess(res, addon, 201);
     } catch (error) {
       next(error);

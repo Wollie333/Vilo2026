@@ -11,4 +11,5 @@ export interface BookingSidebarProps {
   companyLogo?: string;
   onReserve: () => void;
   onMessageHost: () => void;
+  onRequestQuote?: () => void;
 }

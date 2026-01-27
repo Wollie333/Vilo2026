@@ -95,6 +95,13 @@ export interface PublicPropertyDetail extends PublicPropertySummary {
   check_in_time: string | null;
   check_out_time: string | null;
   cancellation_policy: string | null;
+  cancellation_policy_detail: {
+    id: string;
+    name: string;
+    description: string | null;
+    tiers: Array<{ days: number; refund: number }>;
+  } | null;
+  terms_and_conditions: string | null;
   house_rules: string[];
   whats_included: string[];
 
@@ -106,6 +113,7 @@ export interface PublicPropertyDetail extends PublicPropertySummary {
   // Company info
   company_name?: string;
   company_logo?: string;
+  owner_id: string; // Property owner user ID (for chat functionality)
 
   // Rooms
   rooms: PublicRoomSummary[];
@@ -175,6 +183,34 @@ export interface PublicRoomSummary {
   // Stay requirements
   min_nights: number | null;
   max_nights: number | null;
+
+  // Seasonal rates
+  seasonal_rates?: Array<{
+    id: string;
+    name?: string;
+    start_date: string;
+    end_date: string;
+    price_per_night: number;
+    priority: number;
+    is_active: boolean;
+  }>;
+
+  // Promotions
+  promotions?: Array<{
+    id: string;
+    name: string;
+    code: string;
+    description: string | null;
+    discount_type: 'percentage' | 'fixed_amount' | 'free_nights';
+    discount_value: number;
+    valid_from: string | null;
+    valid_until: string | null;
+    is_active: boolean;
+    is_claimable: boolean;
+    max_uses: number | null;
+    current_uses?: number;
+    min_nights: number | null;
+  }>;
 }
 
 export interface PropertySearchResponse {

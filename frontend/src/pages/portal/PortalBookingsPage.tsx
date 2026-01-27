@@ -277,8 +277,9 @@ export const PortalBookingsPage: React.FC = () => {
       setError(null);
 
       try {
-        // Load user's bookings (the service will filter by guest_id based on authenticated user)
+        // Load bookings the user MADE as a guest (not bookings received at their properties)
         const response = await bookingService.listBookings({
+          bookingType: 'made', // Only show bookings user made as guest
           limit: 100,
           sortBy: 'check_in_date',
           sortOrder: 'desc',
@@ -328,7 +329,7 @@ export const PortalBookingsPage: React.FC = () => {
 
   // Handle browse
   const handleBrowse = () => {
-    navigate('/');
+    navigate('/portal/properties');
   };
 
   return (
@@ -357,8 +358,8 @@ export const PortalBookingsPage: React.FC = () => {
         ) : (
           /* Tabs */
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="upcoming">
+            <TabsList variant="underline" className="mb-6">
+              <TabsTrigger value="upcoming" variant="underline">
                 Upcoming
                 {counts.upcoming > 0 && (
                   <Badge variant="primary" className="ml-2">
@@ -366,7 +367,7 @@ export const PortalBookingsPage: React.FC = () => {
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="past">
+              <TabsTrigger value="past" variant="underline">
                 Past
                 {counts.past > 0 && (
                   <Badge variant="default" className="ml-2">
@@ -374,7 +375,7 @@ export const PortalBookingsPage: React.FC = () => {
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="cancelled">
+              <TabsTrigger value="cancelled" variant="underline">
                 Cancelled
                 {counts.cancelled > 0 && (
                   <Badge variant="error" className="ml-2">

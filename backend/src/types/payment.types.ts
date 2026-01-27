@@ -77,3 +77,56 @@ export interface WebhookURLs {
   paystack?: string;
   paypal?: string;
 }
+
+// ============================================================================
+// COMPANY PAYMENT INTEGRATIONS (Per-Property-Owner)
+// ============================================================================
+
+// Company payment integration interface
+export interface CompanyPaymentIntegration {
+  id: string;
+  company_id: string;
+  provider: PaymentProvider;
+  display_name: string;
+  is_enabled: boolean;
+  is_primary: boolean;
+  environment: PaymentEnvironment;
+  config: PaymentIntegrationConfig;
+  webhook_secret: string | null;
+  last_verified_at: string | null;
+  verification_status: VerificationStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// Update DTO for company integrations
+export interface UpdateCompanyPaymentIntegrationDTO {
+  display_name?: string;
+  is_enabled?: boolean;
+  is_primary?: boolean;
+  environment?: PaymentEnvironment;
+  config?: PaymentIntegrationConfig;
+  webhook_secret?: string;
+}
+
+// Create DTO for company integrations
+export interface CreateCompanyPaymentIntegrationDTO {
+  company_id: string;
+  provider: PaymentProvider;
+  display_name: string;
+  environment?: PaymentEnvironment;
+  config: PaymentIntegrationConfig;
+  webhook_secret?: string;
+}
+
+// Company webhook URLs
+export interface CompanyWebhookURLs {
+  paystack: string;
+  paypal: string;
+}
+
+// List response for company integrations
+export interface CompanyPaymentIntegrationsListResponse {
+  integrations: CompanyPaymentIntegration[];
+  webhookUrls: CompanyWebhookURLs;
+}

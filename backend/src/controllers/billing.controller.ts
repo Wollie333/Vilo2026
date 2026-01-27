@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
+import { AppError } from '../utils/errors';
 import * as billingService from '../services/billing.service';
 
 // ============================================================================
@@ -275,6 +276,24 @@ export const getSubscriptionType = async (
 };
 
 /**
+ * GET /api/billing/subscription-types/slug/:slug
+ * Get subscription type by slug (for public /plans/:slug checkout pages)
+ * Only returns active plans
+ */
+export const getSubscriptionTypeBySlug = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const subscriptionType = await billingService.getSubscriptionTypeBySlug(req.params.slug);
+    sendSuccess(res, { subscriptionType });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/billing/subscription-types
  * Create a new subscription type with limits
  */
@@ -284,9 +303,17 @@ export const createSubscriptionType = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('🎯 [CONTROLLER] Create plan request received');
+    console.log('🎯 [CONTROLLER] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('🎯 [CONTROLLER] User ID:', req.user?.id);
+
     const subscriptionType = await billingService.createSubscriptionType(req.body, req.user!.id);
+
+    console.log('✅ [CONTROLLER] Plan created successfully:', JSON.stringify(subscriptionType, null, 2));
+
     sendSuccess(res, { subscriptionType, message: 'Subscription type created successfully' }, 201);
   } catch (error) {
+    console.error('❌ [CONTROLLER] Create plan failed:', error);
     next(error);
   }
 };
@@ -301,13 +328,29 @@ export const updateSubscriptionType = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('🎯 [CONTROLLER] PATCH /api/billing/subscription-types/:id');
+    console.log('🎯 [CONTROLLER] ID:', req.params.id);
+    console.log('🎯 [CONTROLLER] User ID:', req.user?.id);
+    console.log('🎯 [CONTROLLER] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('🎯 [CONTROLLER] CMS fields received:', {
+      slug: req.body.slug,
+      custom_headline: req.body.custom_headline,
+      custom_description: req.body.custom_description,
+      checkout_badge: req.body.checkout_badge,
+      checkout_accent_color: req.body.checkout_accent_color,
+    });
+
     const subscriptionType = await billingService.updateSubscriptionType(
       req.params.id,
       req.body,
       req.user!.id
     );
+
+    console.log('✅ [CONTROLLER] Update successful, sending response');
+
     sendSuccess(res, { subscriptionType, message: 'Subscription type updated successfully' });
   } catch (error) {
+    console.error('❌ [CONTROLLER] Update failed:', error);
     next(error);
   }
 };
@@ -324,6 +367,23 @@ export const deleteSubscriptionType = async (
   try {
     await billingService.deleteSubscriptionType(req.params.id, req.user!.id);
     sendSuccess(res, { message: 'Subscription type deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/billing/subscription-types/:id/force
+ * Force delete a subscription type (including checkout history)
+ */
+export const forceDeleteSubscriptionType = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    await billingService.forceDeleteSubscriptionType(req.params.id, req.user!.id);
+    sendSuccess(res, { message: 'Subscription type force deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -422,12 +482,71 @@ export const cancelUserSubscription = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const { userId } = req.params;
+    const { cancellation_reason } = req.body;
+
+    // Authorization: User can cancel their own subscription, or admin can cancel any
+    const isAdmin = req.userProfile?.roles?.some(r => ['admin', 'super_admin'].includes(r.name));
+    if (req.user!.id !== userId && !isAdmin) {
+      throw new AppError('FORBIDDEN', 'You can only cancel your own subscription');
+    }
+
     await billingService.cancelUserSubscription(
-      req.params.userId,
-      req.body.cancellation_reason,
+      userId,
+      cancellation_reason,
       req.user!.id
     );
     sendSuccess(res, { message: 'Subscription cancelled successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/billing/subscriptions/user/:userId/pause
+ * Pause a user's subscription
+ */
+export const pauseUserSubscription = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    // Authorization: User can pause their own subscription, or admin can pause any
+    const isAdmin = req.userProfile?.roles?.some(r => ['admin', 'super_admin'].includes(r.name));
+    if (req.user!.id !== userId && !isAdmin) {
+      throw new AppError('FORBIDDEN', 'You can only pause your own subscription');
+    }
+
+    await billingService.pauseUserSubscription(userId, req.user!.id);
+    sendSuccess(res, { message: 'Subscription paused successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/billing/subscriptions/user/:userId/resume
+ * Resume a paused user subscription
+ */
+export const resumeUserSubscription = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    // Authorization: User can resume their own subscription, or admin can resume any
+    const isAdmin = req.userProfile?.roles?.some(r => ['admin', 'super_admin'].includes(r.name));
+    if (req.user!.id !== userId && !isAdmin) {
+      throw new AppError('FORBIDDEN', 'You can only resume your own subscription');
+    }
+
+    await billingService.resumeUserSubscription(userId, req.user!.id);
+    sendSuccess(res, { message: 'Subscription resumed successfully' });
   } catch (error) {
     next(error);
   }
@@ -720,6 +839,101 @@ export const updateSubscriptionTypePermissions = async (
     sendSuccess(res, {
       permissions,
       message: 'Subscription permissions updated successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// SUBSCRIPTION UPGRADE REQUESTS (User Response)
+// ============================================================================
+
+/**
+ * GET /api/billing/my-pending-upgrade
+ * Check if current user has a pending upgrade request
+ */
+export const getMyPendingUpgrade = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+
+    // Import upgrade service
+    const upgradeService = await import('../services/subscription-upgrade.service');
+    const pendingUpgrade = await upgradeService.getUserPendingUpgrade(userId);
+
+    sendSuccess(res, { pendingUpgrade });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/billing/upgrade-requests/:id/respond
+ * User accepts or declines an upgrade request
+ */
+export const respondToUpgradeRequest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { accepted, user_response_notes } = req.body;
+    const userId = req.user!.id;
+
+    if (typeof accepted !== 'boolean') {
+      throw new AppError('VALIDATION_ERROR', 'accepted must be a boolean');
+    }
+
+    // Import upgrade service
+    const upgradeService = await import('../services/subscription-upgrade.service');
+    const updatedRequest = await upgradeService.respondToUpgradeRequest(
+      id,
+      userId,
+      { accepted, user_response_notes }
+    );
+
+    // If accepted, send confirmation notification
+    if (accepted) {
+      const displayInfo = await billingService.getSubscriptionDisplayInfo(userId);
+      const targetPlan = await billingService.getSubscriptionType(updatedRequest.requested_subscription_type_id);
+
+      // Calculate target plan price
+      const billingInterval = displayInfo.billing_interval || 'monthly';
+      let targetPriceCents = 0;
+      if (billingInterval === 'monthly') {
+        targetPriceCents = targetPlan.pricing_tiers?.monthly?.price_cents || targetPlan.price_cents || 0;
+      } else if (billingInterval === 'annual') {
+        targetPriceCents = targetPlan.pricing_tiers?.annual?.price_cents || targetPlan.price_cents || 0;
+      }
+
+      const targetPriceFormatted = `${targetPlan.currency} ${(targetPriceCents / 100).toFixed(2)}`;
+
+      // Import notification service
+      const notificationService = await import('../services/subscription-notifications.service');
+      await notificationService.notifyUpgradeConfirmed(
+        userId,
+        displayInfo.plan_display_name,
+        targetPlan.display_name,
+        displayInfo.current_price_formatted,
+        targetPriceFormatted,
+        displayInfo.billing_interval_label,
+        displayInfo.billing_interval_label,
+        displayInfo.next_billing_date || 'Next billing cycle',
+        displayInfo.next_billing_date || new Date().toISOString(),
+        [] // new features - could be enhanced later
+      );
+    }
+
+    sendSuccess(res, {
+      upgradeRequest: updatedRequest,
+      message: accepted
+        ? 'Upgrade request accepted. Your plan will be upgraded on the next billing cycle.'
+        : 'Upgrade request declined.',
     });
   } catch (error) {
     next(error);

@@ -1,0 +1,89 @@
+<!-- Search Widget Component -->
+<div class="search-widget">
+  <div class="search-widget__inner">
+
+    <!-- Check-in Date -->
+    <div class="search-widget__field">
+      <label class="search-widget__label">
+        <svg class="search-widget__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <span class="search-widget__label-text">Check-in</span>
+      </label>
+      <input
+        type="date"
+        class="search-widget__input"
+        id="checkin-date"
+        placeholder="Select date"
+      />
+    </div>
+
+    <!-- Check-out Date -->
+    <div class="search-widget__field">
+      <label class="search-widget__label">
+        <svg class="search-widget__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <span class="search-widget__label-text">Check-out</span>
+      </label>
+      <input
+        type="date"
+        class="search-widget__input"
+        id="checkout-date"
+        placeholder="Select date"
+      />
+    </div>
+
+    <!-- Guests Selector -->
+    <div class="search-widget__field">
+      <label class="search-widget__label">
+        <svg class="search-widget__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+        <span class="search-widget__label-text">Guests</span>
+      </label>
+      <div class="search-widget__guests">
+        <button
+          type="button"
+          class="search-widget__guests-btn search-widget__guests-btn--minus"
+          id="guests-minus"
+          aria-label="Decrease guests"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+          </svg>
+        </button>
+        <input
+          type="number"
+          class="search-widget__guests-input"
+          id="guests-count"
+          value="2"
+          min="1"
+          max="10"
+          readonly
+        />
+        <button
+          type="button"
+          class="search-widget__guests-btn search-widget__guests-btn--plus"
+          id="guests-plus"
+          aria-label="Increase guests"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Button -->
+    <div class="search-widget__field search-widget__field--submit">
+      <button type="submit" class="btn btn-primary search-widget__submit">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        Search
+      </button>
+    </div>
+
+  </div>
+</div>

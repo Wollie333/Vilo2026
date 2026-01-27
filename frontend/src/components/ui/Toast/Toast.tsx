@@ -232,7 +232,7 @@ export const Toast: React.FC<ToastProps> = ({
       </div>
 
       {/* Progress bar for auto-dismiss */}
-      {toast.duration && toast.duration > 0 && !isPaused && !isExiting && (
+      {toast.duration > 0 && !isPaused && !isExiting && (
         <div className="h-1 bg-white/30">
           <div
             className="h-full bg-white/50 transition-none"

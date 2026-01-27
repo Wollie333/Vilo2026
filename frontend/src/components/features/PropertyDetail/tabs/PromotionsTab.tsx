@@ -4,8 +4,9 @@
  * Displays all active promotions/special offers for rooms on the public property page
  */
 
-import React from 'react';
-import { Card } from '@/components/ui';
+import React, { useState } from 'react';
+import { Card, Button } from '@/components/ui';
+import { ClaimPromoModal } from '@/components/features';
 import type { PromotionsTabProps } from './PromotionsTab.types';
 
 // Icons
@@ -27,26 +28,75 @@ const SparklesIcon = () => (
   </svg>
 );
 
-export const PromotionsTab: React.FC<PromotionsTabProps> = ({ rooms, currency }) => {
-  // Filter rooms that have active promotions
-  const roomsWithPromotions = rooms
-    .map(room => ({
-      ...room,
-      activePromotions: (room.promotions || []).filter(promo => {
-        const now = new Date();
-        const start = promo.valid_from ? new Date(promo.valid_from) : null;
-        const end = promo.valid_until ? new Date(promo.valid_until) : null;
+export const PromotionsTab: React.FC<PromotionsTabProps> = ({ rooms, currency, propertyId, propertyName }) => {
+  console.log('🎟️ [PromotionsTab] Received rooms:', rooms?.length || 0);
 
-        if (start && now < start) return false; // Not started yet
-        if (end && now > end) return false; // Already ended
+  // State for claim promo modal
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [selectedPromo, setSelectedPromo] = useState<any | null>(null);
 
-        return promo.is_active !== false; // Check is_active flag
-      })
-    }))
-    .filter(room => room.activePromotions.length > 0);
+  // Handler for claiming a promotion
+  const handleClaimPromo = (promo: any) => {
+    console.log('🎟️ [PromotionsTab] Claiming promo:', promo.name);
+    setSelectedPromo(promo);
+    setClaimModalOpen(true);
+  };
+
+  // Collect all unique promotions across all rooms
+  const allPromotionsMap = new Map();
+  const roomsByPromotion = new Map<string, string[]>();
+
+  rooms.forEach(room => {
+    (room.promotions || []).forEach(promo => {
+      // Add to unique promotions
+      if (!allPromotionsMap.has(promo.id)) {
+        allPromotionsMap.set(promo.id, promo);
+        roomsByPromotion.set(promo.id, []);
+      }
+      // Track which rooms have this promotion
+      roomsByPromotion.get(promo.id)?.push(room.name);
+    });
+  });
+
+  const allPromotions = Array.from(allPromotionsMap.values());
+  console.log('🎟️ [PromotionsTab] Total unique promotions:', allPromotions.length);
+  console.log('🎟️ [PromotionsTab] All promotions:', allPromotions);
+
+  // Filter active promotions by validity period
+  const now = new Date();
+  console.log('🎟️ [PromotionsTab] Current date:', now);
+
+  const activePromotions = allPromotions.filter(promo => {
+    console.log(`🎟️ Checking promo "${promo.name}":`, {
+      valid_from: promo.valid_from,
+      valid_until: promo.valid_until,
+      is_active: promo.is_active,
+    });
+
+    const start = promo.valid_from ? new Date(promo.valid_from) : null;
+    const end = promo.valid_until ? new Date(promo.valid_until) : null;
+
+    console.log(`  Parsed dates - start: ${start}, end: ${end}, now: ${now}`);
+
+    if (start && now < start) {
+      console.log(`  ❌ Promo "${promo.name}" not started yet (starts ${start})`);
+      return false;
+    }
+    if (end && now > end) {
+      console.log(`  ❌ Promo "${promo.name}" already ended (ended ${end})`);
+      return false;
+    }
+
+    const isActive = promo.is_active !== false;
+    console.log(`  ${isActive ? '✅' : '❌'} Promo "${promo.name}" is_active: ${promo.is_active}`);
+    return isActive;
+  });
+
+  console.log('🎟️ [PromotionsTab] Active promotions:', activePromotions.length);
+  console.log('🎟️ [PromotionsTab] Active promotions data:', activePromotions);
 
   // Empty state
-  if (roomsWithPromotions.length === 0) {
+  if (activePromotions.length === 0) {
     return (
       <Card>
         <div className="p-12 text-center">
@@ -74,109 +124,136 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ rooms, currency })
             Special Offers & Promotions
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Book now and save with these exclusive deals
+            Book now and save with these exclusive deals - {activePromotions.length} {activePromotions.length === 1 ? 'offer' : 'offers'} available
           </p>
         </div>
       </div>
 
-      {/* Promotions by Room */}
-      {roomsWithPromotions.map((room) => (
-        <Card key={room.id}>
-          <div className="p-6 space-y-4">
-            {/* Room Name */}
-            <div className="pb-3 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {room.name}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {room.activePromotions.length} {room.activePromotions.length === 1 ? 'offer' : 'offers'} available
-              </p>
-            </div>
+      {/* All Promotions */}
+      <div className="space-y-3">
+        {activePromotions.map((promo) => {
+          const applicableRooms = roomsByPromotion.get(promo.id) || [];
+          const isPropertyWide = applicableRooms.length === rooms.length;
 
-            {/* Promotions List */}
-            <div className="space-y-3">
-              {room.activePromotions.map((promo, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/30"
-                >
-                  {/* Icon */}
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
-                    <TagIcon />
+          return (
+            <div
+              key={promo.id}
+              className="flex items-start justify-between gap-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/30"
+            >
+              {/* Left Side: Icon + Content */}
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                {/* Icon */}
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+                  <TagIcon />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Name and Badge */}
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">
+                      {promo.name}
+                    </h4>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-600 text-white">
+                      {promo.discount_type === 'percentage'
+                        ? `${promo.discount_value}% OFF`
+                        : promo.discount_type === 'fixed_amount'
+                        ? `${currency} ${promo.discount_value} OFF`
+                        : `${promo.discount_value} Free Nights`
+                      }
+                    </span>
+                    {isPropertyWide && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                        All Rooms
+                      </span>
+                    )}
                   </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Name and Badge */}
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white">
-                        {promo.name}
-                      </h4>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-600 text-white">
-                        {promo.discount_type === 'percentage'
-                          ? `${promo.discount_value}% OFF`
-                          : promo.discount_type === 'fixed_amount'
-                          ? `${currency}${promo.discount_value} OFF`
-                          : `${promo.discount_value} Free Nights`
-                        }
+                  {/* Applicable Rooms */}
+                  {!isPropertyWide && (
+                    <div className="mb-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Applicable to: {applicableRooms.join(', ')}
                       </span>
                     </div>
+                  )}
 
-                    {/* Promo Code */}
+                  {/* Promo Code - hide if claimable */}
+                  {!promo.is_claimable && (
                     <div className="mb-2">
                       <span className="text-xs text-gray-500 dark:text-gray-400">Use code: </span>
                       <code className="px-2 py-1 bg-white dark:bg-dark-card rounded border border-gray-200 dark:border-dark-border font-mono text-sm font-semibold text-primary">
                         {promo.code}
                       </code>
                     </div>
+                  )}
 
-                    {/* Description */}
-                    {promo.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        {promo.description}
-                      </p>
-                    )}
+                  {/* Helper text for claimable promos */}
+                  {promo.is_claimable && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Provide your details to receive this exclusive offer
+                    </p>
+                  )}
 
-                    {/* Validity Period */}
-                    {(promo.valid_from || promo.valid_until) && (
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        <CalendarIcon />
-                        <span>
-                          {promo.valid_from && promo.valid_until ? (
-                            <>
-                              Valid from {new Date(promo.valid_from).toLocaleDateString()}
-                              {' '}to {new Date(promo.valid_until).toLocaleDateString()}
-                            </>
-                          ) : promo.valid_from ? (
-                            <>Valid from {new Date(promo.valid_from).toLocaleDateString()}</>
-                          ) : promo.valid_until ? (
-                            <>Valid until {new Date(promo.valid_until).toLocaleDateString()}</>
-                          ) : null}
-                        </span>
-                      </div>
-                    )}
+                  {/* Description */}
+                  {promo.description && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      {promo.description}
+                    </p>
+                  )}
 
-                    {/* Usage Limits */}
-                    {promo.max_uses && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Limited to {promo.max_uses} bookings
-                        {promo.uses_count !== undefined && ` • ${promo.uses_count} already used`}
-                      </p>
-                    )}
+                  {/* Validity Period */}
+                  {(promo.valid_from || promo.valid_until) && (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <CalendarIcon />
+                      <span>
+                        {promo.valid_from && promo.valid_until ? (
+                          <>
+                            Valid from {new Date(promo.valid_from).toLocaleDateString()}
+                            {' '}to {new Date(promo.valid_until).toLocaleDateString()}
+                          </>
+                        ) : promo.valid_from ? (
+                          <>Valid from {new Date(promo.valid_from).toLocaleDateString()}</>
+                        ) : promo.valid_until ? (
+                          <>Valid until {new Date(promo.valid_until).toLocaleDateString()}</>
+                        ) : null}
+                      </span>
+                    </div>
+                  )}
 
-                    {/* Minimum Stay */}
-                    {promo.min_nights && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Minimum stay: {promo.min_nights} {promo.min_nights === 1 ? 'night' : 'nights'}
-                      </p>
-                    )}
-                  </div>
+                  {/* Usage Limits */}
+                  {promo.max_uses && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Limited to {promo.max_uses} bookings
+                      {promo.current_uses !== undefined && ` • ${promo.current_uses} already used`}
+                    </p>
+                  )}
+
+                  {/* Minimum Stay */}
+                  {promo.min_nights && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Minimum stay: {promo.min_nights} {promo.min_nights === 1 ? 'night' : 'nights'}
+                    </p>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              {/* Right Side: Claim Button (if claimable) */}
+              {promo.is_claimable && (
+                <div className="flex-shrink-0">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleClaimPromo(promo)}
+                  >
+                    Claim This Promo
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
-        </Card>
-      ))}
+          );
+        })}
+      </div>
 
       {/* How to Use Section */}
       <Card>
@@ -200,6 +277,23 @@ export const PromotionsTab: React.FC<PromotionsTabProps> = ({ rooms, currency })
           </ol>
         </div>
       </Card>
+
+      {/* Claim Promo Modal */}
+      {claimModalOpen && selectedPromo && (
+        <ClaimPromoModal
+          promotion={selectedPromo}
+          propertyId={propertyId}
+          propertyName={propertyName}
+          onClose={() => {
+            setClaimModalOpen(false);
+            setSelectedPromo(null);
+          }}
+          onSuccess={() => {
+            setClaimModalOpen(false);
+            setSelectedPromo(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -48,7 +48,11 @@ export const initializeCheckout = async (
   }
 
   // Prevent checkout for free tier (R0 plans)
-  if (subscriptionType.price_cents === 0 || subscriptionType.name === 'free_tier') {
+  const monthlyPrice = subscriptionType.pricing_tiers?.monthly?.price_cents || 0;
+  const annualPrice = subscriptionType.pricing_tiers?.annual?.price_cents || 0;
+  const isFree = monthlyPrice === 0 && annualPrice === 0;
+
+  if (isFree || subscriptionType.name === 'free') {
     throw new AppError(
       'BAD_REQUEST',
       'Free tier subscriptions do not require payment. You already have access to free tier features.'
@@ -62,7 +66,8 @@ export const initializeCheckout = async (
     const existingType = await billingService.getSubscriptionType(existingSubscription.subscription_type_id);
 
     // If upgrading from free tier to paid plan, allow it
-    if (existingType.name === 'free_tier' && subscriptionType.price_cents > 0) {
+    const existingIsFree = existingType.name === 'free';
+    if (existingIsFree && !isFree) {
       logger.info(`User ${userId} upgrading from free tier to ${subscriptionType.name}`);
       // Continue with checkout - upgrade will be handled in completeCheckout
     } else {
@@ -82,9 +87,18 @@ export const initializeCheckout = async (
     .eq('status', 'pending')
     .lt('expires_at', new Date().toISOString());
 
-  // Get the price based on billing interval
-  const pricing = subscriptionType.pricing || { monthly: 0, annual: 0 };
-  const amountCents = input.billing_interval === 'monthly' ? pricing.monthly : pricing.annual;
+  // Get the price based on billing interval from pricing_tiers
+  const amountCents = input.billing_interval === 'monthly'
+    ? (subscriptionType.pricing_tiers?.monthly?.price_cents || 0)
+    : (subscriptionType.pricing_tiers?.annual?.price_cents || 0);
+
+  // Validate amount
+  if (amountCents === 0) {
+    throw new AppError(
+      'BAD_REQUEST',
+      'This subscription plan does not have a price configured for the selected billing interval'
+    );
+  }
 
   // Create checkout record
   const { data: checkout, error } = await supabase
@@ -607,7 +621,7 @@ async function completeCheckout(checkout: Checkout, paymentReference?: string, a
 
   // Calculate trial end date if applicable
   let trialEndsAt: Date | null = null;
-  let status: 'active' | 'trial' = 'active';
+  let status: 'active' | 'trial' = 'active'; // Uses new schema: status is stored directly on user_subscriptions
 
   if (subscriptionType.trial_period_days && subscriptionType.trial_period_days > 0) {
     trialEndsAt = new Date(startDate);
@@ -615,52 +629,63 @@ async function completeCheckout(checkout: Checkout, paymentReference?: string, a
     status = 'trial';
   }
 
-  // Check if user has existing active subscription (for upgrades)
-  const { data: existingSubscription } = await supabase
-    .from('user_subscriptions')
-    .select('id, subscription_type_id, subscription_types!inner(name)')
-    .eq('user_id', checkout.user_id)
-    .eq('is_active', true)
-    .single();
+  // Use atomic function to replace subscription (prevents race conditions)
+  // This function deletes existing subscriptions and creates new one in a single transaction
+  // NOTE: Now uses status VARCHAR directly (migration 020 deprecated billing_statuses table)
+  logger.info(
+    `Atomically replacing subscription for user ${checkout.user_id} with ${subscriptionType.name} (${status})`
+  );
 
-  if (existingSubscription) {
-    // Deactivate old subscription (typically upgrading from free tier)
-    await supabase
-      .from('user_subscriptions')
-      .update({
-        is_active: false,
-        cancelled_at: new Date().toISOString(),
-        cancellation_reason: 'Upgraded to paid plan',
-      })
-      .eq('id', existingSubscription.id);
-
-    const oldPlanName = (existingSubscription.subscription_types as any)?.name || 'unknown';
-    logger.info(
-      `Deactivated subscription ${existingSubscription.id} (${oldPlanName}) for user ${checkout.user_id} - upgrading to ${subscriptionType.name}`
-    );
-
-    // Audit log for subscription cancellation
-    await createAuditLog({
-      actor_id: actorId || checkout.user_id,
-      action: 'subscription.cancelled',
-      entity_type: 'subscription',
-      entity_id: existingSubscription.id,
-      old_data: existingSubscription,
-      new_data: {
-        is_active: false,
-        cancellation_reason: 'Upgraded to paid plan',
-      },
+  const { data: subscriptionRows, error: subscriptionError } = await supabase
+    .rpc('replace_user_subscription', {
+      p_user_id: checkout.user_id,
+      p_subscription_type_id: checkout.subscription_type_id,
+      p_status: status, // Changed from p_billing_status_id to p_status
+      p_started_at: startDate.toISOString(),
+      p_expires_at: expiresAt?.toISOString() || null,
+      p_trial_ends_at: trialEndsAt?.toISOString() || null,
     });
+
+  if (subscriptionError) {
+    logger.error('Failed to replace subscription atomically', {
+      userId: checkout.user_id,
+      error: subscriptionError,
+    });
+    throw new AppError('INTERNAL_ERROR', `Failed to create user subscription: ${subscriptionError.message}`);
   }
 
-  // Create new subscription
-  const subscription = await billingService.createUserSubscription({
-    user_id: checkout.user_id,
-    subscription_type_id: checkout.subscription_type_id,
-    status,
-    expires_at: expiresAt?.toISOString(),
-    trial_ends_at: trialEndsAt?.toISOString(),
-  }, actorId || checkout.user_id);
+  if (!subscriptionRows || subscriptionRows.length === 0) {
+    throw new AppError('INTERNAL_ERROR', 'Subscription replacement returned no data');
+  }
+
+  const subscription = subscriptionRows[0];
+  logger.info(
+    `Successfully replaced subscription for user ${checkout.user_id} - new subscription ID: ${subscription.id}`
+  );
+
+  // Update user's user_type_id to 'paid' after successful subscription purchase
+  // Users start as 'free' during signup, upgrade to 'paid' after payment
+  const { data: paidUserType } = await supabase
+    .from('user_types')
+    .select('id')
+    .eq('name', 'paid')
+    .eq('category', 'customer')
+    .single();
+
+  if (paidUserType) {
+    await supabase
+      .from('users')
+      .update({ user_type_id: paidUserType.id })
+      .eq('id', checkout.user_id);
+
+    logger.info(
+      `Updated user ${checkout.user_id} to 'paid' user type after successful subscription payment`
+    );
+  } else {
+    logger.warn(
+      `Could not find 'paid' user type - user ${checkout.user_id} remains with current user type`
+    );
+  }
 
   // Update checkout to completed
   await supabase

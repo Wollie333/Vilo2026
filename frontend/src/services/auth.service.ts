@@ -63,9 +63,10 @@ export const authService = {
 
   /**
    * Get current user profile
+   * @param silent - If true, suppresses 401 error logging (useful during auth initialization)
    */
-  async getCurrentUser(): Promise<UserWithRoles | null> {
-    const response = await api.get<MeResponse>('/auth/me');
+  async getCurrentUser(silent: boolean = false): Promise<UserWithRoles | null> {
+    const response = await api.get<MeResponse>('/auth/me', silent ? { _silentAuth: true } as any : undefined);
     if (response.success && response.data) {
       return response.data.user;
     }

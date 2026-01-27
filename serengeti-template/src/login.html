@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Serengeti Lodge</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+
+  <!-- Login Section -->
+  <section class="min-h-screen flex items-center justify-center py-12 px-4">
+    <div class="max-w-md w-full">
+
+      <!-- Brand Logo -->
+      <div class="text-center mb-8">
+        <a href="/index.html" class="inline-block">
+          <h1 class="text-4xl font-bold text-gray-900">Serengeti Lodge</h1>
+        </a>
+        <p class="text-gray-600 mt-2">Experience luxury in the wild</p>
+      </div>
+
+      <!-- Login Card -->
+      <div class="bg-white rounded-2xl shadow-lg p-8 md:p-10">
+
+        <!-- Header -->
+        <div class="text-center mb-8">
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+          <p class="text-gray-600">Sign in to your account to continue</p>
+        </div>
+
+        <!-- Login Form -->
+        <form class="space-y-6">
+
+          <!-- Email Field -->
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              placeholder="you@example.com"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+            />
+          </div>
+
+          <!-- Password Field -->
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              placeholder="Enter your password"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+            />
+          </div>
+
+          <!-- Remember Me & Forgot Password -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <input
+                type="checkbox"
+                id="remember"
+                name="remember"
+                class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <label for="remember" class="ml-2 text-sm text-gray-700">
+                Remember me
+              </label>
+            </div>
+            <a href="#" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+              Forgot password?
+            </a>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="btn btn-primary w-full justify-center text-lg py-4">
+            Sign In
+          </button>
+
+        </form>
+
+      </div>
+
+      <!-- Additional Info -->
+      <div class="mt-8 text-center">
+        <p class="text-sm text-gray-500">
+          By signing in, you agree to our
+          <a href="/terms-conditions.html" class="text-primary-600 hover:text-primary-700">Terms of Service</a>
+          and
+          <a href="/privacy-policy.html" class="text-primary-600 hover:text-primary-700">Privacy Policy</a>
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

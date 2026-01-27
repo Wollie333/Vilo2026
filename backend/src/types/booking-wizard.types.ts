@@ -2,7 +2,7 @@
  * Booking Wizard Type Definitions
  */
 
-export type PaymentProvider = 'paystack' | 'paypal' | 'eft';
+export type PaymentProvider = 'paystack' | 'paypal' | 'eft' | 'book_via_chat';
 
 export interface RoomSelection {
   room_id: string;
@@ -19,7 +19,7 @@ export interface RoomSelection {
 export interface AddOnSelection {
   addon_id: string;
   addon_name: string;
-  addon_type: 'per_booking' | 'per_night' | 'per_person' | 'per_room';
+  pricing_type: 'per_booking' | 'per_night' | 'per_guest' | 'per_guest_per_night';
   quantity: number;
   unit_price: number;
   total_price: number;
@@ -30,10 +30,11 @@ export interface GuestDetails {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
+  // password field removed - accounts created automatically with backend-generated password
   specialRequests?: string;
   termsAccepted: boolean;
-  marketingConsent: boolean;
+  platformTermsAccepted: boolean;
+  marketingConsent?: boolean;
 }
 
 export interface PricingBreakdown {
@@ -70,4 +71,12 @@ export interface BookingWizardData {
   payment_method: PaymentProvider;
   total_amount: number;
   currency: string;
+}
+
+export interface ChatBookingResponse {
+  booking_id: string;
+  booking_reference: string;
+  conversation_id: string;
+  message_id: string;
+  chat_url: string;
 }

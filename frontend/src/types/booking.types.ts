@@ -526,6 +526,11 @@ export interface BookingListParams {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  // Filter by booking type relative to user
+  // 'received' = bookings at properties I own (default)
+  // 'made' = bookings I made as a guest at other properties
+  // 'all' = both types combined
+  bookingType?: 'received' | 'made' | 'all';
 }
 
 export interface BookingListResponse {

@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Your Stay - Serengeti Lodge</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+
+  <!-- Simple Header -->
+  <header class="bg-white border-b border-gray-200 py-6">
+    <div class="max-w-6xl mx-auto px-6 md:px-8">
+      <a href="/index.html" class="inline-block">
+        <h1 class="text-2xl font-bold text-gray-900">Serengeti Lodge</h1>
+      </a>
+    </div>
+  </header>
+
+  <!-- Checkout Section -->
+  <section class="py-12">
+    <div class="max-w-6xl mx-auto px-6 md:px-8">
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- Left Column: Checkout Steps -->
+        <div class="lg:col-span-2">
+
+          <!-- Progress Steps -->
+          <div class="mb-8">
+            <div class="flex items-center justify-between">
+
+              <!-- Step 1 -->
+              <div class="flex-1 flex flex-col items-center">
+                <div id="step-1-circle" class="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold mb-2 text-sm">
+                  1
+                </div>
+                <span id="step-1-label" class="text-xs font-medium text-primary-600 text-center">Dates & Rooms</span>
+              </div>
+
+              <!-- Connector -->
+              <div class="flex-1 h-0.5 bg-gray-200 mx-2 -mt-6">
+                <div id="progress-1" class="h-full bg-primary-500 transition-all duration-300" style="width: 0%"></div>
+              </div>
+
+              <!-- Step 2 -->
+              <div class="flex-1 flex flex-col items-center">
+                <div id="step-2-circle" class="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold mb-2 text-sm">
+                  2
+                </div>
+                <span id="step-2-label" class="text-xs font-medium text-gray-500 text-center">Add-ons</span>
+              </div>
+
+              <!-- Connector -->
+              <div class="flex-1 h-0.5 bg-gray-200 mx-2 -mt-6">
+                <div id="progress-2" class="h-full bg-primary-500 transition-all duration-300" style="width: 0%"></div>
+              </div>
+
+              <!-- Step 3 -->
+              <div class="flex-1 flex flex-col items-center">
+                <div id="step-3-circle" class="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold mb-2 text-sm">
+                  3
+                </div>
+                <span id="step-3-label" class="text-xs font-medium text-gray-500 text-center">Guest & Payment</span>
+              </div>
+
+              <!-- Connector -->
+              <div class="flex-1 h-0.5 bg-gray-200 mx-2 -mt-6">
+                <div id="progress-3" class="h-full bg-primary-500 transition-all duration-300" style="width: 0%"></div>
+              </div>
+
+              <!-- Step 4 -->
+              <div class="flex-1 flex flex-col items-center">
+                <div id="step-4-circle" class="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold mb-2 text-sm">
+                  4
+                </div>
+                <span id="step-4-label" class="text-xs font-medium text-gray-500 text-center">Confirmation</span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Checkout Card -->
+          <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+
+            <!-- Step 1: Dates & Rooms -->
+            <div id="step-1" class="step-content">
+              <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Select Dates & Rooms</h2>
+              <p class="text-gray-600 mb-6">Choose your check-in and check-out dates, then select your room</p>
+
+              <form id="step-1-form" class="space-y-6">
+
+                <!-- Dates -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Check-in Date *</label>
+                    <input type="date" id="checkin-date" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-red-600 mt-1 hidden" id="checkin-error"></p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Check-out Date *</label>
+                    <input type="date" id="checkout-date" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-red-600 mt-1 hidden" id="checkout-error"></p>
+                  </div>
+                </div>
+
+                <div class="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+                  <span id="nights-display">Select dates to see number of nights</span>
+                </div>
+
+                <!-- Room Selection -->
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-4">Select Room *</label>
+                  <div class="space-y-3" id="room-options">
+
+                    <!-- Room 1 -->
+                    <div class="flex items-start gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 transition-all room-option">
+                      <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                        <input type="radio" name="room" id="room-suite" value="serengeti-suite" data-price="450" data-name="Serengeti Suite" class="room-radio sr-only">
+                        <label for="room-suite" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                          <svg class="radio-checkmark w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        </label>
+                      </div>
+                      <div class="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                        <img src="https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=400&h=400&fit=crop" alt="Serengeti Suite" class="w-full h-full object-cover">
+                      </div>
+                      <div class="flex-1">
+                        <label for="room-suite" class="font-semibold text-gray-900 mb-1 cursor-pointer block">Serengeti Suite</label>
+                        <div class="text-sm text-gray-600 mb-2">Luxury suite with panoramic Serengeti views, king-size bed, private balcony</div>
+                        <div class="text-primary-600 font-bold">$450 <span class="text-sm font-normal">per night</span></div>
+                      </div>
+                    </div>
+
+                    <!-- Room 2 -->
+                    <div class="flex items-start gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 transition-all room-option">
+                      <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                        <input type="radio" name="room" id="room-savanna" value="savanna-room" data-price="280" data-name="Savanna Room" class="room-radio sr-only">
+                        <label for="room-savanna" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                          <svg class="radio-checkmark w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        </label>
+                      </div>
+                      <div class="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                        <img src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400&h=400&fit=crop" alt="Savanna Room" class="w-full h-full object-cover">
+                      </div>
+                      <div class="flex-1">
+                        <label for="room-savanna" class="font-semibold text-gray-900 mb-1 cursor-pointer block">Savanna Room</label>
+                        <div class="text-sm text-gray-600 mb-2">Elegant room with garden views, queen bed, modern amenities</div>
+                        <div class="text-primary-600 font-bold">$280 <span class="text-sm font-normal">per night</span></div>
+                      </div>
+                    </div>
+
+                    <!-- Room 3 -->
+                    <div class="flex items-start gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 transition-all room-option">
+                      <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                        <input type="radio" name="room" id="room-bungalow" value="acacia-bungalow" data-price="350" data-name="Acacia Bungalow" class="room-radio sr-only">
+                        <label for="room-bungalow" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                          <svg class="radio-checkmark w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        </label>
+                      </div>
+                      <div class="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                        <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400&h=400&fit=crop" alt="Acacia Bungalow" class="w-full h-full object-cover">
+                      </div>
+                      <div class="flex-1">
+                        <label for="room-bungalow" class="font-semibold text-gray-900 mb-1 cursor-pointer block">Acacia Bungalow</label>
+                        <div class="text-sm text-gray-600 mb-2">Private bungalow with authentic safari experience, outdoor shower</div>
+                        <div class="text-primary-600 font-bold">$350 <span class="text-sm font-normal">per night</span></div>
+                      </div>
+                    </div>
+
+                  </div>
+                  <p class="text-xs text-red-600 mt-2 hidden" id="room-error">Please select a room</p>
+                </div>
+
+                <!-- Guest Count -->
+                <div id="guest-section" class="hidden">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Adults *</label>
+                      <select id="adults-count" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="1">1 Adult</option>
+                        <option value="2" selected>2 Adults</option>
+                        <option value="3">3 Adults</option>
+                        <option value="4">4 Adults</option>
+                      </select>
+                      <p class="text-xs text-gray-500 mt-1">Minimum 1 adult required</p>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Children</label>
+                      <select id="children-count" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="0" selected>No children</option>
+                        <option value="1">1 Child</option>
+                        <option value="2">2 Children</option>
+                        <option value="3">3 Children</option>
+                      </select>
+                      <p class="text-xs text-gray-500 mt-1">Ages 0-17</p>
+                    </div>
+                  </div>
+
+                  <!-- Children Ages (shown when children > 0) -->
+                  <div id="children-ages" class="hidden mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Children's Ages *</label>
+                    <div id="children-ages-inputs" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <!-- Dynamically populated -->
+                    </div>
+                    <p class="text-xs text-red-600 mt-1 hidden" id="ages-error">Please enter all children's ages</p>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- Step 2: Add-ons -->
+            <div id="step-2" class="step-content hidden">
+              <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Select Add-ons</h2>
+              <p class="text-gray-600 mb-6">Enhance your stay with our optional experiences</p>
+
+              <form id="step-2-form" class="space-y-4">
+
+                <!-- Safari Tour -->
+                <div class="addon-item border-2 border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div class="flex items-start gap-4">
+                    <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                      <input type="checkbox" id="addon-safari" value="safari" data-price="150" data-type="per_booking" data-name="Safari Tour" class="addon-checkbox sr-only">
+                      <label for="addon-safari" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                        <svg class="checkmark-icon w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                        </svg>
+                      </label>
+                    </div>
+                    <div class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                      <img src="https://images.unsplash.com/photo-1516426122078-c23e76319801?w=400&h=400&fit=crop" alt="Safari Tour" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1">
+                      <label for="addon-safari" class="font-semibold text-gray-900 cursor-pointer">Safari Tour</label>
+                      <p class="text-sm text-gray-600 mt-1">Full-day wildlife safari with expert guide and lunch</p>
+                      <div class="flex items-center gap-4 mt-3">
+                        <span class="text-primary-600 font-bold">$150</span>
+                        <span class="text-xs text-gray-500">per booking</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 addon-quantity hidden">
+                      <button type="button" class="qty-minus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">-</button>
+                      <input type="number" min="1" max="10" value="1" class="qty-input w-12 text-center border border-gray-300 rounded py-1" readonly>
+                      <button type="button" class="qty-plus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hot Air Balloon -->
+                <div class="addon-item border-2 border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div class="flex items-start gap-4">
+                    <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                      <input type="checkbox" id="addon-balloon" value="balloon" data-price="450" data-type="per_guest" data-name="Hot Air Balloon Ride" class="addon-checkbox sr-only">
+                      <label for="addon-balloon" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                        <svg class="checkmark-icon w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                        </svg>
+                      </label>
+                    </div>
+                    <div class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                      <img src="https://images.unsplash.com/photo-1498550744921-75f79806b163?w=400&h=400&fit=crop" alt="Hot Air Balloon" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1">
+                      <label for="addon-balloon" class="font-semibold text-gray-900 cursor-pointer">Hot Air Balloon Ride</label>
+                      <p class="text-sm text-gray-600 mt-1">Sunrise hot air balloon over the Serengeti with champagne breakfast</p>
+                      <div class="flex items-center gap-4 mt-3">
+                        <span class="text-primary-600 font-bold">$450</span>
+                        <span class="text-xs text-gray-500">per guest</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 addon-quantity hidden">
+                      <button type="button" class="qty-minus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">-</button>
+                      <input type="number" min="1" max="10" value="1" class="qty-input w-12 text-center border border-gray-300 rounded py-1" readonly>
+                      <button type="button" class="qty-plus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Airport Transfer -->
+                <div class="addon-item border-2 border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div class="flex items-start gap-4">
+                    <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                      <input type="checkbox" id="addon-transfer" value="transfer" data-price="80" data-type="per_booking" data-name="Airport Transfer" class="addon-checkbox sr-only">
+                      <label for="addon-transfer" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                        <svg class="checkmark-icon w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                        </svg>
+                      </label>
+                    </div>
+                    <div class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                      <img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=400&fit=crop" alt="Airport Transfer" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1">
+                      <label for="addon-transfer" class="font-semibold text-gray-900 cursor-pointer">Airport Transfer</label>
+                      <p class="text-sm text-gray-600 mt-1">Round-trip transfer from Kilimanjaro International Airport</p>
+                      <div class="flex items-center gap-4 mt-3">
+                        <span class="text-primary-600 font-bold">$80</span>
+                        <span class="text-xs text-gray-500">per booking</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 addon-quantity hidden">
+                      <button type="button" class="qty-minus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">-</button>
+                      <input type="number" min="1" max="10" value="1" class="qty-input w-12 text-center border border-gray-300 rounded py-1" readonly>
+                      <button type="button" class="qty-plus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Cultural Visit -->
+                <div class="addon-item border-2 border-gray-200 rounded-lg p-4 hover:border-primary-500 transition-all">
+                  <div class="flex items-start gap-4">
+                    <div class="relative flex items-center justify-center w-6 h-6 mt-1 flex-shrink-0">
+                      <input type="checkbox" id="addon-cultural" value="cultural" data-price="120" data-type="per_night" data-name="Maasai Cultural Visit" class="addon-checkbox sr-only">
+                      <label for="addon-cultural" class="w-6 h-6 border-2 border-gray-300 rounded-full transition-all duration-200 flex items-center justify-center cursor-pointer">
+                        <svg class="checkmark-icon w-4 h-4 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                        </svg>
+                      </label>
+                    </div>
+                    <div class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200">
+                      <img src="https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=400&h=400&fit=crop" alt="Maasai Cultural Visit" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1">
+                      <label for="addon-cultural" class="font-semibold text-gray-900 cursor-pointer">Maasai Cultural Visit</label>
+                      <p class="text-sm text-gray-600 mt-1">Experience traditional Maasai culture with village visit and dance performance</p>
+                      <div class="flex items-center gap-4 mt-3">
+                        <span class="text-primary-600 font-bold">$120</span>
+                        <span class="text-xs text-gray-500">per night</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 addon-quantity hidden">
+                      <button type="button" class="qty-minus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">-</button>
+                      <input type="number" min="1" max="10" value="1" class="qty-input w-12 text-center border border-gray-300 rounded py-1" readonly>
+                      <button type="button" class="qty-plus w-8 h-8 rounded-full border border-gray-300 hover:border-primary-500 flex items-center justify-center">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <p class="text-sm text-gray-500 italic mt-4">Add-ons are optional. You can skip this step if you don't need any extras.</p>
+
+              </form>
+            </div>
+
+            <!-- Step 3: Guest Details & Payment -->
+            <div id="step-3" class="step-content hidden">
+              <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Guest Details & Payment</h2>
+              <p class="text-gray-600 mb-6">Please provide your information to complete the booking</p>
+
+              <form id="step-3-form" class="space-y-6">
+
+                <!-- Guest Details -->
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 mb-4">Guest Information</h3>
+                  <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                        <input type="text" id="first-name" required minlength="2" placeholder="John" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <p class="text-xs text-red-600 mt-1 hidden" id="firstname-error">First name must be at least 2 characters</p>
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Last Name *</label>
+                        <input type="text" id="last-name" required minlength="2" placeholder="Doe" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <p class="text-xs text-red-600 mt-1 hidden" id="lastname-error">Last name must be at least 2 characters</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
+                      <input type="email" id="email" required placeholder="john.doe@example.com" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                      <p class="text-xs text-red-600 mt-1 hidden" id="email-error">Valid email is required</p>
+                    </div>
+
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                      <input type="tel" id="phone" required minlength="7" placeholder="+1 (555) 123-4567" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                      <p class="text-xs text-red-600 mt-1 hidden" id="phone-error">Valid phone number is required (min 7 digits)</p>
+                    </div>
+
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+                      <input type="password" id="password" required minlength="8" placeholder="Create a password for your account" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                      <p class="text-xs text-gray-500 mt-1">Minimum 8 characters with uppercase, lowercase, and number</p>
+                      <p class="text-xs text-red-600 mt-1 hidden" id="password-error">Password must include uppercase, lowercase, and number</p>
+                    </div>
+
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Special Requests (Optional)</label>
+                      <textarea id="special-requests" rows="3" placeholder="Any dietary requirements or special requests?" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Promo Code -->
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 mb-4">Promo Code</h3>
+                  <div class="flex gap-3">
+                    <input type="text" id="promo-code" placeholder="Enter promo code" class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <button type="button" id="apply-promo" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-colors">Apply</button>
+                  </div>
+                  <p class="text-xs text-green-600 mt-1 hidden" id="promo-success"></p>
+                  <p class="text-xs text-red-600 mt-1 hidden" id="promo-error"></p>
+                </div>
+
+                <!-- Payment Method -->
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 mb-4">Payment Method *</h3>
+                  <div class="space-y-3">
+                    <label class="flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 cursor-pointer transition-all">
+                      <input type="radio" name="payment" value="card" checked class="w-5 h-5 text-primary-600 border-gray-300 focus:ring-primary-500">
+                      <div class="flex-1">
+                        <div class="font-semibold text-gray-900">Credit/Debit Card</div>
+                        <div class="text-sm text-gray-600">Secure payment via Paystack</div>
+                      </div>
+                      <svg class="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20 8H4V6h16m0 12H4v-6h16m0-8H4c-1.11 0-2 .89-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2z"/>
+                      </svg>
+                    </label>
+
+                    <label class="flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 cursor-pointer transition-all">
+                      <input type="radio" name="payment" value="paypal" class="w-5 h-5 text-primary-600 border-gray-300 focus:ring-primary-500">
+                      <div class="flex-1">
+                        <div class="font-semibold text-gray-900">PayPal</div>
+                        <div class="text-sm text-gray-600">Pay with your PayPal account</div>
+                      </div>
+                      <svg class="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8.32 21.97a.546.546 0 01-.26-.32c-.03-.15-.01-.3.06-.44l2.67-7.84c.05-.14.15-.26.28-.33s.28-.08.43-.04l3.54.83c2.47.58 3.73 1.36 3.73 2.32 0 1.45-1.82 2.78-5.42 3.96-1.47.48-2.93.77-4.35.86h-.68zm7.19-11.67l-3.54-.83c-.14-.03-.29-.01-.42.06s-.23.19-.27.33L8.61 17.7c-.04.14-.03.29.04.42s.18.23.32.28c1.42.47 2.88.72 4.35.72 3.6 0 5.42-1.32 5.42-3.96 0-.96-1.26-1.74-3.73-2.32l.5-1.54z"/>
+                      </svg>
+                    </label>
+
+                    <label class="flex items-center gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-primary-500 cursor-pointer transition-all">
+                      <input type="radio" name="payment" value="bank" class="w-5 h-5 text-primary-600 border-gray-300 focus:ring-primary-500">
+                      <div class="flex-1">
+                        <div class="font-semibold text-gray-900">Bank Transfer</div>
+                        <div class="text-sm text-gray-600">Direct bank transfer (EFT)</div>
+                      </div>
+                      <svg class="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M11.5 1L2 6v2h19V6m-5 4v7h3v-7M2 22h19v-3H2m8-9v7h3v-7m-9 0v7h3v-7H4z"/>
+                      </svg>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Terms & Conditions -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" id="terms-checkbox" required class="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500 mt-0.5">
+                    <span class="text-sm text-gray-700">
+                      I agree to the <a href="/terms-conditions.html" target="_blank" class="text-primary-600 hover:text-primary-700 font-medium">Terms and Conditions</a> and <a href="/cancellation-policy.html" target="_blank" class="text-primary-600 hover:text-primary-700 font-medium">Cancellation Policy</a>
+                    </span>
+                  </label>
+                  <p class="text-xs text-red-600 mt-2 hidden" id="terms-error">You must accept the terms to continue</p>
+                </div>
+
+                <!-- Marketing Consent -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" id="marketing-checkbox" class="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500 mt-0.5">
+                    <span class="text-sm text-gray-700">
+                      I'd like to receive emails about special offers and updates from Serengeti Lodge
+                    </span>
+                  </label>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- Step 4: Confirmation -->
+            <div id="step-4" class="step-content hidden">
+              <div class="text-center mb-8">
+                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-gray-900 mb-2">Booking Confirmed!</h2>
+                <p class="text-gray-600">Your reservation has been successfully confirmed</p>
+              </div>
+
+              <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                <div class="text-center mb-4">
+                  <div class="text-sm text-gray-600">Booking Reference</div>
+                  <div class="text-2xl font-bold text-primary-600" id="booking-reference">SL-2026-001234</div>
+                </div>
+              </div>
+
+              <div class="space-y-6">
+
+                <!-- Booking Summary -->
+                <div>
+                  <h3 class="font-semibold text-gray-900 mb-3">Booking Details</h3>
+                  <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-2 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Check-in</span>
+                      <span class="font-medium" id="confirm-checkin"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Check-out</span>
+                      <span class="font-medium" id="confirm-checkout"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Room</span>
+                      <span class="font-medium" id="confirm-room"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Guests</span>
+                      <span class="font-medium" id="confirm-guests"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Guest Info -->
+                <div>
+                  <h3 class="font-semibold text-gray-900 mb-3">Guest Information</h3>
+                  <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-2 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Name</span>
+                      <span class="font-medium" id="confirm-name"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Email</span>
+                      <span class="font-medium" id="confirm-email"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Payment Info -->
+                <div>
+                  <h3 class="font-semibold text-gray-900 mb-3">Payment</h3>
+                  <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-2 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Total Paid</span>
+                      <span class="font-bold text-lg text-primary-600" id="confirm-total"></span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-600">Payment Method</span>
+                      <span class="font-medium" id="confirm-payment"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Confirmation Message -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div class="flex gap-3">
+                    <svg class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div class="text-sm text-blue-800">
+                      <div class="font-semibold mb-1">Confirmation email sent</div>
+                      <div>We've sent a confirmation email to <span class="font-medium" id="confirm-email-copy"></span> with your booking details and receipt.</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Actions -->
+              <div class="mt-8 flex flex-col sm:flex-row gap-3">
+                <a href="/index.html" class="btn btn-primary flex-1 justify-center">
+                  Back to Home
+                </a>
+                <button type="button" onclick="window.print()" class="btn-outline flex-1 justify-center border-2 border-gray-300 hover:border-gray-400 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors">
+                  Print Confirmation
+                </button>
+              </div>
+
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
+              <button type="button" id="prev-btn" class="hidden px-6 py-3 border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-medium rounded-lg transition-colors">
+                ← Previous
+              </button>
+              <div class="flex-1"></div>
+              <button type="button" id="next-btn" class="btn btn-primary px-8 py-4">
+                Continue →
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Right Column: Pricing Summary -->
+        <div class="lg:col-span-1">
+          <div class="sticky top-6">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+              <h3 class="text-xl font-bold text-gray-900 mb-6">Booking Summary</h3>
+
+              <div class="space-y-4 mb-6">
+
+                <!-- Room -->
+                <div id="summary-room" class="hidden">
+                  <div class="text-sm text-gray-600 mb-1">Room</div>
+                  <div class="font-medium text-gray-900" id="summary-room-name">-</div>
+                  <div class="text-sm text-gray-600 mt-1">
+                    <span id="summary-nights">0</span> nights × $<span id="summary-room-price">0</span>
+                  </div>
+                  <div class="text-right font-semibold text-gray-900">$<span id="summary-room-total">0</span></div>
+                </div>
+
+                <!-- Guests -->
+                <div id="summary-guests-section" class="hidden">
+                  <div class="text-sm text-gray-600">Guests</div>
+                  <div class="font-medium text-gray-900" id="summary-guests">-</div>
+                </div>
+
+                <!-- Add-ons -->
+                <div id="summary-addons" class="hidden space-y-2">
+                  <!-- Populated dynamically -->
+                </div>
+
+              </div>
+
+              <!-- Pricing Breakdown -->
+              <div class="border-t border-gray-200 pt-4 space-y-3 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Room Subtotal</span>
+                  <span class="font-medium">$<span id="pricing-room">0.00</span></span>
+                </div>
+                <div id="pricing-addons-row" class="hidden flex justify-between">
+                  <span class="text-gray-600">Add-ons</span>
+                  <span class="font-medium">$<span id="pricing-addons">0.00</span></span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Subtotal</span>
+                  <span class="font-medium">$<span id="pricing-subtotal">0.00</span></span>
+                </div>
+                <div id="pricing-discount-row" class="hidden flex justify-between text-green-600">
+                  <span>Discount (<span id="discount-code"></span>)</span>
+                  <span class="font-medium">-$<span id="pricing-discount">0.00</span></span>
+                </div>
+                <div class="flex justify-between text-gray-600">
+                  <span>Tax (15%)</span>
+                  <span class="font-medium">$<span id="pricing-tax">0.00</span></span>
+                </div>
+              </div>
+
+              <!-- Total -->
+              <div class="border-t-2 border-gray-300 mt-4 pt-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-lg font-bold text-gray-900">Total</span>
+                  <span class="text-2xl font-bold text-primary-600">$<span id="pricing-total">0.00</span></span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

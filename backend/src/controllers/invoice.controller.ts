@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/errors';
+import { logger } from '../utils/logger';
 import * as invoiceService from '../services/invoice.service';
 import type { InvoiceListParams, InvoiceStatus } from '../types/invoice.types';
 
@@ -96,9 +97,26 @@ export const getSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    logger.info('[INVOICE_SETTINGS] GET request received', {
+      userId: req.user?.id,
+      userEmail: req.user?.email,
+      userRoles: req.userProfile?.roles?.map(r => r.name),
+    });
+
     const settings = await invoiceService.getInvoiceSettings();
+
+    logger.info('[INVOICE_SETTINGS] Successfully retrieved settings', {
+      settingsId: settings.id,
+      companyName: settings.company_name,
+      hasLogo: !!settings.logo_url,
+    });
+
     sendSuccess(res, { settings });
   } catch (error) {
+    logger.error('[INVOICE_SETTINGS] Error getting settings', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: req.user?.id,
+    });
     next(error);
   }
 };
@@ -113,9 +131,26 @@ export const updateSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    logger.info('[INVOICE_SETTINGS] PATCH request received', {
+      userId: req.user?.id,
+      userEmail: req.user?.email,
+      fieldsToUpdate: Object.keys(req.body),
+    });
+
     const settings = await invoiceService.updateInvoiceSettings(req.body, req.user!.id);
+
+    logger.info('[INVOICE_SETTINGS] Successfully updated settings', {
+      settingsId: settings.id,
+      userId: req.user?.id,
+    });
+
     sendSuccess(res, { settings });
   } catch (error) {
+    logger.error('[INVOICE_SETTINGS] Error updating settings', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: req.user?.id,
+      body: req.body,
+    });
     next(error);
   }
 };
@@ -192,11 +227,23 @@ export const uploadLogo = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    logger.info('[INVOICE_LOGO] Upload request received', {
+      userId: req.user?.id,
+      hasFile: !!req.file,
+      fileName: req.file?.originalname,
+      fileSize: req.file?.size,
+    });
+
     if (!req.file) {
       throw new AppError('BAD_REQUEST', 'No file uploaded');
     }
 
     const logoUrl = await invoiceService.uploadInvoiceLogo(req.file, req.user!.id);
+
+    logger.info('[INVOICE_LOGO] Successfully uploaded logo', {
+      userId: req.user?.id,
+      logoUrl,
+    });
     sendSuccess(res, { logo_url: logoUrl, message: 'Logo uploaded successfully' });
   } catch (error) {
     next(error);
@@ -213,7 +260,15 @@ export const deleteLogo = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    logger.info('[INVOICE_LOGO] Delete request received', {
+      userId: req.user?.id,
+    });
+
     await invoiceService.deleteInvoiceLogo(req.user!.id);
+
+    logger.info('[INVOICE_LOGO] Successfully deleted logo', {
+      userId: req.user?.id,
+    });
     sendSuccess(res, { message: 'Logo deleted successfully' });
   } catch (error) {
     next(error);
@@ -236,6 +291,88 @@ export const generateBookingInvoice = async (
       invoice,
       message: 'Invoice generated successfully'
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/invoices/admin/checkouts/:checkoutId/generate
+ * Manually generate invoice for a completed checkout
+ */
+export const generateCheckoutInvoice = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { checkoutId } = req.params;
+    const invoice = await invoiceService.generateInvoice(checkoutId);
+    sendSuccess(res, {
+      invoice,
+      message: 'Invoice generated successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// TYPE-SPECIFIC INVOICE ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/invoices/subscription
+ * Get subscription invoices for current user (SaaS billing)
+ * Returns invoices where the user is the payer (subscription owner)
+ */
+export const getSubscriptionInvoices = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const invoices = await invoiceService.getUserSubscriptionInvoices(userId);
+    sendSuccess(res, invoices);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/invoices/booking/issued
+ * Get booking invoices issued by current user (property owner perspective)
+ * Returns invoices where the user is the issuer (property owner)
+ */
+export const getIssuedBookingInvoices = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const invoices = await invoiceService.getPropertyOwnerBookingInvoices(userId);
+    sendSuccess(res, invoices);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/invoices/booking/received
+ * Get booking invoices received by current user (guest perspective)
+ * Returns invoices for bookings where the user is the guest
+ */
+export const getReceivedBookingInvoices = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const invoices = await invoiceService.getGuestBookingInvoices(userId);
+    sendSuccess(res, invoices);
   } catch (error) {
     next(error);
   }

@@ -37,6 +37,13 @@ router.get(
   billingController.listSubscriptionTypes
 );
 
+// Get subscription type by slug - public for /plans/:slug checkout pages
+// IMPORTANT: This route must come BEFORE /:id to avoid slug being treated as ID
+router.get(
+  '/subscription-types/slug/:slug',
+  billingController.getSubscriptionTypeBySlug
+);
+
 // Get single subscription type - public for pricing/checkout
 router.get(
   '/subscription-types/:id',
@@ -243,6 +250,14 @@ router.delete(
   billingController.deleteSubscriptionType
 );
 
+// Force delete subscription type (with checkout history) - super admin only
+router.delete(
+  '/subscription-types/:id/force',
+  validateParams(idParamSchema),
+  requireSuperAdmin(),
+  billingController.forceDeleteSubscriptionType
+);
+
 // ============================================================================
 // USER SUBSCRIPTIONS (with status field)
 // ============================================================================
@@ -280,13 +295,26 @@ router.patch(
   billingController.updateUserSubscription
 );
 
-// Cancel user subscription - super admin only
+// Cancel user subscription - users can cancel their own, admin can cancel any
 router.post(
   '/subscriptions/user/:userId/cancel',
   validateParams(userIdParamSchema),
   validateBody(cancelSubscriptionSchema),
-  requireSuperAdmin(),
   billingController.cancelUserSubscription
+);
+
+// Pause user subscription - users can pause their own, admin can pause any
+router.post(
+  '/subscriptions/user/:userId/pause',
+  validateParams(userIdParamSchema),
+  billingController.pauseUserSubscription
+);
+
+// Resume paused subscription - users can resume their own, admin can resume any
+router.post(
+  '/subscriptions/user/:userId/resume',
+  validateParams(userIdParamSchema),
+  billingController.resumeUserSubscription
 );
 
 // ============================================================================
@@ -321,22 +349,37 @@ router.post(
 // SUBSCRIPTION TYPE PERMISSIONS (NEW)
 // ============================================================================
 
-// Get subscription type permissions
+// Get subscription type permissions - super admin only
 router.get(
   '/subscription-types/:id/permissions',
-  authenticate,
-  loadUserProfile,
-  requirePermission('settings', 'read'),
+  validateParams(idParamSchema),
+  requireSuperAdmin(),
   billingController.getSubscriptionTypePermissions
 );
 
-// Update subscription type permissions
+// Update subscription type permissions - super admin only
 router.put(
   '/subscription-types/:id/permissions',
-  authenticate,
-  loadUserProfile,
-  requirePermission('settings', 'manage'),
+  validateParams(idParamSchema),
+  requireSuperAdmin(),
   billingController.updateSubscriptionTypePermissions
+);
+
+// ============================================================================
+// SUBSCRIPTION UPGRADE REQUESTS (User Response)
+// ============================================================================
+
+// Get current user's pending upgrade request
+router.get(
+  '/my-pending-upgrade',
+  billingController.getMyPendingUpgrade
+);
+
+// Respond to an upgrade request (accept or decline)
+router.post(
+  '/upgrade-requests/:id/respond',
+  validateParams(idParamSchema),
+  billingController.respondToUpgradeRequest
 );
 
 export default router;

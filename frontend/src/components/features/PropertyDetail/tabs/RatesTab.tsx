@@ -301,6 +301,70 @@ export const RatesTab: React.FC<RatesTabProps> = ({ rooms, currency, onDateSelec
         </div>
       </div>
 
+      {/* Active Seasonal Rates Summary */}
+      {(() => {
+        const activeSeasonalRates = availableRooms
+          .flatMap((room) =>
+            (room.seasonal_rates || [])
+              .filter((rate) => rate.is_active)
+              .map((rate) => ({
+                ...rate,
+                roomName: room.name,
+                roomId: room.id,
+                currency: room.currency,
+              }))
+          );
+
+        if (activeSeasonalRates.length === 0) return null;
+
+        return (
+          <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Active Seasonal Rates
+            </h3>
+            <div className="space-y-3">
+              {activeSeasonalRates.map((rate) => (
+                <div
+                  key={`${rate.roomId}-${rate.id}`}
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {rate.name}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        • {rate.roomName}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(rate.start_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}{' '}
+                      -{' '}
+                      {new Date(rate.end_date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </div>
+                  </div>
+                  <div className="text-right ml-4">
+                    <div className="text-base font-bold text-primary">
+                      {formatPrice(rate.price_per_night)}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      per night
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Information Footer */}
       <div className="bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg p-4">
         <p className="text-sm text-gray-600 dark:text-gray-400">

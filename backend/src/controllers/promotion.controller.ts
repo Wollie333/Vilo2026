@@ -1,6 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { getAdminClient } from '../config/supabase';
 import { sendSuccess, sendError } from '../utils/response';
+import { AuthRequest } from '../types/api.types';
 
 // ============================================================================
 // Promotion Controller
@@ -139,10 +140,14 @@ export const promotionController = {
   // POST /api/promotions
   // Create a new promotion
   // --------------------------------------------------------------------------
-  async createPromotion(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async createPromotion(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = req.body;
       const supabase = getAdminClient();
+
+      console.log('[PromotionController] createPromotion called');
+      console.log('[PromotionController] Request body:', JSON.stringify(data, null, 2));
+      console.log('[PromotionController] User ID:', req.user?.id);
 
       // Validation
       if (!data.property_id) {
@@ -220,6 +225,42 @@ export const promotionController = {
 
       if (error) {
         throw new Error(`Failed to create promotion: ${error.message}`);
+      }
+
+      // If room_ids are provided, assign promotion to those rooms
+      if (data.room_ids && Array.isArray(data.room_ids) && data.room_ids.length > 0) {
+        console.log('[PromotionController] room_ids provided:', data.room_ids);
+        console.log('[PromotionController] Promotion ID:', promotion.id);
+        console.log('[PromotionController] Assigning promotion to', data.room_ids.length, 'rooms');
+
+        const assignments = data.room_ids.map((roomId: string) => ({
+          room_id: roomId,
+          promotion_id: promotion.id,
+          assigned_by: req.user!.id,
+        }));
+
+        console.log('[PromotionController] Assignment data:', JSON.stringify(assignments, null, 2));
+
+        const { error: assignError, data: assignData } = await supabase
+          .from('room_promotion_assignments')
+          .insert(assignments)
+          .select();
+
+        if (assignError) {
+          console.error('[PromotionController] ❌ FAILED to assign promotion to rooms');
+          console.error('[PromotionController] Error code:', assignError.code);
+          console.error('[PromotionController] Error message:', assignError.message);
+          console.error('[PromotionController] Error details:', assignError.details);
+          console.error('[PromotionController] Full error:', JSON.stringify(assignError, null, 2));
+          // Don't throw error - promotion is created, just not assigned
+          // The user can manually assign it later
+        } else {
+          console.log('[PromotionController] ✅ Successfully assigned promotion to', data.room_ids.length, 'rooms');
+          console.log('[PromotionController] Assignment result:', JSON.stringify(assignData, null, 2));
+        }
+      } else {
+        console.log('[PromotionController] No room_ids provided or empty array');
+        console.log('[PromotionController] data.room_ids:', data.room_ids);
       }
 
       sendSuccess(res, promotion, 201);
@@ -372,6 +413,11 @@ export const promotionController = {
     try {
       const { code, property_id, room_ids = [], booking_amount = 0, nights = 1 } = req.body;
 
+      console.log('[PromotionController] validatePromoCode called');
+      console.log('[PromotionController] Code:', code);
+      console.log('[PromotionController] Property ID:', property_id);
+      console.log('[PromotionController] Room IDs:', room_ids);
+
       if (!code || !property_id) {
         return sendError(res, 'VALIDATION_ERROR', 'Promo code and property ID are required', 400);
       }
@@ -379,74 +425,115 @@ export const promotionController = {
       const supabase = getAdminClient();
 
       // Find promo code
-      let query = supabase
+      const { data: promo, error } = await supabase
         .from('room_promotions')
         .select('*')
         .eq('code', code.toUpperCase())
+        .eq('property_id', property_id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      const { data: promo, error } = await query;
+      console.log('[PromotionController] Promo found:', promo);
+      console.log('[PromotionController] Promo error:', error);
 
       if (error || !promo) {
-        return res.json({
+        console.log('[PromotionController] Promo not found or error');
+        res.json({
           valid: false,
           message: 'Invalid or expired promo code',
         });
+        return;
       }
 
-      // Check if promo is for this property or specific rooms
-      const isPropertyPromo = promo.property_id === property_id && !promo.room_id;
-      const isRoomPromo = room_ids.includes(promo.room_id);
+      // Check if promo is assigned to the selected rooms via junction table
+      // A promotion is valid if:
+      // 1. It's assigned to at least one of the selected rooms, OR
+      // 2. It has no room assignments (property-level promo)
 
-      if (!isPropertyPromo && !isRoomPromo) {
-        return res.json({
-          valid: false,
-          message: 'This promo code is not valid for your selected rooms',
-        });
+      if (room_ids && room_ids.length > 0) {
+        console.log('[PromotionController] Checking room assignments for rooms:', room_ids);
+
+        // Check if promotion is assigned to any of the selected rooms
+        const { data: assignments, error: assignError } = await supabase
+          .from('room_promotion_assignments')
+          .select('room_id')
+          .eq('promotion_id', promo.id)
+          .in('room_id', room_ids);
+
+        console.log('[PromotionController] Room assignments found:', assignments);
+        console.log('[PromotionController] Assignment error:', assignError);
+
+        // If there are no assignments at all, this is a property-level promo (valid for all rooms)
+        const { count: totalAssignments } = await supabase
+          .from('room_promotion_assignments')
+          .select('*', { count: 'exact', head: true })
+          .eq('promotion_id', promo.id);
+
+        console.log('[PromotionController] Total assignments for promo:', totalAssignments);
+
+        // Promo is valid if:
+        // - It has assignments to the selected rooms, OR
+        // - It has no assignments at all (property-level)
+        const isValidForRooms = (assignments && assignments.length > 0) || totalAssignments === 0;
+
+        if (!isValidForRooms) {
+          console.log('[PromotionController] Promo not valid for selected rooms');
+          res.json({
+            valid: false,
+            message: 'This promo code is not valid for your selected rooms',
+          });
+          return;
+        }
       }
 
       // Check validity period
       const now = new Date();
       if (promo.valid_from && new Date(promo.valid_from) > now) {
-        return res.json({
+        res.json({
           valid: false,
           message: 'This promo code is not yet valid',
         });
+        return;
       }
 
       if (promo.valid_until && new Date(promo.valid_until) < now) {
-        return res.json({
+        res.json({
           valid: false,
           message: 'This promo code has expired',
         });
+        return;
       }
 
       // Check usage limits
       if (promo.max_uses && promo.current_uses >= promo.max_uses) {
-        return res.json({
+        res.json({
           valid: false,
           message: 'This promo code has reached its usage limit',
         });
+        return;
       }
 
       // Check minimum requirements
       if (promo.min_booking_amount && booking_amount < promo.min_booking_amount) {
-        return res.json({
+        res.json({
           valid: false,
           message: `Minimum booking amount of ${promo.min_booking_amount} required`,
         });
+        return;
       }
 
       if (promo.min_nights && nights < promo.min_nights) {
-        return res.json({
+        res.json({
           valid: false,
           message: `Minimum ${promo.min_nights} nights required`,
         });
+        return;
       }
 
       // Valid promo code!
-      return res.json({
+      console.log('[PromotionController] ✅ Promo code is VALID!');
+      console.log('[PromotionController] Discount:', promo.discount_type, promo.discount_value);
+      res.json({
         valid: true,
         discount_type: promo.discount_type,
         discount_value: promo.discount_value,

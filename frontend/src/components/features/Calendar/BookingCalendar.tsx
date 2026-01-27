@@ -369,6 +369,7 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <div className="font-semibold text-gray-700 dark:text-gray-300">Booking Status:</div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-primary" />
           <span>Confirmed</span>
@@ -376,6 +377,10 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-yellow-500" />
           <span>Pending</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded bg-purple-500" />
+          <span>Pending Modification</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-blue-500" />
@@ -386,8 +391,27 @@ export const BookingCalendar: React.FC<BookingCalendarProps> = ({
           <span>Blocked</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-500" />
+          <div className="w-3 h-3 rounded bg-red-500 opacity-50" />
           <span>Cancelled</span>
+        </div>
+
+        <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-2" />
+        <div className="font-semibold text-gray-700 dark:text-gray-300">Payment Status:</div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-orange-500" />
+          <span>Verification Pending</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-green-500" />
+          <span>Paid</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-purple-400" />
+          <span>Partially Refunded</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-gray-400" />
+          <span>Failed Checkout</span>
         </div>
       </div>
     </div>

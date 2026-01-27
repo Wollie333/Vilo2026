@@ -105,6 +105,7 @@ export interface PublicPropertyDetail extends PublicPropertySummary {
   // Company info (owner details hidden)
   company_name?: string;
   company_logo?: string;
+  owner_id: string; // Property owner user ID (for chat functionality)
 
   // Rooms (summary)
   rooms: PublicRoomSummary[];

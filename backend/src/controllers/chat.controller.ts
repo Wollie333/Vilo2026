@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import * as chatService from '../services/chat.service';
+import * as whatsappReplyService from '../services/whatsapp-reply.service';
 import type {
   ConversationListParams,
   MessageListParams,
@@ -404,6 +405,146 @@ export const getStats = async (
     const stats = await chatService.getChatStats(req.user!.id);
     sendSuccess(res, { stats });
   } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// WhatsApp Reply Endpoints
+// ============================================================================
+
+/**
+ * POST /api/chat/conversations/:conversationId/reply-whatsapp
+ * Send a WhatsApp reply from the chat interface
+ */
+export const replyWhatsApp = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { conversationId } = req.params;
+    const { content, recipientPhone } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!content || !recipientPhone) {
+      res.status(400).json({ error: 'Missing content or recipientPhone' });
+      return;
+    }
+
+    await whatsappReplyService.sendWhatsAppReply({
+      conversationId,
+      senderId: userId,
+      content,
+      recipientPhone,
+    });
+
+    sendSuccess(res, { message: 'Reply sent successfully' });
+  } catch (error: any) {
+    // Handle template required error
+    if (error.code === 'TEMPLATE_REQUIRED') {
+      res.status(400).json({
+        error: 'template_required',
+        message: 'Outside 24-hour window. Please select a template.',
+      });
+      return;
+    }
+
+    next(error);
+  }
+};
+
+/**
+ * GET /api/chat/conversations/:conversationId/whatsapp-window
+ * Check if 24-hour conversation window is active
+ */
+export const checkWhatsAppWindow = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { conversationId } = req.params;
+
+    const isActive = await whatsappReplyService.isConversationWindowActive(conversationId);
+
+    sendSuccess(res, {
+      windowActive: isActive,
+      message: isActive
+        ? 'Free-form replies allowed'
+        : 'Template required (outside 24h window)',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/chat/conversations/:conversationId/whatsapp-window/status
+ * Get detailed 24-hour conversation window status
+ */
+export const getWhatsAppWindowStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { conversationId } = req.params;
+
+    const status = await whatsappReplyService.getConversationWindowStatus(conversationId);
+
+    sendSuccess(res, status);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================================
+// Guest Chat
+// ============================================================================
+
+/**
+ * POST /api/chat/guest/start
+ * Start a guest chat (public endpoint - no auth required)
+ * Creates guest account if needed, starts conversation
+ */
+export const startGuestChat = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    console.log('=== [CHAT_CONTROLLER] startGuestChat called ===');
+    console.log('[CHAT_CONTROLLER] Request body:', JSON.stringify(req.body, null, 2));
+
+    const { property_id, property_owner_id, guest_email, guest_name } = req.body;
+
+    // Validate required fields
+    if (!property_id || !property_owner_id || !guest_email || !guest_name) {
+      throw new Error('Missing required fields: property_id, property_owner_id, guest_email, guest_name');
+    }
+
+    const result = await chatService.startGuestChat({
+      property_id,
+      property_owner_id,
+      guest_email,
+      guest_name,
+    });
+
+    console.log('[CHAT_CONTROLLER] Guest chat started successfully:', result);
+
+    sendSuccess(res, result, 200, {
+      message: result.is_new_user
+        ? 'Guest account created and chat started. Password setup email sent.'
+        : 'Chat started successfully.',
+    });
+  } catch (error) {
+    console.error('[CHAT_CONTROLLER] Failed to start guest chat:', error);
     next(error);
   }
 };

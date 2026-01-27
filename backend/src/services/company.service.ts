@@ -156,19 +156,50 @@ export const createCompany = async (
 ): Promise<CompanyWithPropertyCount> => {
   const supabase = getAdminClient();
 
-  // Check company limit
-  const limitInfo = await getCompanyLimitInfo(userId);
+  console.log('=== [COMPANY_SERVICE] createCompany called ===');
+  console.log('[COMPANY_SERVICE] User ID:', userId);
+  console.log('[COMPANY_SERVICE] Company input:', JSON.stringify(input, null, 2));
+
+  // Check company limit (with error handling - don't block creation on limit check failure)
+  let limitInfo;
+  try {
+    console.log('[COMPANY_SERVICE] Checking company limit...');
+    limitInfo = await getCompanyLimitInfo(userId);
+    console.log('[COMPANY_SERVICE] Limit info:', JSON.stringify(limitInfo, null, 2));
+  } catch (err) {
+    console.error('[COMPANY_SERVICE] Failed to check company limit - applying defaults:', err);
+    logger.error('Failed to check company limit - allowing creation with free tier defaults', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // Default to allowing 1 company if limit check fails (free tier)
+    limitInfo = {
+      current_count: 0,
+      max_allowed: 1,
+      is_unlimited: false,
+      can_create: true,
+      remaining: 1,
+    };
+    console.log('[COMPANY_SERVICE] Using default limit info:', JSON.stringify(limitInfo, null, 2));
+  }
+
   if (!limitInfo.can_create) {
+    console.error('[COMPANY_SERVICE] Company limit reached:', limitInfo);
     throw new AppError(
       'FORBIDDEN',
       `You have reached your company limit (${limitInfo.max_allowed}). Please upgrade your subscription to create more companies.`
     );
   }
 
+  console.log('[COMPANY_SERVICE] Limit check passed - can create company');
+
   // Validate required fields
   if (!input.name || !input.name.trim()) {
+    console.error('[COMPANY_SERVICE] Validation failed: Company name is required');
     throw new AppError('VALIDATION_ERROR', 'Company name is required');
   }
+
+  console.log('[COMPANY_SERVICE] Validation passed - proceeding with INSERT');
 
   const { data, error } = await supabase
     .from('companies')
@@ -199,9 +230,21 @@ export const createCompany = async (
     .select()
     .single();
 
-  if (error || !data) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to create company');
+  if (error) {
+    console.error('[COMPANY_SERVICE] Database INSERT error:', error);
+    console.error('[COMPANY_SERVICE] Error code:', error.code);
+    console.error('[COMPANY_SERVICE] Error details:', error.details);
+    console.error('[COMPANY_SERVICE] Error hint:', error.hint);
+    console.error('[COMPANY_SERVICE] Error message:', error.message);
+    throw new AppError('INTERNAL_ERROR', `Failed to create company: ${error.message}`);
   }
+
+  if (!data) {
+    console.error('[COMPANY_SERVICE] INSERT returned no data');
+    throw new AppError('INTERNAL_ERROR', 'Failed to create company: No data returned');
+  }
+
+  console.log('[COMPANY_SERVICE] Company INSERT successful:', data.id);
 
   // Create audit log
   await createAuditLog({
@@ -228,6 +271,10 @@ export const updateCompany = async (
 ): Promise<CompanyWithPropertyCount> => {
   const supabase = getAdminClient();
 
+  console.log('🟡 [CompanyService] updateCompany called');
+  console.log('🟡 [CompanyService] Input received:', JSON.stringify(input, null, 2));
+  console.log('🟡 [CompanyService] VAT Percentage in input:', input.vat_percentage);
+
   // Verify ownership
   const current = await getCompanyById(id, userId);
 
@@ -250,6 +297,25 @@ export const updateCompany = async (
   if (input.address_postal_code !== undefined) updateData.address_postal_code = input.address_postal_code?.trim() || null;
   if (input.address_country !== undefined) updateData.address_country = input.address_country?.trim() || null;
   if (input.vat_number !== undefined) updateData.vat_number = input.vat_number?.trim() || null;
+  if (input.vat_percentage !== undefined) {
+    // Explicitly convert to number and validate
+    const vatValue = typeof input.vat_percentage === 'string'
+      ? parseFloat(input.vat_percentage)
+      : input.vat_percentage;
+
+    console.log('🟡 [CompanyService] VAT Percentage input type:', typeof input.vat_percentage);
+    console.log('🟡 [CompanyService] VAT Percentage input value:', input.vat_percentage);
+    console.log('🟡 [CompanyService] VAT Percentage converted value:', vatValue);
+    console.log('🟡 [CompanyService] VAT Percentage is valid number:', !isNaN(vatValue) && vatValue !== null);
+
+    // Only set if it's a valid number
+    if (vatValue !== null && !isNaN(vatValue)) {
+      updateData.vat_percentage = vatValue;
+      console.log('🟡 [CompanyService] VAT Percentage is being updated to:', vatValue);
+    } else {
+      console.warn('⚠️ [CompanyService] Invalid VAT Percentage value, skipping update');
+    }
+  }
   if (input.registration_number !== undefined) updateData.registration_number = input.registration_number?.trim() || null;
   if (input.linkedin_url !== undefined) updateData.linkedin_url = input.linkedin_url?.trim() || null;
   if (input.facebook_url !== undefined) updateData.facebook_url = input.facebook_url?.trim() || null;
@@ -257,6 +323,12 @@ export const updateCompany = async (
   if (input.twitter_url !== undefined) updateData.twitter_url = input.twitter_url?.trim() || null;
   if (input.youtube_url !== undefined) updateData.youtube_url = input.youtube_url?.trim() || null;
   if (input.is_active !== undefined) updateData.is_active = input.is_active;
+  if (input.enable_book_via_chat !== undefined) {
+    updateData.enable_book_via_chat = input.enable_book_via_chat;
+    console.log('🟢 [CompanyService] enable_book_via_chat is being updated to:', input.enable_book_via_chat);
+  }
+
+  console.log('🟡 [CompanyService] Update data being sent to Supabase:', JSON.stringify(updateData, null, 2));
 
   const { data, error } = await supabase
     .from('companies')
@@ -267,7 +339,35 @@ export const updateCompany = async (
     .single();
 
   if (error || !data) {
+    console.error('❌ [CompanyService] Supabase update error:', error);
     throw new AppError('INTERNAL_ERROR', 'Failed to update company');
+  }
+
+  console.log('✅ [CompanyService] Supabase update successful, returned data:', JSON.stringify(data, null, 2));
+  console.log('✅ [CompanyService] VAT Percentage in returned data:', data.vat_percentage);
+
+  // Verify the update by querying the database directly
+  const { data: verifyData, error: verifyError } = await supabase
+    .from('companies')
+    .select('id, vat_percentage')
+    .eq('id', id)
+    .single();
+
+  if (verifyData) {
+    console.log('🔍 [CompanyService] Database verification - VAT Percentage:', verifyData.vat_percentage);
+    if (input.vat_percentage !== undefined) {
+      const expectedValue = typeof input.vat_percentage === 'string'
+        ? parseFloat(input.vat_percentage)
+        : input.vat_percentage;
+
+      if (verifyData.vat_percentage !== expectedValue) {
+        console.error('❌ [CompanyService] VAT MISMATCH! Expected:', expectedValue, 'Got:', verifyData.vat_percentage);
+      } else {
+        console.log('✅ [CompanyService] VAT Percentage verified in database:', verifyData.vat_percentage);
+      }
+    }
+  } else if (verifyError) {
+    console.error('❌ [CompanyService] Verification query error:', verifyError);
   }
 
   // Create audit log
@@ -333,8 +433,17 @@ export const deleteCompany = async (
 export const getCompanyLimitInfo = async (userId: string): Promise<CompanyLimitInfo> => {
   const supabase = getAdminClient();
 
-  // Get user's subscription
-  const subscription = await getUserSubscription(userId);
+  // Get user's subscription (with error handling - don't throw)
+  let subscription;
+  try {
+    subscription = await getUserSubscription(userId);
+  } catch (err) {
+    logger.warn('Failed to fetch subscription for company limit check - applying free tier defaults', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    subscription = null;
+  }
 
   // Count current companies
   const { count: currentCount } = await supabase
@@ -344,8 +453,9 @@ export const getCompanyLimitInfo = async (userId: string): Promise<CompanyLimitI
 
   const companyCount = currentCount || 0;
 
-  // If no subscription, allow 1 company by default
+  // If no subscription, allow 1 company by default (free tier)
   if (!subscription) {
+    logger.info('No subscription found - applying free tier limits (1 company allowed)', { userId });
     return {
       current_count: companyCount,
       max_allowed: 1,

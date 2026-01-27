@@ -10,4 +10,6 @@ export interface PropertyCardProps {
   showRemoveButton?: boolean;
   onRemove?: (propertyId: string) => void;
   className?: string;
+  /** Custom click handler - overrides default navigation to public page */
+  onCardClick?: (property: PublicPropertySummary) => void;
 }

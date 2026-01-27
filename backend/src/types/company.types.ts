@@ -30,6 +30,8 @@ export interface Company {
   youtube_url: string | null;
   // Status
   is_active: boolean;
+  // Features
+  enable_book_via_chat: boolean;
   // Timestamps
   created_at: string;
   updated_at: string;
@@ -86,6 +88,7 @@ export interface UpdateCompanyRequest {
   address_country?: string;
   // Tax/Legal
   vat_number?: string;
+  vat_percentage?: number;
   registration_number?: string;
   // Social Media
   linkedin_url?: string;
@@ -95,6 +98,8 @@ export interface UpdateCompanyRequest {
   youtube_url?: string;
   // Status
   is_active?: boolean;
+  // Features
+  enable_book_via_chat?: boolean;
 }
 
 // ============================================================================

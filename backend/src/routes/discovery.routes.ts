@@ -11,7 +11,9 @@ import {
   getFeaturedPropertiesHandler,
   getPropertiesByCategoryHandler,
 } from '../controllers/discovery.controller';
-import { optionalAuth } from '../middleware/auth.middleware';
+import * as promoClaimController from '../controllers/promo-claim.controller';
+import { optionalAuth, validateBody } from '../middleware';
+import { claimPromotionSchema } from '../validators/promotion.validators';
 
 const router = Router();
 
@@ -49,5 +51,12 @@ router.get('/featured', optionalAuth, getFeaturedPropertiesHandler);
  * @access  Public (optional auth for wishlist status)
  */
 router.get('/categories/:category', optionalAuth, getPropertiesByCategoryHandler);
+
+/**
+ * @route   POST /api/discovery/promotions/claim
+ * @desc    Claim a promotion (creates guest account, chat conversation)
+ * @access  Public (no authentication required)
+ */
+router.post('/promotions/claim', validateBody(claimPromotionSchema), promoClaimController.claimPromotion);
 
 export default router;

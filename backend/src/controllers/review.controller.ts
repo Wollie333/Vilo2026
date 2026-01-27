@@ -126,6 +126,24 @@ export const getEligibleBookings = async (
 };
 
 /**
+ * GET /api/reviews/booking/:bookingId/status
+ * Get review status for a specific booking (for BookingDetailPage)
+ */
+export const getBookingReviewStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { bookingId } = req.params;
+    const status = await reviewService.getBookingReviewStatus(bookingId);
+    sendSuccess(res, status);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/reviews
  * Create a new review
  */

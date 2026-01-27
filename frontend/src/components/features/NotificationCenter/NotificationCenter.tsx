@@ -13,7 +13,7 @@ import { Spinner } from '@/components/ui';
 import type { NotificationCenterProps } from './NotificationCenter.types';
 
 const BellIcon = () => (
-  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
     <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
   </svg>
 );
@@ -88,7 +88,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-md"
+        className="relative p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={isOpen}
         aria-haspopup="true"

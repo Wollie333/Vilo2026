@@ -10,6 +10,8 @@ import type {
   PricingBreakdown,
   RoomSelection,
   AddOnSelection,
+  AvailablePaymentMethod,
+  ChatBookingResponse,
 } from '../types/booking-wizard.types';
 
 interface CalculatePricingRequest {
@@ -138,6 +140,97 @@ class BookingWizardService {
     if (!response.data) {
       throw new Error('No data received from server');
     }
+    return response.data;
+  }
+
+  /**
+   * Initialize payment with Paystack
+   */
+  async initializePayment(data: {
+    booking_id: string;
+    property_id: string;
+    guest_email: string;
+    amount: number;
+    currency: string;
+  }): Promise<{
+    authorization_url: string;
+    access_code: string;
+    reference: string;
+  }> {
+    const response = await api.post<{
+      authorization_url: string;
+      access_code: string;
+      reference: string;
+    }>('/booking-wizard/initialize-payment', data);
+    if (!response.data) {
+      throw new Error('No data received from server');
+    }
+    return response.data;
+  }
+
+  /**
+   * Verify payment with Paystack
+   */
+  async verifyPayment(data: {
+    reference: string;
+    booking_id: string;
+    property_id: string;
+  }): Promise<{
+    is_valid: boolean;
+    amount: number;
+    currency: string;
+    status: string;
+  }> {
+    const response = await api.post<{
+      is_valid: boolean;
+      amount: number;
+      currency: string;
+      status: string;
+    }>('/booking-wizard/verify-payment', data);
+    if (!response.data) {
+      throw new Error('No data received from server');
+    }
+    return response.data;
+  }
+
+  /**
+   * Get available payment methods for a property
+   */
+  async getAvailablePaymentMethods(
+    propertyId: string
+  ): Promise<{ payment_methods: AvailablePaymentMethod[] }> {
+    console.log('🟦 [BOOKING_WIZARD_SERVICE] Getting payment methods for property:', propertyId);
+    const response = await api.get<{ payment_methods: AvailablePaymentMethod[] }>(
+      `/booking-wizard/${propertyId}/payment-methods`
+    );
+    if (!response.data) {
+      console.error('🔴 [BOOKING_WIZARD_SERVICE] No data received from server');
+      throw new Error('No data received from server');
+    }
+    console.log('🟦 [BOOKING_WIZARD_SERVICE] Payment methods received:', JSON.stringify(response.data, null, 2));
+    console.log('🟦 [BOOKING_WIZARD_SERVICE] Payment methods array:', response.data.payment_methods);
+    console.log('🟦 [BOOKING_WIZARD_SERVICE] Number of methods:', response.data.payment_methods?.length || 0);
+
+    // Check specifically for book_via_chat
+    const hasBookViaChat = response.data.payment_methods?.some(m => m.provider === 'book_via_chat');
+    console.log('🟦 [BOOKING_WIZARD_SERVICE] Has book_via_chat:', hasBookViaChat);
+
+    return response.data;
+  }
+
+  /**
+   * Create booking via chat
+   */
+  async createBookingViaChat(data: BookingWizardData): Promise<ChatBookingResponse> {
+    console.log('[BOOKING_WIZARD_SERVICE] Creating booking via chat');
+    const response = await api.post<ChatBookingResponse>('/booking-wizard/initiate', {
+      ...data,
+      payment_method: 'book_via_chat',
+    });
+    if (!response.data) {
+      throw new Error('No data received from server');
+    }
+    console.log('[BOOKING_WIZARD_SERVICE] Booking via chat created:', response.data);
     return response.data;
   }
 }

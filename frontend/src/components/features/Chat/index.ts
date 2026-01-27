@@ -12,3 +12,5 @@ export { ChatInput } from './ChatInput';
 export { ChatHeader } from './ChatHeader';
 export { TypingIndicator } from './TypingIndicator';
 export { ChatEmpty } from './ChatEmpty';
+export { WhatsAppReplyInput } from './WhatsAppReplyInput';
+export { StartChatModal } from './StartChatModal';

@@ -9,20 +9,7 @@ import { Heart, MapPin, Star, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { PropertyCardProps } from './PropertyCard.types';
 import { useAuth } from '@/context/AuthContext';
 import { wishlistService } from '@/services';
-
-// Property type display names
-const propertyTypeLabels: Record<string, string> = {
-  house: 'House',
-  apartment: 'Apartment',
-  villa: 'Villa',
-  cottage: 'Cottage',
-  cabin: 'Cabin',
-  condo: 'Condo',
-  townhouse: 'Townhouse',
-  guesthouse: 'Guest House',
-  hotel: 'Hotel',
-  bnb: 'B&B',
-};
+import { PROPERTY_TYPE_LABELS, PropertyType } from '@/types/property.types';
 
 export const PropertyCard: React.FC<PropertyCardProps> = ({
   property,
@@ -30,6 +17,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   showRemoveButton = false,
   onRemove,
   className = '',
+  onCardClick: customCardClick,
 }) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -48,7 +36,12 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
   const hasMultipleImages = allImages.length > 1;
 
   const handleCardClick = () => {
-    navigate(`/accommodation/${property.slug}`);
+    // Use custom click handler if provided, otherwise navigate to public page
+    if (customCardClick) {
+      customCardClick(property);
+    } else {
+      navigate(`/accommodation/${property.slug}`);
+    }
   };
 
   const handleWishlistToggle = async (e: React.MouseEvent) => {
@@ -123,7 +116,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
             {/* Property Type Badge */}
             {property.property_type && (
               <div className="absolute top-3 left-3 bg-primary text-white text-xs font-bold px-2.5 py-1 rounded-full">
-                {propertyTypeLabels[property.property_type] || property.property_type}
+                {PROPERTY_TYPE_LABELS[property.property_type as PropertyType] || property.property_type}
               </div>
             )}
 
@@ -383,7 +376,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({
         {property.property_type && (
           <div className="absolute bottom-3 left-3">
             <span className="px-3 py-1.5 text-sm font-medium bg-white text-gray-900 rounded-md shadow-sm">
-              {propertyTypeLabels[property.property_type] || property.property_type}
+              {PROPERTY_TYPE_LABELS[property.property_type as PropertyType] || property.property_type}
             </span>
           </div>
         )}

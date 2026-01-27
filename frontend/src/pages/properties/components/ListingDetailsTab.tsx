@@ -17,11 +17,9 @@ import {
   Button,
   Switch,
   GalleryUpload,
-  LocationSelector,
   CancellationPolicyEditor,
   PromotionEditor,
 } from '@/components/ui';
-import type { LocationData } from '@/components/ui';
 import { useHashTab } from '@/hooks';
 import type { PropertyWithCompany, UpdatePropertyData } from '@/types/property.types';
 import { ListingPreviewCard } from './ListingPreviewCard';
@@ -443,10 +441,9 @@ export const ListingDetailsTab: React.FC<ListingDetailsTabProps> = ({
     return {
       // Property Type: must be set
       'listing-property-type': Boolean(formData.property_type),
-      // Location: hierarchical selection complete (or lat/lng for backwards compat)
+      // Location: at least city and country must be set
       'listing-location': Boolean(
-        (formData.country_id && formData.province_id && formData.city_id) ||
-        (formData.location_lat && formData.location_lng)
+        formData.address_city && formData.address_country
       ),
       // Categories: at least 1 selected
       'listing-categories': (formData.categories || []).length >= 1,
@@ -737,24 +734,6 @@ export const ListingDetailsTab: React.FC<ListingDetailsTabProps> = ({
         );
 
       case 'listing-location':
-        const handleLocationChange = (location: LocationData) => {
-          if (location.countryId !== formData.country_id) {
-            onFieldChange('country_id', location.countryId);
-          }
-          if (location.provinceId !== formData.province_id) {
-            onFieldChange('province_id', location.provinceId);
-          }
-          if (location.cityId !== formData.city_id) {
-            onFieldChange('city_id', location.cityId);
-          }
-          if (location.lat !== formData.location_lat) {
-            onFieldChange('location_lat', location.lat);
-          }
-          if (location.lng !== formData.location_lng) {
-            onFieldChange('location_lng', location.lng);
-          }
-        };
-
         return (
           <Card>
             <div className="p-6 space-y-4">
@@ -767,17 +746,43 @@ export const ListingDetailsTab: React.FC<ListingDetailsTabProps> = ({
                 </p>
               </div>
 
-              <LocationSelector
-                selectedCountryId={formData.country_id || undefined}
-                selectedProvinceId={formData.province_id || undefined}
-                selectedCityId={formData.city_id || undefined}
-                lat={formData.location_lat || undefined}
-                lng={formData.location_lng || undefined}
-                onLocationChange={handleLocationChange}
-                disabled={isSaving}
-                showCoordinates={true}
-                helperText="Select your country, province, and city. Coordinates are optional but help with map display."
+              <Input
+                label="Street Address"
+                value={formData.address_street || ''}
+                onChange={(e) => onFieldChange('address_street', e.target.value)}
+                placeholder="123 Beach Road"
+                fullWidth
               />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="City"
+                  value={formData.address_city || ''}
+                  onChange={(e) => onFieldChange('address_city', e.target.value)}
+                  placeholder="Miami"
+                />
+                <Input
+                  label="State / Province"
+                  value={formData.address_state || ''}
+                  onChange={(e) => onFieldChange('address_state', e.target.value)}
+                  placeholder="Florida"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Postal Code"
+                  value={formData.address_postal_code || ''}
+                  onChange={(e) => onFieldChange('address_postal_code', e.target.value)}
+                  placeholder="33101"
+                />
+                <Input
+                  label="Country"
+                  value={formData.address_country || ''}
+                  onChange={(e) => onFieldChange('address_country', e.target.value)}
+                  placeholder="USA"
+                />
+              </div>
 
               {/* Save/Cancel Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">

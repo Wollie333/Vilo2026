@@ -129,7 +129,7 @@ export const requireUserType = (userType: string) => {
         throw new AppError('UNAUTHORIZED', 'Authentication required');
       }
 
-      const currentUserType = req.userProfile.user_type;
+      const currentUserType = req.userProfile.user_type?.name;
 
       if (currentUserType !== userType) {
         throw new AppError(
@@ -161,9 +161,9 @@ export const requireAnyUserType = (userTypes: string[]) => {
         throw new AppError('UNAUTHORIZED', 'Authentication required');
       }
 
-      const currentUserType = req.userProfile.user_type;
+      const currentUserType = req.userProfile.user_type?.name;
 
-      if (!userTypes.includes(currentUserType)) {
+      if (!currentUserType || !userTypes.includes(currentUserType)) {
         throw new AppError(
           'FORBIDDEN',
           `This action is restricted to: ${userTypes.join(', ')}`

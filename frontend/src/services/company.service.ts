@@ -45,7 +45,10 @@ class CompanyService {
    * Get a single company by ID
    */
   async getCompany(id: string): Promise<CompanyWithPropertyCount> {
-    const response = await api.get<CompanyWithPropertyCount>(`/companies/${id}`);
+    // Add cache-busting timestamp to prevent stale data
+    const response = await api.get<CompanyWithPropertyCount>(`/companies/${id}`, {
+      params: { _t: Date.now() }
+    });
 
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Failed to fetch company');
@@ -71,11 +74,21 @@ class CompanyService {
    * Update a company
    */
   async updateCompany(id: string, data: UpdateCompanyData): Promise<CompanyWithPropertyCount> {
+    console.log('🔵 [CompanyService] updateCompany called');
+    console.log('🔵 [CompanyService] Company ID:', id);
+    console.log('🔵 [CompanyService] Update data:', JSON.stringify(data, null, 2));
+
     const response = await api.patch<CompanyWithPropertyCount>(`/companies/${id}`, data);
 
+    console.log('🔵 [CompanyService] Update response:', JSON.stringify(response, null, 2));
+
     if (!response.success || !response.data) {
+      console.error('🔴 [CompanyService] Update failed:', response.error);
       throw new Error(response.error?.message || 'Failed to update company');
     }
+
+    console.log('✅ [CompanyService] Update successful');
+    console.log('✅ [CompanyService] enable_book_via_chat in response:', response.data.enable_book_via_chat);
 
     return response.data;
   }

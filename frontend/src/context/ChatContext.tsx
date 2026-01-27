@@ -10,6 +10,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   ReactNode,
 } from 'react';
 import { supabase } from '@/config/supabase';
@@ -56,6 +57,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Ref to access latest conversations in callbacks without triggering effects
+  const conversationsRef = useRef<Conversation[]>(conversations);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   // ============================================================================
   // Conversation Operations
@@ -502,8 +511,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           // Skip own messages (already added optimistically)
           if (newMessage.sender_id === user.id) return;
 
-          // Check if we're a participant in this conversation
-          const conv = conversations.find((c) => c.id === newMessage.conversation_id);
+          // Check if we're a participant in this conversation (use ref for latest value)
+          const conv = conversationsRef.current.find((c) => c.id === newMessage.conversation_id);
           if (!conv) {
             // Might be a new conversation - refresh list
             fetchConversations();
@@ -646,7 +655,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(typingChannel);
     };
-  }, [isAuthenticated, user, fetchConversations, activeConversationId, conversations]);
+    // Note: conversations is accessed in the callback but shouldn't be a dependency
+    // Adding it would cause infinite loop since fetchConversations updates it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user, fetchConversations, activeConversationId]);
 
   // ============================================================================
   // Context Value
@@ -772,19 +784,36 @@ export const useChatMessages = (conversationId: string | null) => {
   const conversationMessages = conversationId ? messages[conversationId] || [] : [];
   const conversationTyping = conversationId ? typingUsers[conversationId] || [] : [];
 
+  // Memoize functions to prevent infinite loops
+  const stableFetchMessages = useCallback(() => {
+    if (conversationId) {
+      fetchMessages(conversationId);
+    }
+  }, [conversationId, fetchMessages]);
+
+  const stableFetchMoreMessages = useCallback((before: string) => {
+    if (conversationId) {
+      fetchMessages(conversationId, before);
+    }
+  }, [conversationId, fetchMessages]);
+
+  const stableSetTyping = useCallback((isTyping: boolean) => {
+    if (conversationId) {
+      setTyping(conversationId, isTyping);
+    }
+  }, [conversationId, setTyping]);
+
   return {
     messages: conversationMessages,
     typingUsers: conversationTyping,
     isLoading: isLoadingMessages,
-    fetchMessages: conversationId ? () => fetchMessages(conversationId) : () => {},
-    fetchMoreMessages: conversationId
-      ? (before: string) => fetchMessages(conversationId, before)
-      : () => {},
+    fetchMessages: stableFetchMessages,
+    fetchMoreMessages: stableFetchMoreMessages,
     sendMessage,
     editMessage,
     deleteMessage,
     addReaction,
     removeReaction,
-    setTyping: conversationId ? (isTyping: boolean) => setTyping(conversationId, isTyping) : () => {},
+    setTyping: stableSetTyping,
   };
 };

@@ -153,6 +153,18 @@ export interface ConversationWithDetails extends ChatConversation {
   participants: ChatParticipantWithUser[];
   last_message: ChatMessageWithSender | null;
   unread_count: number;
+  support_ticket?: {
+    id: string;
+    ticket_number: string;
+    status: string;
+    priority: string;
+    category: string | null;
+    sla_due_at: string | null;
+    sla_breached: boolean;
+  } | null;
+  // WhatsApp conversation tracking
+  guest_phone_number?: string | null;
+  last_inbound_whatsapp_at?: string | null;
 }
 
 // ============================================================================

@@ -1,4 +1,52 @@
 // ============================================================================
+// Property Type Enum
+// ============================================================================
+
+export enum PropertyType {
+  // Core Residential
+  HOUSE = 'house',
+  APARTMENT = 'apartment',
+  VILLA = 'villa',
+  CONDO = 'condo',
+  TOWNHOUSE = 'townhouse',
+  COTTAGE = 'cottage',
+  CABIN = 'cabin',
+
+  // Hospitality
+  HOTEL = 'hotel',
+  LODGE = 'lodge',
+  BNB = 'bnb',
+  GUEST_HOUSE = 'guesthouse',
+  HOSTEL = 'hostel',
+
+  // Unique
+  RESORT = 'resort',
+  GLAMPING = 'glamping',
+  BOUTIQUE = 'boutique',
+  OTHER = 'other',
+}
+
+// Display labels for property types
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  [PropertyType.HOUSE]: 'House',
+  [PropertyType.APARTMENT]: 'Apartment',
+  [PropertyType.VILLA]: 'Villa',
+  [PropertyType.CONDO]: 'Condo',
+  [PropertyType.TOWNHOUSE]: 'Townhouse',
+  [PropertyType.COTTAGE]: 'Cottage',
+  [PropertyType.CABIN]: 'Cabin',
+  [PropertyType.HOTEL]: 'Hotel',
+  [PropertyType.LODGE]: 'Lodge',
+  [PropertyType.BNB]: 'Bed & Breakfast',
+  [PropertyType.GUEST_HOUSE]: 'Guest House',
+  [PropertyType.HOSTEL]: 'Hostel',
+  [PropertyType.RESORT]: 'Resort',
+  [PropertyType.GLAMPING]: 'Glamping',
+  [PropertyType.BOUTIQUE]: 'Boutique',
+  [PropertyType.OTHER]: 'Other',
+};
+
+// ============================================================================
 // Property Types
 // ============================================================================
 
@@ -74,6 +122,7 @@ export interface Property {
   check_in_time: string | null;
   check_out_time: string | null;
   cancellation_policy: string | null;
+  terms_and_conditions: string | null;
   amenities: string[];
   house_rules: string[];
   whats_included: string[];
@@ -107,6 +156,7 @@ export interface CreatePropertyData {
   excerpt?: string;
   video_url?: string | null;
   show_video?: boolean;
+  terms_and_conditions?: string;
   // Address fields
   address_street?: string;
   address_city?: string;
@@ -165,6 +215,7 @@ export interface UpdatePropertyData {
   check_in_time?: string;
   check_out_time?: string;
   cancellation_policy?: string;
+  terms_and_conditions?: string;
   amenities?: string[];
   house_rules?: string[];
   whats_included?: string[];

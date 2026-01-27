@@ -80,18 +80,18 @@ export const updateRoomBedSchema = z.object({
 // ============================================================================
 
 export const createSeasonalRateSchema = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().min(1, 'Season name is required').max(100),
   description: z.string().max(500).optional().nullable(),
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
-  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
-  price_per_night: z.number().min(0),
+  start_date: z.string().min(1, 'Start date is required').regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  end_date: z.string().min(1, 'End date is required').regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  price_per_night: z.number().min(0.01, 'Price must be greater than 0'),
   additional_person_rate: z.number().min(0).optional(),
   pricing_mode_override: pricingModeEnum.optional().nullable(),
   priority: z.number().int().min(0).max(100).optional(),
   is_active: z.boolean().optional(),
 }).refine(
   (data) => new Date(data.end_date) >= new Date(data.start_date),
-  { message: 'End date must be on or after start date' }
+  { message: 'End date must be on or after start date', path: ['end_date'] }
 );
 
 export const updateSeasonalRateSchema = z.object({
@@ -217,16 +217,19 @@ export const createRoomSchema = z.object({
 
   // Seasonal rates (inline creation)
   seasonal_rates: z.array(z.object({
-    name: z.string().min(1).max(100),
+    name: z.string().min(1, 'Season name is required').max(100),
     description: z.string().max(500).optional().nullable(),
-    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
-    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
-    price_per_night: z.number().min(0),
+    start_date: z.string().min(1, 'Start date is required').regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+    end_date: z.string().min(1, 'End date is required').regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+    price_per_night: z.number().min(0.01, 'Price must be greater than 0'),
     additional_person_rate: z.number().min(0).optional().nullable(),
     pricing_mode_override: pricingModeEnum.optional().nullable(),
     priority: z.number().int().min(0).max(100).optional(),
     is_active: z.boolean().optional(),
-  })).optional(),
+  }).refine(
+    (data) => new Date(data.end_date) >= new Date(data.start_date),
+    { message: 'End date must be on or after start date', path: ['end_date'] }
+  )).optional(),
 
   // Promotions (inline creation)
   promotions: z.array(z.object({

@@ -108,6 +108,178 @@ The plan file serves as the recovery document. When resuming:
 
 ---
 
+## Debugging & Logging Best Practices (MANDATORY)
+
+**CRITICAL RULE: Always add comprehensive logging when writing or modifying code**
+
+### When to Add Logs
+
+Claude MUST add detailed logging in these scenarios:
+
+1. **At the start of every new feature or bug fix**
+   - Add logs BEFORE writing the main logic
+   - Log helps identify issues during development and testing
+
+2. **For all backend services and controllers**
+   - Log function entry with parameters
+   - Log key decision points and branches
+   - Log before and after database operations
+   - Log errors with full context (stack trace, input data, etc.)
+
+3. **For all frontend API calls and state changes**
+   - Log API request parameters
+   - Log API response data or errors
+   - Log state changes in complex components
+   - Log user interactions that trigger important actions
+
+4. **During debugging sessions**
+   - Add temporary verbose logs to trace execution flow
+   - Log variable values at key points
+   - Can be removed after issue is resolved
+
+### Logging Pattern
+
+**Backend Pattern (Node.js/Express)**:
+```typescript
+export const someFunction = async (userId: string, data: SomeData) => {
+  console.log('=== [SERVICE_NAME] functionName called ===');
+  console.log('[SERVICE_NAME] User ID:', userId);
+  console.log('[SERVICE_NAME] Input data:', JSON.stringify(data, null, 2));
+
+  try {
+    console.log('[SERVICE_NAME] Step 1: Doing something...');
+    const result = await doSomething();
+    console.log('[SERVICE_NAME] Step 1 result:', result);
+
+    console.log('[SERVICE_NAME] Step 2: Doing another thing...');
+    const finalResult = await doAnotherThing(result);
+    console.log('[SERVICE_NAME] Success:', finalResult.id);
+
+    return finalResult;
+  } catch (error) {
+    console.error('[SERVICE_NAME] Error in functionName:', error);
+    console.error('[SERVICE_NAME] Error stack:', error instanceof Error ? error.stack : 'N/A');
+    throw error;
+  }
+};
+```
+
+**Frontend Pattern (React/TypeScript)**:
+```typescript
+const handleSubmit = async () => {
+  console.log('=== [ComponentName] Submit started ===');
+  console.log('[ComponentName] Form data:', formData);
+
+  try {
+    console.log('[ComponentName] Calling API...');
+    const response = await api.create(formData);
+    console.log('[ComponentName] API success:', response);
+
+    setData(response);
+    console.log('[ComponentName] State updated');
+  } catch (error) {
+    console.error('[ComponentName] Submit failed:', error);
+    console.error('[ComponentName] Error details:', error.response?.data);
+    setError(error.message);
+  }
+};
+```
+
+### Log Naming Convention
+
+Use clear prefixes to identify the source:
+- `[CONTROLLER]` - For controllers
+- `[SERVICE_NAME]` - For services (e.g., `[COMPANY_SERVICE]`, `[BILLING_SERVICE]`)
+- `[ComponentName]` - For React components
+- `[HOOK_NAME]` - For React hooks
+
+### What to Log
+
+**DO LOG**:
+- ✅ Function entry with parameters
+- ✅ Key decisions and branches ("User has subscription", "Limit check passed")
+- ✅ Before/after database operations
+- ✅ API request/response data
+- ✅ Error messages with full context
+- ✅ Success confirmations with IDs/keys
+
+**DON'T LOG**:
+- ❌ Sensitive data (passwords, tokens, credit card numbers)
+- ❌ Large binary data
+- ❌ Every single line of code execution (keep it meaningful)
+
+### Testing with Logs
+
+After adding code with logs:
+
+1. **Test the happy path** - Verify logs show correct flow
+2. **Test error cases** - Verify errors are logged with context
+3. **Check log output** - Ensure logs are helpful for debugging
+4. **Remove or reduce** verbose logs after feature is stable (optional)
+
+### Example: Complete Logging for a Feature
+
+```typescript
+// Controller
+export const createCompany = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    console.log('=== [COMPANY_CONTROLLER] Create company request ===');
+    console.log('[COMPANY_CONTROLLER] User:', req.user!.id);
+    console.log('[COMPANY_CONTROLLER] Body:', JSON.stringify(req.body, null, 2));
+
+    const validated = companySchema.parse(req.body);
+    console.log('[COMPANY_CONTROLLER] Validation passed');
+
+    const result = await companyService.create(req.user!.id, validated);
+    console.log('[COMPANY_CONTROLLER] Success:', result.id);
+
+    sendSuccess(res, result);
+  } catch (error) {
+    console.error('[COMPANY_CONTROLLER] Failed:', error);
+    next(error);
+  }
+};
+
+// Service
+export const create = async (userId: string, input: CreateInput) => {
+  console.log('=== [COMPANY_SERVICE] create called ===');
+  console.log('[COMPANY_SERVICE] User ID:', userId);
+  console.log('[COMPANY_SERVICE] Input:', JSON.stringify(input, null, 2));
+
+  try {
+    console.log('[COMPANY_SERVICE] Checking limits...');
+    const limitInfo = await checkLimits(userId);
+    console.log('[COMPANY_SERVICE] Limits:', limitInfo);
+
+    if (!limitInfo.can_create) {
+      console.error('[COMPANY_SERVICE] Limit exceeded');
+      throw new Error('Limit exceeded');
+    }
+
+    console.log('[COMPANY_SERVICE] Inserting to database...');
+    const result = await db.insert(input);
+    console.log('[COMPANY_SERVICE] Insert successful:', result.id);
+
+    return result;
+  } catch (error) {
+    console.error('[COMPANY_SERVICE] Create failed:', error);
+    throw error;
+  }
+};
+```
+
+### Benefits of This Approach
+
+1. **Faster debugging** - See exactly where code fails
+2. **Better testing** - Verify flow without debugger
+3. **Production debugging** - Logs help diagnose user-reported issues
+4. **Team collaboration** - Other developers understand code flow
+5. **Documentation** - Logs serve as execution documentation
+
+**Remember**: Logs are your first line of defense when code doesn't work as expected. Add them proactively, not reactively!
+
+---
+
 ## Continuous Change Log (MANDATORY - AUTO SAVE POINTS)
 
 **THIS SYSTEM PREVENTS CONTEXT LOSS FROM CRASHES/DISCONNECTS**

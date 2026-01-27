@@ -97,6 +97,21 @@ class ApiService {
 
         clearTimeout(timeoutId);
 
+        // Check if response is actually JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error('[API] Response is not JSON! Content-Type:', contentType);
+          const text = await response.text();
+          console.error('[API] Response body (first 500 chars):', text.substring(0, 500));
+          return {
+            success: false,
+            error: {
+              code: 'INVALID_RESPONSE',
+              message: `Server returned non-JSON response (${response.status}): ${text.substring(0, 100)}`,
+            },
+          };
+        }
+
         const data: ApiResponse<T> = await response.json();
 
         // Handle 401 - try to refresh token (only once per request)
@@ -231,6 +246,16 @@ class ApiService {
         console.log('  - terms_and_conditions length:', (body as any).terms_and_conditions.length);
       }
       console.log('  - Full body:', body);
+    }
+
+    // DEBUG: Log patch requests to companies
+    if (endpoint.includes('/companies/')) {
+      console.log('📡 API PATCH Request to Company:', endpoint);
+      console.log('  - Body:', JSON.stringify(body, null, 2));
+      if (body && (body as any).vat_percentage !== undefined) {
+        console.log('  - VAT Percentage in request:', (body as any).vat_percentage);
+        console.log('  - VAT Percentage type:', typeof (body as any).vat_percentage);
+      }
     }
 
     return this.request<T>(endpoint, {

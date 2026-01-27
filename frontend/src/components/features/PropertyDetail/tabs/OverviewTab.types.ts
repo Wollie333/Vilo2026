@@ -2,6 +2,13 @@
  * OverviewTab Types
  */
 
+export interface CancellationPolicyDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  tiers: Array<{ days: number; refund: number }>;
+}
+
 export interface OverviewTabProps {
   description: string | null;
   longDescription: string | null;
@@ -15,5 +22,9 @@ export interface OverviewTabProps {
   checkInTime: string | null;
   checkOutTime: string | null;
   cancellationPolicy: string | null;
+  cancellationPolicyDetail?: CancellationPolicyDetail | null;
+  termsAndConditions?: string | null;
+  propertyName?: string;
+  propertyId?: string;
   maxGuests?: number;
 }

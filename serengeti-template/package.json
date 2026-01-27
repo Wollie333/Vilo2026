@@ -1,0 +1,26 @@
+{
+  "name": "serengeti-lodge-template",
+  "version": "1.0.0",
+  "description": "Modern hotel booking template - Serengeti Lodge",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "hotel",
+    "booking",
+    "template",
+    "safari",
+    "lodge"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.12",
+    "tailwindcss": "^3.4.17",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49"
+  }
+}

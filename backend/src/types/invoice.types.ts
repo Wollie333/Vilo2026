@@ -18,22 +18,19 @@ export interface InvoiceLineItem {
 export type InvoiceStatus = 'draft' | 'paid' | 'void';
 
 /**
- * Invoice entity
+ * Invoice type discriminator
+ * - subscription: SaaS platform billing users for subscriptions
+ * - booking: Property owners billing guests for bookings
  */
-export interface Invoice {
+export type InvoiceType = 'subscription' | 'booking';
+
+/**
+ * Base invoice properties shared by all invoice types
+ */
+export interface BaseInvoice {
   id: string;
   invoice_number: string;
-  user_id: string;
-  checkout_id: string | null;
-  subscription_id: string | null;
-
-  // Company reference (which company's settings were used)
-  company_id: string | null;
-
-  // Booking-related fields (for booking invoices)
-  booking_id: string | null;
-  booking_reference: string | null;
-  property_name: string | null;
+  invoice_type: InvoiceType;
 
   // Customer info (snapshot at time of invoice)
   customer_name: string;
@@ -73,6 +70,60 @@ export interface Invoice {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Subscription invoice (SaaS-to-User)
+ * The SaaS platform bills a user for their subscription plan
+ */
+export interface SubscriptionInvoice extends BaseInvoice {
+  invoice_type: 'subscription';
+  user_id: string; // The payer (subscription owner)
+  checkout_id: string;
+  subscription_id: string | null;
+  company_id: null; // Always null for subscription invoices (uses global settings)
+
+  // Not applicable to subscription invoices
+  booking_id: null;
+  booking_reference: null;
+  property_name: null;
+}
+
+/**
+ * Booking invoice (User-to-Guest)
+ * A property owner bills a guest for a booking
+ */
+export interface BookingInvoice extends BaseInvoice {
+  invoice_type: 'booking';
+  user_id: string; // The issuer (property owner)
+  booking_id: string;
+  booking_reference: string;
+  property_name: string;
+  company_id: string | null; // Property owner's company (or null for fallback to global)
+
+  // Not applicable to booking invoices
+  checkout_id: null;
+  subscription_id: null;
+}
+
+/**
+ * Invoice discriminated union
+ * Use type guards to narrow the type
+ */
+export type Invoice = SubscriptionInvoice | BookingInvoice;
+
+/**
+ * Type guard to check if invoice is a subscription invoice
+ */
+export function isSubscriptionInvoice(invoice: Invoice): invoice is SubscriptionInvoice {
+  return invoice.invoice_type === 'subscription';
+}
+
+/**
+ * Type guard to check if invoice is a booking invoice
+ */
+export function isBookingInvoice(invoice: Invoice): invoice is BookingInvoice {
+  return invoice.invoice_type === 'booking';
 }
 
 /**

@@ -4,7 +4,7 @@
  * Types for the multi-step booking reservation wizard
  */
 
-export type PaymentProvider = 'paystack' | 'paypal' | 'eft';
+export type PaymentProvider = 'paystack' | 'paypal' | 'eft' | 'book_via_chat';
 
 export interface RoomSelection {
   room_id: string;
@@ -21,7 +21,7 @@ export interface RoomSelection {
 export interface AddOnSelection {
   addon_id: string;
   addon_name: string;
-  pricing_type: 'per_booking' | 'per_night' | 'per_guest' | 'per_room';
+  pricing_type: 'per_booking' | 'per_night' | 'per_guest' | 'per_guest_per_night';
   quantity: number;
   unit_price: number;
   total_price: number;
@@ -32,10 +32,10 @@ export interface GuestDetails {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
+  // password field removed - accounts created automatically with backend-generated password
   specialRequests?: string;
-  termsAccepted: boolean;
-  marketingConsent: boolean;
+  termsAccepted: boolean; // Property terms & cancellation policy
+  platformTermsAccepted: boolean; // Platform (Vilo SaaS) terms & privacy policy
 }
 
 export interface PricingBreakdown {
@@ -94,4 +94,19 @@ export interface PropertyBranding {
   overall_rating: number | null;
   review_count: number;
   currency: string;
+}
+
+export interface AvailablePaymentMethod {
+  provider: PaymentProvider;
+  label: string;
+  is_primary?: boolean;
+  is_enabled: boolean;
+}
+
+export interface ChatBookingResponse {
+  booking_id: string;
+  booking_reference: string;
+  conversation_id: string;
+  message_id: string;
+  chat_url: string;
 }

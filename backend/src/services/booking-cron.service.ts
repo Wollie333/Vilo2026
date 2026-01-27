@@ -6,6 +6,11 @@
 import { getAdminClient } from '../config/supabase';
 import { Booking, BookingWithDetails } from '../types/booking.types';
 import { sendNotification } from './notifications.service';
+import {
+  sendInitialReviewRequestEmail,
+  send30DayReminderEmail,
+  send80DayFinalReminderEmail
+} from './review-emails.service';
 
 // ============================================================================
 // AUTO CHECKOUT AT CHECKOUT TIME
@@ -626,6 +631,339 @@ export async function sendAbandonedCartRecoveryEmails(): Promise<{
 }
 
 // ============================================================================
+// REVIEW REQUEST EMAILS (24h, 30d, 80d)
+// ============================================================================
+
+/**
+ * Send review request emails 24 hours after checkout
+ * Run daily at 10:00 AM
+ */
+export async function sendInitialReviewRequests(): Promise<{
+  sent: number;
+  errors: number;
+  bookings: string[];
+}> {
+  const supabase = getAdminClient();
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  console.log(`[REVIEW REQUEST - 24H] Running at ${now.toISOString()}`);
+
+  try {
+    // Find bookings checked out 24 hours ago that haven't received review request
+    const { data: bookings, error } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        booking_reference,
+        guest_name,
+        guest_email,
+        guest_id,
+        property_id,
+        check_in_date,
+        check_out_date,
+        checked_out_at,
+        properties!inner (
+          id,
+          name,
+          owner_id
+        )
+      `)
+      .in('booking_status', ['checked_out', 'completed'])
+      .not('checked_out_at', 'is', null)
+      .is('review_sent_at', null)
+      .gte('checked_out_at', new Date(twentyFourHoursAgo.getTime() - 2 * 60 * 60 * 1000).toISOString()) // 22-26h window
+      .lte('checked_out_at', new Date(twentyFourHoursAgo.getTime() + 2 * 60 * 60 * 1000).toISOString());
+
+    if (error) {
+      console.error('[REVIEW REQUEST - 24H] Error fetching bookings:', error);
+      throw error;
+    }
+
+    if (!bookings || bookings.length === 0) {
+      console.log('[REVIEW REQUEST - 24H] No bookings found');
+      return { sent: 0, errors: 0, bookings: [] };
+    }
+
+    console.log(`[REVIEW REQUEST - 24H] Found ${bookings.length} bookings`);
+
+    const results = { sent: 0, errors: 0, bookings: [] as string[] };
+
+    for (const booking of bookings) {
+      try {
+        // Check if review already exists
+        const { data: existingReview } = await supabase
+          .from('property_reviews')
+          .select('id')
+          .eq('booking_id', booking.id)
+          .single();
+
+        if (existingReview) {
+          console.log(`[REVIEW REQUEST - 24H] Booking ${booking.booking_reference} already has review, skipping`);
+          continue;
+        }
+
+        const property = booking.properties as any;
+        const daysRemaining = 90 - Math.floor((now.getTime() - new Date(booking.checked_out_at).getTime()) / (1000 * 60 * 60 * 24));
+
+        // Send in-app notification
+        if (booking.guest_id) {
+          await sendNotification({
+            user_id: booking.guest_id,
+            type: 'review',
+            title: `How was your stay at ${property.name}?`,
+            message: `We'd love to hear about your recent experience. Your feedback helps other travelers!`,
+            action_url: `/reviews/write/${booking.id}`,
+            action_label: 'Write Review',
+            priority: 'normal',
+            variant: 'info',
+          }).catch(err => console.error(`[REVIEW REQUEST - 24H] Failed to send notification:`, err));
+        }
+
+        // Send email via Resend
+        await sendInitialReviewRequestEmail({
+          guestEmail: booking.guest_email,
+          guestName: booking.guest_name,
+          propertyName: property.name,
+          bookingId: booking.id,
+          checkInDate: booking.check_in_date,
+          checkOutDate: booking.check_out_date,
+          daysRemaining,
+        }).catch(err => console.error(`[REVIEW REQUEST - 24H] Failed to send email:`, err));
+
+        // Update review_sent_at
+        await supabase
+          .from('bookings')
+          .update({ review_sent_at: now.toISOString() })
+          .eq('id', booking.id);
+
+        results.sent++;
+        results.bookings.push(booking.booking_reference);
+
+        console.log(`[REVIEW REQUEST - 24H] Sent to ${booking.guest_email} for ${booking.booking_reference}`);
+      } catch (error) {
+        console.error(`[REVIEW REQUEST - 24H] Error processing booking ${booking.booking_reference}:`, error);
+        results.errors++;
+      }
+    }
+
+    console.log(`[REVIEW REQUEST - 24H] Completed: ${results.sent} sent, ${results.errors} errors`);
+    return results;
+  } catch (error) {
+    console.error('[REVIEW REQUEST - 24H] Fatal error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send reminder emails 30 days after checkout (if no review yet)
+ * Run daily at 11:00 AM
+ */
+export async function send30DayReviewReminders(): Promise<{
+  sent: number;
+  errors: number;
+  bookings: string[];
+}> {
+  const supabase = getAdminClient();
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  console.log(`[REVIEW REMINDER - 30D] Running at ${now.toISOString()}`);
+
+  try {
+    // Find bookings checked out 30 days ago, review_sent_at exists, but no review submitted
+    const { data: bookings, error } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        booking_reference,
+        guest_name,
+        guest_email,
+        guest_id,
+        property_id,
+        check_in_date,
+        check_out_date,
+        checked_out_at,
+        properties!inner (
+          id,
+          name,
+          owner_id
+        )
+      `)
+      .in('booking_status', ['checked_out', 'completed'])
+      .not('checked_out_at', 'is', null)
+      .not('review_sent_at', 'is', null)
+      .gte('checked_out_at', new Date(thirtyDaysAgo.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString()) // 29-31 day window
+      .lte('checked_out_at', new Date(thirtyDaysAgo.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (error) {
+      console.error('[REVIEW REMINDER - 30D] Error:', error);
+      throw error;
+    }
+
+    if (!bookings || bookings.length === 0) {
+      console.log('[REVIEW REMINDER - 30D] No bookings found');
+      return { sent: 0, errors: 0, bookings: [] };
+    }
+
+    const results = { sent: 0, errors: 0, bookings: [] as string[] };
+
+    for (const booking of bookings) {
+      try {
+        // Check if review exists
+        const { data: review } = await supabase
+          .from('property_reviews')
+          .select('id')
+          .eq('booking_id', booking.id)
+          .single();
+
+        if (review) {
+          console.log(`[REVIEW REMINDER - 30D] Review already exists for ${booking.booking_reference}`);
+          continue;
+        }
+
+        const property = booking.properties as any;
+        const daysRemaining = 60; // 90 - 30 = 60 days left
+
+        // Send reminder notification
+        if (booking.guest_id) {
+          await sendNotification({
+            user_id: booking.guest_id,
+            type: 'review',
+            title: `Still time to review ${property.name}`,
+            message: `We'd still love to hear about your stay! ${daysRemaining} days left to share your experience.`,
+            action_url: `/reviews/write/${booking.id}`,
+            action_label: 'Write Review',
+            priority: 'normal',
+            variant: 'info',
+          }).catch(err => console.error('[REVIEW REMINDER - 30D] Notification failed:', err));
+        }
+
+        // Send email via Resend
+        await send30DayReminderEmail({
+          guestEmail: booking.guest_email,
+          guestName: booking.guest_name,
+          propertyName: property.name,
+          bookingId: booking.id,
+          daysRemaining,
+        }).catch(err => console.error('[REVIEW REMINDER - 30D] Email failed:', err));
+
+        results.sent++;
+        results.bookings.push(booking.booking_reference);
+      } catch (error) {
+        console.error(`[REVIEW REMINDER - 30D] Error processing ${booking.booking_reference}:`, error);
+        results.errors++;
+      }
+    }
+
+    console.log(`[REVIEW REMINDER - 30D] Completed: ${results.sent} sent`);
+    return results;
+  } catch (error) {
+    console.error('[REVIEW REMINDER - 30D] Fatal error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Send final reminder 80 days after checkout (10 days before expiry)
+ * Run daily at 12:00 PM
+ */
+export async function send80DayFinalReminders(): Promise<{
+  sent: number;
+  errors: number;
+  bookings: string[];
+}> {
+  const supabase = getAdminClient();
+  const now = new Date();
+  const eightyDaysAgo = new Date(now.getTime() - 80 * 24 * 60 * 60 * 1000);
+
+  console.log(`[REVIEW REMINDER - 80D] Running at ${now.toISOString()}`);
+
+  try {
+    const { data: bookings, error } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        booking_reference,
+        guest_name,
+        guest_email,
+        guest_id,
+        property_id,
+        check_in_date,
+        check_out_date,
+        checked_out_at,
+        properties!inner (
+          id,
+          name,
+          owner_id
+        )
+      `)
+      .in('booking_status', ['checked_out', 'completed'])
+      .not('checked_out_at', 'is', null)
+      .gte('checked_out_at', new Date(eightyDaysAgo.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString())
+      .lte('checked_out_at', new Date(eightyDaysAgo.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (error) throw error;
+
+    if (!bookings || bookings.length === 0) {
+      console.log('[REVIEW REMINDER - 80D] No bookings found');
+      return { sent: 0, errors: 0, bookings: [] };
+    }
+
+    const results = { sent: 0, errors: 0, bookings: [] as string[] };
+
+    for (const booking of bookings) {
+      try {
+        // Check if review exists
+        const { data: review } = await supabase
+          .from('property_reviews')
+          .select('id')
+          .eq('booking_id', booking.id)
+          .single();
+
+        if (review) continue;
+
+        const property = booking.properties as any;
+
+        // Send URGENT notification
+        if (booking.guest_id) {
+          await sendNotification({
+            user_id: booking.guest_id,
+            type: 'review',
+            title: `⚠️ Last chance to review ${property.name}`,
+            message: `Only 10 days left to share your feedback! Don't miss your opportunity to help other travelers.`,
+            action_url: `/reviews/write/${booking.id}`,
+            action_label: 'Write Review Now',
+            priority: 'high',
+            variant: 'warning',
+          }).catch(err => console.error('[REVIEW REMINDER - 80D] Notification failed:', err));
+        }
+
+        // Send urgent email via Resend
+        await send80DayFinalReminderEmail({
+          guestEmail: booking.guest_email,
+          guestName: booking.guest_name,
+          propertyName: property.name,
+          bookingId: booking.id,
+        }).catch(err => console.error('[REVIEW REMINDER - 80D] Email failed:', err));
+
+        results.sent++;
+        results.bookings.push(booking.booking_reference);
+      } catch (error) {
+        console.error(`[REVIEW REMINDER - 80D] Error processing ${booking.booking_reference}:`, error);
+        results.errors++;
+      }
+    }
+
+    console.log(`[REVIEW REMINDER - 80D] Completed: ${results.sent} sent`);
+    return results;
+  } catch (error) {
+    console.error('[REVIEW REMINDER - 80D] Fatal error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // MASTER CRON JOB RUNNER
 // ============================================================================
 
@@ -640,12 +978,24 @@ export async function runBookingCronJobs(): Promise<void> {
 
   try {
     // Run all jobs in parallel
-    const [checkoutResults, noShowResults, failedCheckoutResults, eftResults, recoveryResults] = await Promise.allSettled([
+    const [
+      checkoutResults,
+      noShowResults,
+      failedCheckoutResults,
+      eftResults,
+      recoveryResults,
+      review24hResults,
+      review30dResults,
+      review80dResults,
+    ] = await Promise.allSettled([
       autoCheckoutBookings(),
       detectNoShows(),
       markFailedCheckouts(),
       processEFTVerificationReminders(),
       sendAbandonedCartRecoveryEmails(),
+      sendInitialReviewRequests(),
+      send30DayReviewReminders(),
+      send80DayFinalReminders(),
     ]);
 
     console.log('\n========================================');
@@ -680,6 +1030,24 @@ export async function runBookingCronJobs(): Promise<void> {
       console.log(`✅ Recovery Emails: ${recoveryResults.value.emails_sent} sent`);
     } else {
       console.error('❌ Recovery Emails failed:', recoveryResults.reason);
+    }
+
+    if (review24hResults.status === 'fulfilled') {
+      console.log(`✅ Review Requests (24h): ${review24hResults.value.sent} sent`);
+    } else {
+      console.error('❌ Review Requests (24h) failed:', review24hResults.reason);
+    }
+
+    if (review30dResults.status === 'fulfilled') {
+      console.log(`✅ Review Reminders (30d): ${review30dResults.value.sent} sent`);
+    } else {
+      console.error('❌ Review Reminders (30d) failed:', review30dResults.reason);
+    }
+
+    if (review80dResults.status === 'fulfilled') {
+      console.log(`✅ Final Reminders (80d): ${review80dResults.value.sent} sent`);
+    } else {
+      console.error('❌ Final Reminders (80d) failed:', review80dResults.reason);
     }
 
     console.log('========================================\n');

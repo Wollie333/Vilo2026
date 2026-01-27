@@ -34,12 +34,29 @@ const ClockIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg
+    className="w-4 h-4"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M6 18L18 6M6 6l12 12"
+    />
+  </svg>
+);
+
 export const PaymentRequiredBanner: React.FC<PaymentRequiredBannerProps> = ({
   message,
   trialDaysRemaining,
   checkoutUrl = '/pricing',
   hasPendingCheckout = false,
   supportEmail = 'support@vilo.app',
+  onDismiss,
 }) => {
   const navigate = useNavigate();
 
@@ -57,13 +74,24 @@ export const PaymentRequiredBanner: React.FC<PaymentRequiredBannerProps> = ({
           </span>
           <span>{pendingMessage}</span>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => window.location.href = `mailto:${supportEmail}`}
-        >
-          Contact Support
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.location.href = `mailto:${supportEmail}`}
+          >
+            Contact Support
+          </Button>
+          {onDismiss && (
+            <button
+              onClick={onDismiss}
+              className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400 transition-colors"
+              aria-label="Dismiss banner"
+            >
+              <CloseIcon />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -107,13 +135,30 @@ export const PaymentRequiredBanner: React.FC<PaymentRequiredBannerProps> = ({
         </span>
         <span>{displayMessage}</span>
       </div>
-      <Button
-        size="sm"
-        variant="primary"
-        onClick={() => navigate(checkoutUrl)}
-      >
-        Subscribe Now
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => navigate(checkoutUrl)}
+        >
+          Subscribe Now
+        </Button>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className={`p-1 rounded transition-colors ${
+              isUrgent
+                ? 'hover:bg-red-100 dark:hover:bg-red-800/30 text-red-600 dark:text-red-400'
+                : isTrial
+                ? 'hover:bg-blue-100 dark:hover:bg-blue-800/30 text-blue-600 dark:text-blue-400'
+                : 'hover:bg-amber-100 dark:hover:bg-amber-800/30 text-amber-600 dark:text-amber-400'
+            }`}
+            aria-label="Dismiss banner"
+          >
+            <CloseIcon />
+          </button>
+        )}
+      </div>
     </div>
   );
 };

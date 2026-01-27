@@ -206,6 +206,25 @@ export const PromotionEditor: React.FC<PromotionEditorProps> = ({
                   disabled={disabled}
                 />
 
+                {/* Claimable Promo Toggle */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editingPromotion.is_claimable || false}
+                      onChange={(e) => updateEditingField('is_claimable', e.target.checked)}
+                      disabled={disabled}
+                      className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Make this a claimable promo
+                    </span>
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                    When enabled, promo code will be hidden from public view. Guests must provide their details to claim it.
+                  </p>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" size="sm" onClick={handleCancelEdit}>
                     Cancel
@@ -335,6 +354,25 @@ export const PromotionEditor: React.FC<PromotionEditorProps> = ({
                 rows={2}
                 disabled={disabled}
               />
+
+              {/* Claimable Promo Toggle */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editingPromotion.is_claimable || false}
+                    onChange={(e) => updateEditingField('is_claimable', e.target.checked)}
+                    disabled={disabled}
+                    className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Make this a claimable promo
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                  When enabled, promo code will be hidden from public view. Guests must provide their details to claim it.
+                </p>
+              </div>
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={handleCancelEdit}>

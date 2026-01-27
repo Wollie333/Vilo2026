@@ -1,218 +1,299 @@
-# Database Cleanup Guide - Quick Reference
+# Database Cleanup Guide
 
-**Date:** 2026-01-12
-**Issue:** Duplicate free tier subscription plans blocking deletion + need to bulk remove users
+## Quick Start
 
----
-
-## 🎯 Recommended Cleanup Order
-
-### Step 1: Fix Duplicate Free Tier Plans (REQUIRED FIRST)
-
-This will merge duplicate free tier subscription plans so you can manage them properly.
-
-**Run this SQL in Supabase SQL Editor:**
-
-```sql
--- Execute the cleanup script
-SELECT * FROM public.merge_duplicate_free_tier_plans();
-```
-
-**Expected Output:**
-```
-kept_plan_id: <uuid>
-deleted_plan_ids: [<uuid>, <uuid>, ...]
-migrated_subscriptions: <number>
-```
-
-**Verify it worked:**
-```sql
--- Should only show 1 free tier plan now
-SELECT id, name, display_name, price_cents
-FROM public.subscription_types
-WHERE name = 'free_tier' OR LOWER(display_name) LIKE '%free%';
-```
+**Purpose**: Clean all transactional data (bookings, invoices, messages, users) while keeping super admin and system configuration.
 
 ---
 
-### Step 2: Clean Up Users (Choose ONE option)
+## What Gets Deleted ❌
 
-#### Option A: Deactivate Users (RECOMMENDED - Reversible)
+- ❌ All bookings and booking-related data
+- ❌ All invoices (subscription + booking)
+- ❌ All credit memos and credit notes
+- ❌ All payments and checkouts
+- ❌ All messages and conversations
+- ❌ All reviews
+- ❌ All properties and rooms
+- ❌ All non-admin users
+- ❌ All companies (except super admin's)
+- ❌ All promotions
+- ❌ All add-ons
+- ❌ All support tickets
+- ❌ All wishlists
+- ❌ All customers
+- ❌ All subscriptions (except super admin's)
 
-**Safer approach** - Users are deactivated but not deleted. You can undo this.
+---
+
+## What Gets Preserved ✅
+
+- ✅ Super admin user(s)
+- ✅ Subscription plans
+- ✅ Member types
+- ✅ Website templates
+- ✅ Roles and permissions
+- ✅ System configuration
+- ✅ Invoice settings (global)
+- ✅ Reference data (locations, amenities)
+
+---
+
+## How to Run
+
+### Option 1: Supabase Dashboard (Recommended)
+
+1. Open Supabase Dashboard → SQL Editor
+2. Copy the entire contents of `CLEANUP_DATABASE.sql`
+3. Paste into SQL Editor
+4. **REVIEW THE SCRIPT** - Make sure you understand what will be deleted
+5. Click "Run"
+6. Check the output:
+   - Should show "Found X super admin account(s)"
+   - Should show "CLEANUP COMPLETE!"
+   - Should show remaining users (only super admin)
+
+### Option 2: Command Line (psql)
+
+```bash
+# Connect to your database
+psql -U your_user -d your_database
+
+# Run the cleanup script
+\i CLEANUP_DATABASE.sql
+
+# Or one-liner
+psql -U your_user -d your_database -f CLEANUP_DATABASE.sql
+```
+
+---
+
+## Safety Features
+
+### 1. Transaction Wrapped
+The script runs in a transaction (BEGIN...COMMIT), so if anything goes wrong, nothing is committed.
+
+### 2. Super Admin Check
+Script will ABORT if no super admin is found:
+```
+ERROR: No super admin found! Create one before running cleanup.
+```
+
+### 3. Verification Step
+After cleanup, the script shows:
+- Remaining users (should only be super admin)
+- Count of bookings (should be 0)
+- Count of invoices (should be 0)
+- Count of properties (should be 0)
+- Count of messages (should be 0)
+
+### 4. Rollback Option
+If you want to test first without committing:
 
 ```sql
--- Deactivate all non-admin users
-SELECT * FROM public.bulk_deactivate_non_admin_users(
-  p_confirm_deactivation := true
+-- Change the last line from:
+COMMIT;
+
+-- To:
+ROLLBACK;
+```
+
+This will show you what would be deleted but NOT actually delete it.
+
+---
+
+## Before You Run
+
+### Checklist
+
+- [ ] **Backup your database** (if this is production or has any data you care about)
+- [ ] **Confirm you have a super admin account**
+- [ ] **Review the script** - Make sure you understand what will be deleted
+- [ ] **This is a development/testing database** (NOT production)
+- [ ] **You're okay losing ALL user data**
+
+---
+
+## Verification Queries
+
+### Check Super Admin Exists
+```sql
+SELECT id, email, full_name, is_super_admin
+FROM public.users
+WHERE is_super_admin = TRUE;
+```
+
+Should return at least one user.
+
+### After Cleanup - Verify Data Removed
+```sql
+-- Should all return 0
+SELECT COUNT(*) FROM public.bookings;      -- 0
+SELECT COUNT(*) FROM public.invoices;      -- 0
+SELECT COUNT(*) FROM public.messages;      -- 0
+SELECT COUNT(*) FROM public.properties;    -- 0
+SELECT COUNT(*) FROM public.reviews;       -- 0
+
+-- Should only return super admin(s)
+SELECT COUNT(*) FROM public.users;
+SELECT email, is_super_admin FROM public.users;
+
+-- Should still have plans
+SELECT COUNT(*) FROM public.subscription_plans;  -- Should have plans
+
+-- Should still have templates
+SELECT COUNT(*) FROM public.website_templates;   -- Should have templates
+```
+
+---
+
+## What If Something Goes Wrong?
+
+### Issue: "No super admin found!"
+
+**Solution**: Create a super admin first:
+
+```sql
+-- Option 1: Make existing user a super admin
+UPDATE public.users
+SET is_super_admin = TRUE, is_admin = TRUE
+WHERE email = 'your-email@example.com';
+
+-- Option 2: Run migration 123 to create permanent super admin
+-- See: backend/migrations/123_create_permanent_super_admin.sql
+```
+
+### Issue: Foreign Key Constraint Errors
+
+**Cause**: Script tries to delete data in wrong order.
+
+**Solution**: The script deletes in bottom-up order (children before parents). If you get FK errors:
+1. Note which table is causing the issue
+2. Find references to that table
+3. Add delete statement for referencing table before the one failing
+
+### Issue: Want to Keep Some Data
+
+**Modify the script**:
+
+```sql
+-- Example: Keep properties for super admin
+DELETE FROM public.properties
+WHERE owner_id NOT IN (
+  SELECT id FROM public.users WHERE is_super_admin = TRUE
 );
 ```
 
-**Verify:**
+---
+
+## Additional Cleanup Options
+
+### Clean Invoice Settings Too
+
 ```sql
--- Check active users (should only be admins)
-SELECT u.email, u.is_active, ut.name as user_type
-FROM public.users u
-JOIN public.user_types ut ON u.user_type_id = ut.id
-WHERE u.is_active = true;
+-- Add this to the script if you want to reset invoice settings
+DELETE FROM public.invoice_settings WHERE company_id IS NOT NULL;
 ```
 
-**To undo (if needed):**
+### Clean Legal Pages
+
 ```sql
-SELECT public.reactivate_all_users();
+-- Add this if you want fresh legal pages
+DELETE FROM public.legal_pages;
+```
+
+### Clean Everything Including Templates
+
+```sql
+-- ⚠️ NUCLEAR OPTION - Removes templates too
+DELETE FROM public.template_sections;
+DELETE FROM public.template_pages;
+DELETE FROM public.website_templates;
 ```
 
 ---
 
-#### Option B: Delete Users (DESTRUCTIVE - Cannot undo)
+## After Cleanup - Fresh Start
 
-**⚠️ WARNING:** This permanently deletes users and all their data!
+### What You'll Have
 
-**First, see what will be deleted (DRY RUN):**
-```sql
--- Just inspect, nothing deleted yet
--- Run the first section of TEMP_073_bulk_delete_users_except_admin.sql
-```
+✅ Clean database with:
+- Super admin account (can login)
+- All subscription plans available
+- All website templates available
+- No test data cluttering the system
 
-**Then execute deletion:**
-```sql
--- DESTRUCTIVE - Only run if you're 100% sure!
-SELECT * FROM public.bulk_delete_non_admin_users(
-  p_confirm_deletion := true,
-  p_require_password := 'DELETE_ALL_USERS'
-);
-```
+### Next Steps
 
----
+1. **Login as super admin**
+2. **Create a test property owner user** (via `/admin/users`)
+3. **Create test properties** (as property owner)
+4. **Create test bookings** (as guest)
+5. **Test invoice generation**
+6. **Test all features fresh**
 
-## 📋 Full Cleanup Checklist
-
-### Before You Start
-- [ ] Backup your database (Supabase → Settings → Backups)
-- [ ] Verify you have super admin access
-- [ ] Review the impact analysis
-
-### Execute Cleanup
-1. [ ] Run Step 1: Fix duplicate free tier plans
-2. [ ] Verify only 1 free tier plan exists
-3. [ ] Choose Option A (deactivate) or Option B (delete)
-4. [ ] Run your chosen option
-5. [ ] Verify the results
-
-### After Cleanup
-- [ ] Test login as super admin
-- [ ] Check subscription plans page
-- [ ] Verify new user signup works (creates free tier)
-- [ ] Clean up temporary functions (see below)
-
----
-
-## 🧹 Cleanup Temporary Functions
-
-After you're done and verified everything works:
+### Creating Test Users
 
 ```sql
--- Remove temporary cleanup functions
-DROP FUNCTION IF EXISTS public.bulk_delete_non_admin_users;
-DROP FUNCTION IF EXISTS public.bulk_deactivate_non_admin_users;
-DROP FUNCTION IF EXISTS public.reactivate_all_users;
-DROP FUNCTION IF EXISTS public.merge_duplicate_free_tier_plans;
-```
+-- Quick SQL to create test users (run as super admin in Supabase)
 
-Delete the temporary migration files:
-- `backend/migrations/TEMP_073_bulk_delete_users_except_admin.sql`
-- `backend/migrations/TEMP_074_bulk_deactivate_users.sql`
-
----
-
-## 🔍 Verification Queries
-
-### Check remaining users
-```sql
-SELECT u.email, u.is_active, ut.name as user_type, ut.category
-FROM public.users u
-JOIN public.user_types ut ON u.user_type_id = ut.id
-ORDER BY u.created_at;
-```
-
-### Check subscription plans
-```sql
-SELECT
-  st.id,
-  st.name,
-  st.display_name,
-  st.price_cents,
-  COUNT(us.id) as active_subscriptions
-FROM public.subscription_types st
-LEFT JOIN public.user_subscriptions us ON us.subscription_type_id = st.id AND us.is_active = true
-GROUP BY st.id
-ORDER BY st.name;
-```
-
-### Check active subscriptions
-```sql
-SELECT
-  u.email,
-  st.name as plan_name,
-  us.status,
-  us.is_active,
-  us.started_at
-FROM public.user_subscriptions us
-JOIN public.users u ON us.user_id = u.id
-JOIN public.subscription_types st ON us.subscription_type_id = st.id
-WHERE us.is_active = true
-ORDER BY us.started_at DESC;
-```
-
----
-
-## 🆘 If Something Goes Wrong
-
-### If you locked yourself out:
-1. Use Supabase SQL Editor (doesn't require app login)
-2. Check if super admin user still exists:
-   ```sql
-   SELECT * FROM public.users u
-   JOIN public.user_types ut ON u.user_type_id = ut.id
-   WHERE ut.name = 'super_admin';
-   ```
-3. Restore from backup if needed
-
-### If users were accidentally deleted:
-- Restore from database backup (Supabase → Settings → Backups → Restore)
-
-### If you used deactivation and want to undo:
-```sql
-SELECT public.reactivate_all_users();
-```
-
----
-
-## 📞 Quick Reference Commands
-
-```sql
--- 1. Fix duplicate free tiers
-SELECT * FROM public.merge_duplicate_free_tier_plans();
-
--- 2A. Deactivate users (SAFE)
-SELECT * FROM public.bulk_deactivate_non_admin_users(p_confirm_deactivation := true);
-
--- 2B. Delete users (DESTRUCTIVE)
-SELECT * FROM public.bulk_delete_non_admin_users(
-  p_confirm_deletion := true,
-  p_require_password := 'DELETE_ALL_USERS'
+-- Test Property Owner
+INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+VALUES (
+  gen_random_uuid(),
+  'owner@test.com',
+  crypt('password123', gen_salt('bf')),
+  NOW(),
+  NOW(),
+  NOW()
 );
 
--- Verify
-SELECT u.email, ut.name FROM users u JOIN user_types ut ON u.user_type_id = ut.id;
-
--- Cleanup
-DROP FUNCTION IF EXISTS public.bulk_delete_non_admin_users;
-DROP FUNCTION IF EXISTS public.bulk_deactivate_non_admin_users;
-DROP FUNCTION IF EXISTS public.reactivate_all_users;
-DROP FUNCTION IF EXISTS public.merge_duplicate_free_tier_plans;
+-- Then create profile in public.users via your signup flow
 ```
+
+Or use the frontend signup page: `http://localhost:5173/signup`
 
 ---
 
-**Pro Tip:** Start with the deactivation approach (Option A). Test everything works, then if you still want to delete, you can run Option B later.
+## Frequency
+
+**When to run this cleanup:**
+
+- ✅ Before major testing sessions
+- ✅ After completing a feature to start fresh
+- ✅ When database is cluttered with test data
+- ✅ Before demoing the system
+- ❌ NEVER in production
+- ❌ NEVER without a backup
+
+---
+
+## Summary
+
+**Script**: `CLEANUP_DATABASE.sql`
+**Safe**: Yes (transaction-wrapped, super admin protected)
+**Reversible**: Yes (if you use ROLLBACK instead of COMMIT)
+**Time**: ~5 seconds to run
+
+**Command**:
+```bash
+# In Supabase SQL Editor
+# Just copy/paste CLEANUP_DATABASE.sql and run
+```
+
+You'll have a clean system with:
+- 1 super admin user
+- All system configuration intact
+- Zero transactional data
+- Ready for fresh testing
+
+---
+
+## Questions?
+
+- Check script comments for detailed explanations
+- Review verification queries above
+- Test with ROLLBACK first if unsure
+- Always backup production databases
+
+**Ready to start fresh? Run CLEANUP_DATABASE.sql in Supabase SQL Editor!**

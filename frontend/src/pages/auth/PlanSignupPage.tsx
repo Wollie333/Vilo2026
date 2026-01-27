@@ -109,8 +109,8 @@ export const PlanSignupPage: React.FC = () => {
     if (!plan) return false;
 
     // Check multiple possible free plan indicators
-    const monthlyPrice = plan.pricing?.monthly ?? 0;
-    const annualPrice = plan.pricing?.annual ?? 0;
+    const monthlyPrice = plan.pricing_tiers?.monthly?.price_cents ?? 0;
+    const annualPrice = plan.pricing_tiers?.annual?.price_cents ?? 0;
 
     // Plan is free if:
     // 1. Both prices are 0
@@ -182,8 +182,8 @@ export const PlanSignupPage: React.FC = () => {
   const getDisplayPrice = (): string => {
     if (!plan) return '';
     const price = billingInterval === 'monthly'
-      ? plan.pricing?.monthly || 0
-      : plan.pricing?.annual || 0;
+      ? plan.pricing_tiers?.monthly?.price_cents || 0
+      : plan.pricing_tiers?.annual?.price_cents || 0;
     if (price === 0) return 'Free';
     return `${formatPrice(price, plan.currency)}/${billingInterval === 'monthly' ? 'mo' : 'yr'}`;
   };

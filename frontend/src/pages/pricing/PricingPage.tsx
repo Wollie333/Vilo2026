@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Spinner, Alert } from '@/components/ui';
+import { PublicLayout } from '@/components/layout';
 import { billingService } from '@/services';
 import { useAuth } from '@/hooks';
 import type { SubscriptionType, BillingInterval } from '@/types/billing.types';
@@ -41,7 +42,17 @@ function formatPrice(cents: number, currency: string): string {
 // Get feature label from limit key
 function getFeatureLabel(key: string, value: number): string {
   const label = LIMIT_KEY_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
   if (value === -1) return `Unlimited ${label}`;
+
+  // Special formatting for storage
+  if (key === 'max_storage_mb') {
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}GB Storage`;
+    }
+    return `${value}MB Storage`;
+  }
+
   return `${value} ${label}`;
 }
 
@@ -58,13 +69,15 @@ const PricingCard: React.FC<PricingCardProps> = ({
   isPopular = false,
   onSelectPlan,
 }) => {
-  const pricing = plan.pricing || { monthly: 0, annual: 0 };
-  const displayPrice = billingInterval === 'monthly' ? pricing.monthly : pricing.annual;
-  const isFree = displayPrice === 0 && pricing.monthly === 0 && pricing.annual === 0;
+  // Use pricing_tiers (new structure) with fallback to pricing (legacy)
+  const monthlyPrice = plan.pricing_tiers?.monthly?.price_cents ?? plan.pricing?.monthly ?? 0;
+  const annualPrice = plan.pricing_tiers?.annual?.price_cents ?? plan.pricing?.annual ?? 0;
+  const displayPrice = billingInterval === 'monthly' ? monthlyPrice : annualPrice;
+  const isFree = displayPrice === 0 && monthlyPrice === 0 && annualPrice === 0;
 
   // Calculate savings for annual
-  const monthlyAnnualized = pricing.monthly * 12;
-  const annualSavings = monthlyAnnualized - pricing.annual;
+  const monthlyAnnualized = monthlyPrice * 12;
+  const annualSavings = monthlyAnnualized - annualPrice;
   const savingsPercent = monthlyAnnualized > 0 ? Math.round((annualSavings / monthlyAnnualized) * 100) : 0;
 
   // Get features from limits
@@ -88,7 +101,7 @@ const PricingCard: React.FC<PricingCardProps> = ({
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
           <span className="inline-flex items-center gap-1 px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-full">
             <StarIcon />
-            Most Popular
+            Best Value
           </span>
         </div>
       )}
@@ -124,13 +137,6 @@ const PricingCard: React.FC<PricingCardProps> = ({
         {billingInterval === 'annual' && savingsPercent > 0 && (
           <p className="mt-1 text-sm text-primary font-medium">
             Save {savingsPercent}% compared to monthly
-          </p>
-        )}
-
-        {/* Trial Badge */}
-        {plan.trial_period_days && plan.trial_period_days > 0 && (
-          <p className="mt-1 text-sm text-amber-600 dark:text-amber-400 font-medium">
-            {plan.trial_period_days}-day free trial
           </p>
         )}
       </div>
@@ -192,39 +198,18 @@ export const PricingPage: React.FC = () => {
   }, []);
 
   const handleSelectPlan = (plan: SubscriptionType) => {
-    // If user is not logged in, go to plan signup page
-    if (!user) {
-      navigate(`/signup/${plan.id}?interval=${billingInterval}`);
-      return;
-    }
-
-    // User is logged in - check if plan is free
-    // More robust check that handles null/undefined and name-based detection
-    const monthlyPrice = plan.pricing?.monthly ?? 0;
-    const annualPrice = plan.pricing?.annual ?? 0;
-    const nameIndicatesFree = plan.name?.toLowerCase().includes('free') ||
-                               plan.display_name?.toLowerCase().includes('free');
-    const isFree = (monthlyPrice === 0 && annualPrice === 0) || nameIndicatesFree;
-
-    console.log('PricingPage - Plan selected:', plan.display_name, 'isFree:', isFree);
-
-    if (isFree) {
-      // Free plan: go to onboarding
-      navigate('/onboarding');
-    } else {
-      // Paid plan: go to checkout
-      navigate(`/checkout?plan=${plan.id}&interval=${billingInterval}`);
-    }
+    // Navigate directly to checkout with selected plan and billing interval
+    navigate(`/checkout?plan=${plan.slug}&interval=${billingInterval}`);
   };
 
   // Sort plans: Free plan first, then by monthly price ascending
   const sortedPlans = [...plans].sort((a, b) => {
-    const aPrice = a.pricing?.monthly ?? 0;
-    const bPrice = b.pricing?.monthly ?? 0;
-    const aIsFree = (aPrice === 0 && (a.pricing?.annual ?? 0) === 0) ||
+    const aPrice = a.pricing_tiers?.monthly?.price_cents ?? 0;
+    const bPrice = b.pricing_tiers?.monthly?.price_cents ?? 0;
+    const aIsFree = (aPrice === 0 && (a.pricing_tiers?.annual?.price_cents ?? 0) === 0) ||
                      a.name?.toLowerCase().includes('free') ||
                      a.display_name?.toLowerCase().includes('free');
-    const bIsFree = (bPrice === 0 && (b.pricing?.annual ?? 0) === 0) ||
+    const bIsFree = (bPrice === 0 && (b.pricing_tiers?.annual?.price_cents ?? 0) === 0) ||
                      b.name?.toLowerCase().includes('free') ||
                      b.display_name?.toLowerCase().includes('free');
 
@@ -236,64 +221,80 @@ export const PricingPage: React.FC = () => {
     return aPrice - bPrice;
   });
 
-  // Find the "popular" plan - the middle paid plan (excluding free)
+  // Find the "popular" plan - Vilo Lite
   const getPopularPlanId = (): string | null => {
+    // First, try to find "Vilo Lite" by slug or display_name
+    const litePlan = sortedPlans.find(p =>
+      p.slug?.toLowerCase() === 'lite' ||
+      p.display_name?.toLowerCase().includes('lite')
+    );
+
+    if (litePlan) return litePlan.id;
+
+    // Fallback: find the first paid plan (lowest price)
     const paidPlans = sortedPlans.filter(p => {
-      const price = p.pricing?.monthly || 0;
-      const annualPrice = p.pricing?.annual || 0;
+      const price = p.pricing_tiers?.monthly?.price_cents || 0;
+      const annualPrice = p.pricing_tiers?.annual?.price_cents || 0;
       return price > 0 || annualPrice > 0;
     });
 
-    if (paidPlans.length === 0) return null;
-    if (paidPlans.length === 1) return paidPlans[0].id;
-
-    // Get the middle paid plan
-    const middleIndex = Math.floor(paidPlans.length / 2);
-    return paidPlans[middleIndex].id;
+    return paidPlans.length > 0 ? paidPlans[0].id : null;
   };
 
   const popularPlanId = getPopularPlanId();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-dark-bg flex items-center justify-center">
-        <Spinner size="xl" />
-      </div>
+      <PublicLayout transparentHeader>
+        <div className="min-h-screen flex items-center justify-center">
+          <Spinner size="xl" />
+        </div>
+      </PublicLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
-      {/* Header */}
-      <div className="py-16 sm:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Logo / Brand */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white">
-              Simple, Transparent Pricing
+    <PublicLayout transparentHeader>
+      {/* Hero & Pricing Section - All in one with dark gradient background */}
+      <section className="relative min-h-screen flex flex-col justify-center overflow-hidden bg-gradient-to-br from-gray-900 to-gray-950 dark:from-black dark:to-gray-900 pt-24 pb-12">
+        {/* Animated Background Blobs */}
+        <div className="absolute top-0 -left-40 w-[600px] h-[600px] bg-primary/20 dark:bg-primary/30 rounded-full blur-[128px] animate-pulse" />
+        <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] bg-teal-500/15 dark:bg-teal-500/25 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+
+        <div className="container mx-auto px-4 sm:px-6 relative z-10 max-w-7xl">
+          {/* Header */}
+          <div className="text-center mb-8">
+            {/* Hero Title */}
+            <h1 className="text-4xl md:text-5xl font-bold text-white dark:text-gray-50 mb-3 leading-tight">
+              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 dark:from-emerald-300 dark:to-teal-300 bg-clip-text text-transparent">
+                Simple, Transparent Pricing
+              </span>
             </h1>
-            <p className="mt-4 text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+
+            {/* Hero Subtitle */}
+            <p className="text-lg text-white/80 dark:text-gray-300 mb-6 max-w-2xl mx-auto">
               Choose the plan that's right for your business. All plans include our core features.
             </p>
           </div>
 
+          {/* Error Alert */}
           {error && (
-            <Alert variant="error" className="max-w-xl mx-auto mb-8">
+            <Alert variant="error" className="max-w-xl mx-auto mb-6">
               {error}
             </Alert>
           )}
 
           {/* Billing Toggle */}
           <div className="flex justify-center mb-12">
-            <div className="inline-flex items-center p-1 bg-gray-100 dark:bg-dark-border rounded-lg">
+            <div className="inline-flex items-center p-1 bg-white/10 dark:bg-white/5 backdrop-blur-sm rounded-lg border border-white/20">
               <button
                 type="button"
                 onClick={() => setBillingInterval('monthly')}
                 className={`
-                  px-6 py-2.5 text-sm font-medium rounded-md transition-all duration-200
+                  px-6 py-2 text-sm font-medium rounded-md transition-all duration-200
                   ${billingInterval === 'monthly'
-                    ? 'bg-white dark:bg-dark-card text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-white/80 hover:text-white'
                   }
                 `}
               >
@@ -303,15 +304,17 @@ export const PricingPage: React.FC = () => {
                 type="button"
                 onClick={() => setBillingInterval('annual')}
                 className={`
-                  px-6 py-2.5 text-sm font-medium rounded-md transition-all duration-200
+                  px-6 py-2 text-sm font-medium rounded-md transition-all duration-200
                   ${billingInterval === 'annual'
-                    ? 'bg-white dark:bg-dark-card text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-white/80 hover:text-white'
                   }
                 `}
               >
                 Annual
-                <span className="ml-1.5 text-xs text-primary font-semibold">Save up to 20%</span>
+                <span className={`ml-1.5 text-xs font-semibold ${billingInterval === 'annual' ? 'text-primary' : 'text-emerald-400'}`}>
+                  Save up to 20%
+                </span>
               </button>
             </div>
           </div>
@@ -319,12 +322,12 @@ export const PricingPage: React.FC = () => {
           {/* Pricing Cards */}
           {sortedPlans.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-white/60">
                 No pricing plans available at the moment.
               </p>
             </div>
           ) : (
-            <div className="flex flex-wrap justify-center gap-8 items-start max-w-7xl mx-auto">
+            <div className="flex flex-wrap justify-center gap-6 items-start">
               {sortedPlans.map((plan) => (
                 <div key={plan.id} className="w-full sm:w-80">
                   <PricingCard
@@ -338,24 +341,24 @@ export const PricingPage: React.FC = () => {
             </div>
           )}
 
-          {/* FAQ or Additional Info */}
-          <div className="mt-16 text-center">
-            <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
+          {/* FAQ Info */}
+          <div className="mt-8 text-center">
+            <p className="text-base font-medium text-white/90">
               Zero transaction fees. No hidden costs. Just reliable software.
             </p>
-            <p className="mt-2 text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm text-white/60">
               Keep 100% of your booking revenue. Cancel anytime.
             </p>
-            <p className="mt-4 text-gray-500 dark:text-gray-400">
+            <p className="mt-3 text-sm text-white/60">
               Questions?{' '}
-              <a href="mailto:support@vilo.com" className="text-primary hover:underline">
+              <a href="mailto:support@vilo.com" className="text-emerald-400 hover:text-emerald-300 hover:underline">
                 Contact our sales team
               </a>
             </p>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </PublicLayout>
   );
 };
 

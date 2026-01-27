@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, cloneElement, isValidElement } from 'react';
 import type { InputProps } from './Input.types';
 
 const sizeStyles = {
@@ -66,9 +66,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <div className="relative">
           {leftIcon && (
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className={`text-gray-400 dark:text-gray-500 ${iconSizeStyles[size]}`}>
-                {leftIcon}
-              </span>
+              {isValidElement(leftIcon) ? (
+                cloneElement(leftIcon, {
+                  className: `${leftIcon.props.className || ''} text-gray-500 dark:text-gray-400`,
+                  'aria-hidden': 'true',
+                } as any)
+              ) : (
+                <span className={`text-gray-500 dark:text-gray-400 ${iconSizeStyles[size]}`}>
+                  {leftIcon}
+                </span>
+              )}
             </div>
           )}
 
@@ -95,10 +102,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
               {isLoading ? (
                 <svg
-                  className={`animate-spin text-gray-400 ${iconSizeStyles[size]}`}
+                  className={`animate-spin text-gray-500 dark:text-gray-400 ${iconSizeStyles[size]}`}
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <circle
                     className="opacity-25"
@@ -114,8 +122,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
+              ) : isValidElement(rightIcon) ? (
+                cloneElement(rightIcon, {
+                  className: `${rightIcon.props.className || ''} text-gray-500 dark:text-gray-400`,
+                  'aria-hidden': 'true',
+                } as any)
               ) : (
-                <span className={`text-gray-400 dark:text-gray-500 ${iconSizeStyles[size]}`}>
+                <span className={`text-gray-500 dark:text-gray-400 ${iconSizeStyles[size]}`}>
                   {rightIcon}
                 </span>
               )}

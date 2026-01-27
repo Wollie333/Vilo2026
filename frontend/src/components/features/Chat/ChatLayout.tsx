@@ -13,7 +13,7 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ sidebar, content, isMobileContentOpen = false }: ChatLayoutProps) {
   return (
-    <div className="flex h-[calc(100vh-8rem)] bg-gray-50 dark:bg-dark-bg -m-6 rounded-lg overflow-hidden border border-gray-200 dark:border-dark-border">
+    <div className="flex h-[600px] bg-gray-50 dark:bg-dark-bg rounded-lg overflow-hidden border border-gray-200 dark:border-dark-border">
       {/* Conversation List Sidebar */}
       <div
         className={`

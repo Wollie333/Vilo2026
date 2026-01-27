@@ -92,6 +92,56 @@ interface BlockModalData {
 // Helper Functions
 // ============================================================================
 
+/**
+ * Map backend BookingCalendarEntry to frontend CalendarEntry format
+ */
+const mapToCalendarEntry = (
+  entry: any,
+  propertyId: string
+): CalendarEntry => {
+  // Detect if this is a block (backend returns blocks with special format)
+  const isBlock = entry.booking_reference?.startsWith('BLOCK-') ||
+                  ['Maintenance', 'Owner Blocked', 'Renovation', 'Blocked'].includes(entry.guest_name);
+
+  return {
+    id: entry.booking_id,
+    booking_id: entry.booking_id,
+    property_id: propertyId,
+    room_id: entry.room_id,
+    room_name: entry.room_name,
+    room_thumbnail: entry.room_thumbnail || undefined,
+    property_name: '',
+    start_date: entry.check_in,
+    end_date: entry.check_out,
+    type: isBlock ? ('block' as const) : ('booking' as const),
+    // Booking details
+    booking_reference: entry.booking_reference,
+    booking_status: entry.booking_status,
+    payment_status: entry.payment_status,
+    guest_name: entry.guest_name,
+    guest_email: entry.guest_email || undefined,
+    guest_phone: entry.guest_phone || undefined,
+    total_amount: entry.total_amount,
+    currency: entry.currency,
+    adults: entry.adults,
+    children: entry.children,
+    source: entry.source,
+    // Payment proof metadata (new fields)
+    payment_proof_url: entry.payment_proof_url || undefined,
+    payment_proof_uploaded_at: entry.payment_proof_uploaded_at || undefined,
+    payment_verified_at: entry.payment_verified_at || undefined,
+    payment_verified_by: entry.payment_verified_by || undefined,
+    payment_rejection_reason: entry.payment_rejection_reason || undefined,
+    // Refund information (new fields)
+    refund_status: entry.refund_status || 'none',
+    total_refunded: entry.total_refunded || 0,
+    // Modification tracking (new field)
+    has_pending_modification: entry.has_pending_modification || false,
+    // Block details
+    block_reason: isBlock ? entry.guest_name : undefined,
+  };
+};
+
 const getDefaultDateRange = (): CalendarDateRange => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -126,12 +176,24 @@ export const CalendarPage: React.FC = () => {
     return (savedView === 'month' || savedView === 'timeline') ? savedView : 'timeline';
   });
 
-  // Calendar-specific filters
-  const [showCancelled, setShowCancelled] = useState(false);
-  const [showBlocks, setShowBlocks] = useState(true);
-  const [bookingStatusFilter, setBookingStatusFilter] = useState<string>('all');
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
-  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  // Calendar-specific filters (load from localStorage)
+  const [showCancelled, setShowCancelled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('calendar-filter-showCancelled');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [showBlocks, setShowBlocks] = useState<boolean>(() => {
+    const saved = localStorage.getItem('calendar-filter-showBlocks');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<string>(() => {
+    return localStorage.getItem('calendar-filter-bookingStatus') || 'all';
+  });
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(() => {
+    return localStorage.getItem('calendar-filter-paymentStatus') || 'all';
+  });
+  const [sourceFilter, setSourceFilter] = useState<string>(() => {
+    return localStorage.getItem('calendar-filter-source') || 'all';
+  });
 
   // Block modal
   const [blockModal, setBlockModal] = useState<BlockModalData | null>(null);
@@ -203,53 +265,12 @@ export const CalendarPage: React.FC = () => {
         const entriesResponse = await bookingService.getCalendarEntries(
           propertyId,
           dateRange.start.toISOString().split('T')[0],
-          dateRange.end.toISOString().split('T')[0]
+          dateRange.end.toISOString().split('T')[0],
+          showCancelled
         );
 
         // Map to CalendarEntry format
-        setEntries(entriesResponse.map((entry) => {
-          // Detect if this is a block (backend returns blocks with special format)
-          const isBlock = entry.booking_reference?.startsWith('BLOCK-') ||
-                          ['Maintenance', 'Owner Blocked', 'Renovation', 'Blocked'].includes(entry.guest_name);
-
-          return {
-            id: entry.booking_id,
-            booking_id: entry.booking_id,
-            property_id: propertyId,
-            room_id: entry.room_id,
-            room_name: entry.room_name,
-            room_thumbnail: entry.room_thumbnail || undefined,
-            property_name: '',
-            start_date: entry.check_in,
-            end_date: entry.check_out,
-            type: isBlock ? ('block' as const) : ('booking' as const),
-            // Booking details
-            booking_reference: entry.booking_reference,
-            booking_status: entry.booking_status,
-            payment_status: entry.payment_status,
-            guest_name: entry.guest_name,
-            guest_email: entry.guest_email || undefined,
-            guest_phone: entry.guest_phone || undefined,
-            total_amount: entry.total_amount,
-            currency: entry.currency,
-            adults: entry.adults,
-            children: entry.children,
-            source: entry.source,
-            // Payment proof metadata (new fields)
-            payment_proof_url: entry.payment_proof_url || undefined,
-            payment_proof_uploaded_at: entry.payment_proof_uploaded_at || undefined,
-            payment_verified_at: entry.payment_verified_at || undefined,
-            payment_verified_by: entry.payment_verified_by || undefined,
-            payment_rejection_reason: entry.payment_rejection_reason || undefined,
-            // Refund information (new fields)
-            refund_status: entry.refund_status || 'none',
-            total_refunded: entry.total_refunded || 0,
-            // Modification tracking (new field)
-            has_pending_modification: entry.has_pending_modification || false,
-            // Block details
-            block_reason: isBlock ? entry.guest_name : undefined,
-          };
-        }));
+        setEntries(entriesResponse.map((entry) => mapToCalendarEntry(entry, propertyId)));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load calendar data');
       } finally {
@@ -258,7 +279,7 @@ export const CalendarPage: React.FC = () => {
     };
 
     loadData();
-  }, [propertyId, dateRange]);
+  }, [propertyId, dateRange, showCancelled]);
 
   // Update URL params when property changes
   useEffect(() => {
@@ -266,6 +287,27 @@ export const CalendarPage: React.FC = () => {
       setSearchParams({ property: propertyId });
     }
   }, [propertyId, setSearchParams]);
+
+  // Save filter preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem('calendar-filter-showCancelled', JSON.stringify(showCancelled));
+  }, [showCancelled]);
+
+  useEffect(() => {
+    localStorage.setItem('calendar-filter-showBlocks', JSON.stringify(showBlocks));
+  }, [showBlocks]);
+
+  useEffect(() => {
+    localStorage.setItem('calendar-filter-bookingStatus', bookingStatusFilter);
+  }, [bookingStatusFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('calendar-filter-paymentStatus', paymentStatusFilter);
+  }, [paymentStatusFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('calendar-filter-source', sourceFilter);
+  }, [sourceFilter]);
 
   // Save view preference when it changes
   const handleViewModeChange = useCallback((newMode: CalendarViewMode) => {
@@ -363,32 +405,11 @@ export const CalendarPage: React.FC = () => {
       const entriesResponse = await bookingService.getCalendarEntries(
         propertyId,
         dateRange.start.toISOString().split('T')[0],
-        dateRange.end.toISOString().split('T')[0]
+        dateRange.end.toISOString().split('T')[0],
+        showCancelled
       );
       // Map to CalendarEntry format
-      setEntries(entriesResponse.map((entry) => ({
-        id: entry.booking_id,
-        booking_id: entry.booking_id,
-        property_id: propertyId,
-        room_id: entry.room_id,
-        room_name: entry.room_name,
-        room_thumbnail: entry.room_thumbnail || undefined,
-        property_name: '',
-        start_date: entry.check_in,
-        end_date: entry.check_out,
-        type: 'booking' as const,
-        booking_reference: entry.booking_reference,
-        booking_status: entry.booking_status,
-        payment_status: entry.payment_status,
-        guest_name: entry.guest_name,
-        guest_email: entry.guest_email || undefined,
-        guest_phone: entry.guest_phone || undefined,
-        total_amount: entry.total_amount,
-        currency: entry.currency,
-        adults: entry.adults,
-        children: entry.children,
-        source: entry.source,
-      })));
+      setEntries(entriesResponse.map((entry) => mapToCalendarEntry(entry, propertyId)));
 
       setBlockModal(null);
     } catch (err) {

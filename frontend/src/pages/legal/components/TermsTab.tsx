@@ -14,7 +14,11 @@ import type { Property } from '@/types';
 // Dynamic import for ReactQuill to avoid SSR issues
 const ReactQuill = React.lazy(() => import('react-quill'));
 
-export const TermsTab: React.FC = () => {
+interface TermsTabProps {
+  propertyId?: string; // Optional for backward compatibility with LegalPage
+}
+
+export const TermsTab: React.FC<TermsTabProps> = ({ propertyId }) => {
   const { currentUser } = useAuth();
   const [isEditorReady, setIsEditorReady] = useState(false);
 
@@ -27,35 +31,54 @@ export const TermsTab: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Load property and terms on mount
+  // Load property and terms on mount or when propertyId changes
   useEffect(() => {
+    console.log('📋 [TermsTab] Component mounting with propertyId:', propertyId);
     loadPropertyTerms();
     setIsEditorReady(true);
-  }, []);
+  }, [propertyId]);
 
   const loadPropertyTerms = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Get user's properties
-      const response = await propertyService.getMyProperties({});
+      let loadedProperty: Property;
 
-      if (!response.properties || response.properties.length === 0) {
-        setError('No properties found. Please create a property first.');
-        return;
+      if (propertyId) {
+        // Load specific property by ID (when used in PropertyDetailPage)
+        loadedProperty = await propertyService.getProperty(propertyId);
+      } else {
+        // Load first property (when used in standalone LegalPage)
+        const response = await propertyService.getMyProperties({});
+
+        if (!response.properties || response.properties.length === 0) {
+          setError('No properties found. Please create a property first.');
+          return;
+        }
+
+        loadedProperty = response.properties[0];
       }
 
-      // Use first property (or you could add property selector later)
-      const firstProperty = response.properties[0];
-      setProperty(firstProperty);
+      setProperty(loadedProperty);
 
       // Set terms content or default template
-      setTermsContent(firstProperty.terms_and_conditions || getDefaultTemplate());
+      const content = loadedProperty.terms_and_conditions || getDefaultTemplate();
+      setTermsContent(content);
+
+      console.log('📋 [TermsTab] Property loaded:', {
+        propertyId: loadedProperty.id,
+        propertyName: loadedProperty.name,
+        hasTerms: !!loadedProperty.terms_and_conditions,
+        termsLength: content.length,
+        termsPreview: content.substring(0, 100),
+      });
     } catch (err) {
+      console.error('❌ [TermsTab] Failed to load property terms:', err);
       setError(err instanceof Error ? err.message : 'Failed to load terms');
     } finally {
       setIsLoading(false);
+      console.log('📋 [TermsTab] Loading complete. isEditorReady:', isEditorReady);
     }
   };
 
@@ -107,6 +130,45 @@ export const TermsTab: React.FC = () => {
       setHasChanges(false);
       setSuccess(false);
       setError(null);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!property) return;
+
+    try {
+      console.log('[TermsTab] Downloading PDF for property:', property.id);
+
+      const response = await fetch(`/api/properties/${property.id}/terms/pdf`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download PDF');
+      }
+
+      // Create blob from response
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Terms-${property.slug || 'conditions'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+
+      console.log('[TermsTab] PDF downloaded successfully');
+    } catch (err) {
+      console.error('[TermsTab] Failed to download PDF:', err);
+      setError('Failed to download PDF. Please try again.');
     }
   };
 
@@ -224,35 +286,96 @@ export const TermsTab: React.FC = () => {
       {/* Editor Card */}
       <Card variant="bordered">
         <Card.Body className="p-0">
-          <div className="quill-wrapper">
+          <div
+            className="quill-wrapper"
+            style={{
+              minHeight: '600px',
+              display: 'block',
+              visibility: 'visible',
+              position: 'relative'
+            }}
+            onLoad={() => console.log('📋 [TermsTab] Quill wrapper loaded')}
+          >
             {isEditorReady ? (
-              <React.Suspense fallback={<div className="p-8 text-center">Loading editor...</div>}>
+              <React.Suspense
+                fallback={
+                  <div className="p-8 text-center">
+                    <Spinner size="lg" />
+                    <p className="text-gray-500 mt-2">Loading editor...</p>
+                  </div>
+                }
+              >
                 <ReactQuill
                   theme="snow"
                   value={termsContent}
                   onChange={handleEditorChange}
+                  onFocus={() => console.log('📋 [TermsTab] Editor focused')}
+                  onBlur={() => console.log('📋 [TermsTab] Editor blurred')}
+                  ref={(el) => {
+                    if (el) console.log('📋 [TermsTab] ReactQuill mounted successfully');
+                  }}
                   modules={{
                     toolbar: [
-                      [{ header: [1, 2, 3, false] }],
+                      [{ header: [1, 2, 3, 4, 5, 6, false] }],
+                      [{ font: [] }],
+                      [{ size: ['small', false, 'large', 'huge'] }],
                       ['bold', 'italic', 'underline', 'strike'],
+                      [{ color: [] }, { background: [] }],
+                      [{ script: 'sub' }, { script: 'super' }],
                       [{ list: 'ordered' }, { list: 'bullet' }],
                       [{ indent: '-1' }, { indent: '+1' }],
+                      [{ direction: 'rtl' }],
                       [{ align: [] }],
-                      ['link'],
+                      ['blockquote', 'code-block'],
+                      ['link', 'image'],
                       ['clean'],
                     ],
+                    clipboard: {
+                      matchVisual: false, // Preserve spacing from Word
+                      matchers: [
+                        // Custom Word paste handler
+                        ['p', (node: any, delta: any) => {
+                          // Preserve paragraph spacing from Word
+                          const lineHeight = node.style.lineHeight;
+                          const marginTop = node.style.marginTop;
+                          const marginBottom = node.style.marginBottom;
+
+                          if (lineHeight || marginTop || marginBottom) {
+                            delta.ops.forEach((op: any) => {
+                              if (op.insert && typeof op.insert === 'string') {
+                                op.attributes = op.attributes || {};
+                                // Preserve line spacing
+                                if (lineHeight) {
+                                  op.attributes.lineHeight = lineHeight;
+                                }
+                              }
+                            });
+                          }
+                          return delta;
+                        }],
+                      ],
+                    },
                   }}
                   formats={[
                     'header',
+                    'font',
+                    'size',
                     'bold',
                     'italic',
                     'underline',
                     'strike',
+                    'color',
+                    'background',
+                    'script',
                     'list',
                     'bullet',
                     'indent',
+                    'direction',
                     'align',
                     'link',
+                    'image',
+                    'blockquote',
+                    'code-block',
                   ]}
                   style={{ minHeight: '600px' }}
                 />
@@ -267,22 +390,36 @@ export const TermsTab: React.FC = () => {
       </Card>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-dark-border">
         <Button
           variant="outline"
-          onClick={handleCancel}
-          disabled={!hasChanges || isSaving}
+          onClick={handleDownloadPDF}
+          leftIcon={
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          }
         >
-          Cancel
+          Download PDF
         </Button>
-        <Button
-          variant="primary"
-          onClick={handleSave}
-          disabled={!hasChanges}
-          isLoading={isSaving}
-        >
-          Save Changes
-        </Button>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            disabled={!hasChanges || isSaving}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={!hasChanges}
+            isLoading={isSaving}
+          >
+            Save Changes
+          </Button>
+        </div>
       </div>
 
       {/* Help Text */}

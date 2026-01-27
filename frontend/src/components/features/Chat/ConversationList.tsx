@@ -12,9 +12,11 @@ interface ConversationListProps {
   conversations: Conversation[];
   activeId: string | null;
   onSelect: (conversation: Conversation) => void;
+  currentUserId?: string;
   onSearch?: (query: string) => void;
   onFilterChange?: (filter: ConversationListParams) => void;
   onNewConversation?: () => void;
+  onNewTicket?: () => void;
   isLoading?: boolean;
 }
 
@@ -39,13 +41,15 @@ export function ConversationList({
   conversations,
   activeId,
   onSelect,
+  currentUserId,
   onSearch,
   onFilterChange,
   onNewConversation,
+  onNewTicket,
   isLoading = false,
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<ConversationType | 'all'>('all');
+  const [activeFilter, setActiveFilter] = useState<ConversationType | 'all' | 'archived'>('all');
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -53,17 +57,25 @@ export function ConversationList({
     onSearch?.(value);
   };
 
-  const handleFilterChange = (filter: ConversationType | 'all') => {
+  const handleFilterChange = (filter: ConversationType | 'all' | 'archived') => {
     setActiveFilter(filter);
-    onFilterChange?.({
-      type: filter === 'all' ? undefined : filter,
-    });
+
+    if (filter === 'archived') {
+      onFilterChange?.({ archived: true });
+    } else {
+      onFilterChange?.({
+        type: filter === 'all' ? undefined : filter,
+        archived: false,
+      });
+    }
   };
 
   const filteredConversations =
-    activeFilter === 'all'
-      ? conversations
-      : conversations.filter((c) => c.type === activeFilter);
+    activeFilter === 'archived'
+      ? conversations.filter((c) => c.is_archived)
+      : activeFilter === 'all'
+        ? conversations.filter((c) => !c.is_archived)
+        : conversations.filter((c) => c.type === activeFilter && !c.is_archived);
 
   return (
     <div className="flex flex-col h-full">
@@ -71,16 +83,30 @@ export function ConversationList({
       <div className="p-4 border-b border-gray-200 dark:border-dark-border">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Messages</h2>
-          {onNewConversation && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onNewConversation}
-              leftIcon={<PlusIcon />}
-            >
-              New
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {onNewTicket && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onNewTicket}
+                leftIcon={<PlusIcon />}
+                title="Create a new support ticket"
+              >
+                New Ticket
+              </Button>
+            )}
+            {onNewConversation && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onNewConversation}
+                leftIcon={<PlusIcon />}
+                title="Start a new conversation"
+              >
+                New Chat
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Search */}
@@ -96,8 +122,8 @@ export function ConversationList({
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex gap-1 mt-3">
-          {(['all', 'guest_inquiry', 'team', 'support'] as const).map((filter) => (
+        <div className="flex gap-1 mt-3 flex-wrap">
+          {(['all', 'guest_inquiry', 'team', 'support', 'archived'] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => handleFilterChange(filter)}
@@ -116,7 +142,9 @@ export function ConversationList({
                   ? 'Guests'
                   : filter === 'team'
                     ? 'Team'
-                    : 'Support'}
+                    : filter === 'support'
+                      ? 'Support'
+                      : 'Archived'}
             </button>
           ))}
         </div>
@@ -145,6 +173,7 @@ export function ConversationList({
                 conversation={conversation}
                 isActive={conversation.id === activeId}
                 onClick={() => onSelect(conversation)}
+                currentUserId={currentUserId}
               />
             ))}
           </div>

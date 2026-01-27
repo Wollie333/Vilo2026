@@ -1,0 +1,138 @@
+{
+  "posts": [
+    {
+      "id": 1,
+      "title": "Best Time to Visit the Serengeti",
+      "slug": "best-time-to-visit-serengeti",
+      "excerpt": "Discover the optimal months for wildlife viewing and experience the great migration in all its glory.",
+      "content": "<p>The Serengeti offers incredible wildlife viewing year-round, but certain times of year provide truly spectacular experiences.</p><p>The Great Migration, one of nature's most impressive spectacles, follows a predictable pattern. From December to March, the wildebeest herds gather in the southern Serengeti for calving season.</p>",
+      "author": {
+        "name": "Sarah Mitchell",
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+        "bio": "Wildlife photographer and safari guide with 10 years of experience in East Africa."
+      },
+      "category": "Travel Tips",
+      "publishedAt": "2026-01-10",
+      "readTime": "5 min read",
+      "featuredImage": "https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1200&h=600&fit=crop",
+      "tags": ["Wildlife", "Migration", "Planning"]
+    },
+    {
+      "id": 2,
+      "title": "Safari Photography Tips for Beginners",
+      "slug": "safari-photography-tips",
+      "excerpt": "Essential techniques and equipment recommendations for capturing stunning wildlife photographs on your safari adventure.",
+      "content": "<p>Safari photography requires patience, the right equipment, and understanding of wildlife behavior.</p><p>Start with a telephoto lens (at least 200mm) to capture distant animals without disturbing them.</p>",
+      "author": {
+        "name": "James Cooper",
+        "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
+        "bio": "Professional wildlife photographer and photography instructor."
+      },
+      "category": "Photography",
+      "publishedAt": "2026-01-08",
+      "readTime": "7 min read",
+      "featuredImage": "https://images.unsplash.com/photo-1534188753412-5dfb31e1e529?w=1200&h=600&fit=crop",
+      "tags": ["Photography", "Tips", "Equipment"]
+    },
+    {
+      "id": 3,
+      "title": "The Big Five: A Complete Guide",
+      "slug": "big-five-complete-guide",
+      "excerpt": "Learn about Africa's most iconic animals - lion, leopard, rhinoceros, elephant, and Cape buffalo.",
+      "content": "<p>The term 'Big Five' originally referred to the five most difficult animals to hunt on foot. Today, they represent the most sought-after wildlife sightings on safari.</p><p>Lions are often spotted in prides, lounging in the shade during the day.</p>",
+      "author": {
+        "name": "Dr. Amara Okafor",
+        "avatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
+        "bio": "Wildlife biologist specializing in African megafauna conservation."
+      },
+      "category": "Wildlife",
+      "publishedAt": "2026-01-05",
+      "readTime": "10 min read",
+      "featuredImage": "https://images.unsplash.com/photo-1547970810-dc1e684757a2?w=1200&h=600&fit=crop",
+      "tags": ["Wildlife", "Big Five", "Education"]
+    },
+    {
+      "id": 4,
+      "title": "Luxury Safari Lodges vs. Tented Camps",
+      "slug": "lodges-vs-tented-camps",
+      "excerpt": "Compare accommodation options and find the perfect safari experience that matches your travel style and budget.",
+      "content": "<p>Choosing between a luxury lodge and a tented camp is one of the most important decisions when planning your safari.</p><p>Luxury lodges offer permanent structures with all modern amenities, while tented camps provide an authentic bush experience with surprising comfort.</p>",
+      "author": {
+        "name": "Emma Thompson",
+        "avatar": "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=150&h=150&fit=crop",
+        "bio": "Luxury travel consultant specializing in African safaris."
+      },
+      "category": "Accommodation",
+      "publishedAt": "2026-01-03",
+      "readTime": "6 min read",
+      "featuredImage": "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200&h=600&fit=crop",
+      "tags": ["Accommodation", "Luxury", "Planning"]
+    },
+    {
+      "id": 5,
+      "title": "Conservation Efforts in the Serengeti",
+      "slug": "serengeti-conservation",
+      "excerpt": "Discover how local communities and conservation organizations work together to protect this precious ecosystem.",
+      "content": "<p>The Serengeti ecosystem faces numerous challenges including poaching, habitat loss, and climate change.</p><p>Conservation initiatives combine anti-poaching patrols, community education programs, and sustainable tourism practices.</p>",
+      "author": {
+        "name": "David Kimani",
+        "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
+        "bio": "Conservation officer with the Serengeti Wildlife Foundation."
+      },
+      "category": "Conservation",
+      "publishedAt": "2025-12-28",
+      "readTime": "8 min read",
+      "featuredImage": "https://images.unsplash.com/photo-1516426122078-c23e76319801?w=1200&h=600&fit=crop",
+      "tags": ["Conservation", "Wildlife", "Community"]
+    },
+    {
+      "id": 6,
+      "title": "Cultural Experiences: Meet the Maasai",
+      "slug": "meet-the-maasai",
+      "excerpt": "Experience the rich traditions and vibrant culture of the Maasai people who call the Serengeti region home.",
+      "content": "<p>The Maasai are one of East Africa's most iconic indigenous groups, known for their distinctive dress, customs, and semi-nomadic lifestyle.</p><p>Cultural visits offer insights into traditional practices, from beadwork to warrior training.</p>",
+      "author": {
+        "name": "Sarah Mitchell",
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+        "bio": "Wildlife photographer and safari guide with 10 years of experience in East Africa."
+      },
+      "category": "Culture",
+      "publishedAt": "2025-12-25",
+      "readTime": "6 min read",
+      "featuredImage": "https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=1200&h=600&fit=crop",
+      "tags": ["Culture", "Maasai", "Experience"]
+    }
+  ],
+  "categories": [
+    {
+      "name": "Travel Tips",
+      "slug": "travel-tips",
+      "count": 1
+    },
+    {
+      "name": "Photography",
+      "slug": "photography",
+      "count": 1
+    },
+    {
+      "name": "Wildlife",
+      "slug": "wildlife",
+      "count": 2
+    },
+    {
+      "name": "Accommodation",
+      "slug": "accommodation",
+      "count": 1
+    },
+    {
+      "name": "Conservation",
+      "slug": "conservation",
+      "count": 1
+    },
+    {
+      "name": "Culture",
+      "slug": "culture",
+      "count": 1
+    }
+  ]
+}

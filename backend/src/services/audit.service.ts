@@ -7,11 +7,15 @@
 
 interface AuditLogEntry {
   action: string;
+  entity_type?: string;
+  entity_id?: string;
   resource?: string;
   resource_id?: string;
   actor_id?: string;
   old_values?: any;
   new_values?: any;
+  old_data?: any;
+  new_data?: any;
   metadata?: any;
 }
 

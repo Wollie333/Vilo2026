@@ -130,6 +130,7 @@ export const CompanyDetailPage: React.FC = () => {
           address_postal_code: data.address_postal_code || '',
           address_country: data.address_country || '',
           vat_number: data.vat_number || '',
+          vat_percentage: data.vat_percentage !== null ? data.vat_percentage : 15,
           registration_number: data.registration_number || '',
           linkedin_url: data.linkedin_url || '',
           facebook_url: data.facebook_url || '',
@@ -187,15 +188,22 @@ export const CompanyDetailPage: React.FC = () => {
     setIsSaving(true);
     setError(null);
 
+    console.log('🔵 [CompanyDetailPage] Saving company with data:', formData);
+    console.log('🔵 [CompanyDetailPage] VAT Percentage value:', formData.vat_percentage);
+
     try {
       await companyService.updateCompany(id, formData);
+      console.log('✅ [CompanyDetailPage] Company updated successfully');
       setOriginalData(formData);
       setSuccess('Company updated successfully');
       setHasChanges(false);
       // Refresh company data
       const updatedCompany = await companyService.getCompany(id);
+      console.log('🔵 [CompanyDetailPage] Refreshed company data:', updatedCompany);
+      console.log('🔵 [CompanyDetailPage] VAT Percentage after refresh:', updatedCompany.vat_percentage);
       setCompany(updatedCompany);
     } catch (err) {
+      console.error('❌ [CompanyDetailPage] Error saving company:', err);
       setError(err instanceof Error ? err.message : 'Failed to update company');
     } finally {
       setIsSaving(false);
@@ -609,6 +617,23 @@ export const CompanyDetailPage: React.FC = () => {
                 value={formData.vat_number || ''}
                 onChange={(value) => handleFieldChange('vat_number', value)}
                 helperText="10-digit VAT number"
+                fullWidth
+              />
+
+              <Input
+                label="VAT Percentage (%)"
+                type="number"
+                value={formData.vat_percentage?.toString() || '15'}
+                onChange={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (!isNaN(value) && value >= 0 && value <= 100) {
+                    handleFieldChange('vat_percentage', value);
+                  }
+                }}
+                helperText="VAT/Tax percentage rate (0-100). Default: 15%"
+                min="0"
+                max="100"
+                step="0.01"
                 fullWidth
               />
 

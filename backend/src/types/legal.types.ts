@@ -14,6 +14,8 @@ export interface CancellationPolicy {
   tiers: CancellationPolicyTier[];
   is_default: boolean;
   is_active: boolean;
+  is_custom: boolean;
+  created_by: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -25,6 +27,8 @@ export interface CreateCancellationPolicyData {
   tiers: CancellationPolicyTier[];
   is_default?: boolean;
   is_active?: boolean;
+  is_custom?: boolean;
+  created_by?: string;
   sort_order?: number;
 }
 

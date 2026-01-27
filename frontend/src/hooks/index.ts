@@ -7,6 +7,8 @@ export { useHashTab } from './useHashTab';
 export { useViewMode } from './useViewMode';
 export type { UseViewModeReturn } from './useViewMode';
 export { useSubscriptionGate } from './useSubscriptionGate';
+export { useSubscriptionAccess } from './useSubscriptionAccess';
+export type { UseSubscriptionAccessOptions, UseSubscriptionAccessReturn } from './useSubscriptionAccess';
 export { usePermissionCategories } from './usePermissionCategories';
 export { useProperty } from '@/context/PropertyContext';
 export type { PropertyContextValue } from '@/context/PropertyContext';

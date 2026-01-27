@@ -11,15 +11,27 @@ import type {
 
 export const legalService = {
   // --------------------------------------------------------------------------
-  // Get all active cancellation policies
+  // Get all active cancellation policies (system defaults + user's custom policies)
   // --------------------------------------------------------------------------
-  async getCancellationPolicies(): Promise<CancellationPolicy[]> {
+  async getCancellationPolicies(userId?: string): Promise<CancellationPolicy[]> {
     const supabase = getAdminClient();
-    const { data, error } = await supabase
+
+    // If userId provided, get system defaults + user's custom policies
+    // Otherwise, just get system defaults (for public/unauthenticated access)
+    let query = supabase
       .from('cancellation_policies')
       .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+      .eq('is_active', true);
+
+    if (userId) {
+      // Get system defaults OR policies created by this user
+      query = query.or(`is_custom.eq.false,created_by.eq.${userId}`);
+    } else {
+      // Public access: only system defaults
+      query = query.eq('is_custom', false);
+    }
+
+    const { data, error } = await query.order('sort_order', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to fetch cancellation policies: ${error.message}`);
@@ -81,6 +93,8 @@ export const legalService = {
         tiers: data.tiers,
         is_default: data.is_default ?? false,
         is_active: data.is_active ?? true,
+        is_custom: data.is_custom ?? true,
+        created_by: data.created_by || null,
         sort_order: data.sort_order ?? 0,
       })
       .select()

@@ -18,9 +18,10 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
   companyLogo,
   onReserve,
   onMessageHost,
+  onRequestQuote,
 }) => {
   return (
-    <div className="lg:sticky lg:top-6 z-[99] border border-gray-200 dark:border-dark-border rounded-lg p-6 shadow-lg bg-white dark:bg-dark-card" style={{ boxShadow: '0 10px 40px rgba(4, 120, 87, 0.15), 0 4px 12px rgba(4, 120, 87, 0.1)' }}>
+    <div className="lg:sticky lg:top-6 z-20 border border-gray-200 dark:border-dark-border rounded-lg p-6 shadow-lg bg-white dark:bg-dark-card" style={{ boxShadow: '0 10px 40px rgba(4, 120, 87, 0.15), 0 4px 12px rgba(4, 120, 87, 0.1)' }}>
       {/* Pricing */}
       <div className="mb-6 text-center">
         {minPrice !== null ? (
@@ -65,6 +66,17 @@ export const BookingSidebar: React.FC<BookingSidebarProps> = ({
       >
         Reserve Now
       </Button>
+
+      {/* Secondary CTA - Request Quote */}
+      {onRequestQuote && (
+        <Button
+          variant="outline"
+          className="w-full mb-3 text-base font-medium py-4"
+          onClick={onRequestQuote}
+        >
+          Request Custom Quote
+        </Button>
+      )}
 
       {/* Secondary CTA - Message Host */}
       <Button

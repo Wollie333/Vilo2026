@@ -91,10 +91,26 @@ export const saveCompany = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('=== [ONBOARDING] Company creation started ===');
+    console.log('[ONBOARDING] User ID:', req.user!.id);
+    console.log('[ONBOARDING] Request body:', JSON.stringify(req.body, null, 2));
+
     const validated = onboardingCompanySchema.parse(req.body);
+    console.log('[ONBOARDING] Validation passed:', JSON.stringify(validated, null, 2));
+
+    console.log('[ONBOARDING] Calling saveCompanyData service...');
     const result = await onboardingService.saveCompanyData(req.user!.id, validated);
+
+    console.log('[ONBOARDING] Company creation successful:', JSON.stringify(result, null, 2));
     sendSuccess(res, result);
   } catch (error) {
+    console.error('=== [ONBOARDING] Company creation FAILED ===');
+    if (error instanceof Error) {
+      console.error('[ONBOARDING] Error message:', error.message);
+      console.error('[ONBOARDING] Error stack:', error.stack);
+    } else {
+      console.error('[ONBOARDING] Error:', String(error));
+    }
     next(error);
   }
 };
@@ -109,10 +125,22 @@ export const saveProperty = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('=== [ONBOARDING] Property creation started ===');
+    console.log('[ONBOARDING] User ID:', req.user!.id);
+    console.log('[ONBOARDING] Request body:', JSON.stringify(req.body, null, 2));
+
     const validated = onboardingPropertySchema.parse(req.body);
+    console.log('[ONBOARDING] Validation passed:', JSON.stringify(validated, null, 2));
+
+    console.log('[ONBOARDING] Calling savePropertyData service...');
     const result = await onboardingService.savePropertyData(req.user!.id, validated);
+
+    console.log('[ONBOARDING] Property creation successful:', JSON.stringify(result, null, 2));
     sendSuccess(res, result);
   } catch (error) {
+    console.error('=== [ONBOARDING] Property creation FAILED ===');
+    console.error('[ONBOARDING] Error:', error);
+    console.error('[ONBOARDING] Error stack:', error instanceof Error ? error.stack : 'N/A');
     next(error);
   }
 };

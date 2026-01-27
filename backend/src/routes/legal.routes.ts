@@ -21,12 +21,18 @@ router.get(
   legalController.getCancellationPolicy
 );
 
-// Admin routes (create, update, delete)
+// PDF download route (public - no auth required for guests to download)
+router.get(
+  '/cancellation-policies/:id/pdf',
+  legalController.downloadCancellationPolicyPDF
+);
+
+// Authenticated routes (create, update, delete)
+// RLS policies handle permission checks (users can manage their own custom policies)
 router.post(
   '/cancellation-policies',
   authenticate,
   loadUserProfile,
-  requireAdmin(),
   legalController.createCancellationPolicy
 );
 
@@ -34,7 +40,6 @@ router.put(
   '/cancellation-policies/:id',
   authenticate,
   loadUserProfile,
-  requireAdmin(),
   legalController.updateCancellationPolicy
 );
 
@@ -42,7 +47,6 @@ router.delete(
   '/cancellation-policies/:id',
   authenticate,
   loadUserProfile,
-  requireAdmin(),
   legalController.deleteCancellationPolicy
 );
 

@@ -31,7 +31,18 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// ============================================================================
+// Public Routes (No Authentication Required)
+// ============================================================================
+
+// POST /api/chat/guest/start - Start guest chat (public)
+router.post('/guest/start', chatController.startGuestChat);
+
+// ============================================================================
+// Protected Routes (Authentication Required)
+// ============================================================================
+
+// All routes below require authentication
 router.use(authenticate);
 router.use(loadUserProfile);
 
@@ -191,5 +202,30 @@ router.get(
 
 // GET /api/chat/stats - Get chat statistics
 router.get('/stats', chatController.getStats);
+
+// ============================================================================
+// WhatsApp Reply Routes
+// ============================================================================
+
+// POST /api/chat/conversations/:conversationId/reply-whatsapp - Send WhatsApp reply
+router.post(
+  '/conversations/:conversationId/reply-whatsapp',
+  validateParams(conversationIdParamSchema),
+  chatController.replyWhatsApp
+);
+
+// GET /api/chat/conversations/:conversationId/whatsapp-window - Check 24h window status
+router.get(
+  '/conversations/:conversationId/whatsapp-window',
+  validateParams(conversationIdParamSchema),
+  chatController.checkWhatsAppWindow
+);
+
+// GET /api/chat/conversations/:conversationId/whatsapp-window/status - Get detailed window status
+router.get(
+  '/conversations/:conversationId/whatsapp-window/status',
+  validateParams(conversationIdParamSchema),
+  chatController.getWhatsAppWindowStatus
+);
 
 export default router;

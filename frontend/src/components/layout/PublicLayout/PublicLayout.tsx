@@ -10,6 +10,7 @@ import { ThemeToggle } from '@/components/ui';
 import { SearchModal } from '@/components/features/SearchModal';
 import type { PublicLayoutProps } from './PublicLayout.types';
 import { MegaMenu, MegaMenuMobile } from './MegaMenu';
+import { CategoriesMegaMenu, CategoriesMegaMenuMobile } from './CategoriesMegaMenu';
 
 export const PublicLayout: React.FC<PublicLayoutProps> = ({
   children,
@@ -114,28 +115,12 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                   >
                     Browse All
                   </Link>
-                  <Link
-                    to="/categories"
-                    className={`hover:text-primary transition-colors font-medium ${
-                      transparentHeader && !isScrolled
-                        ? 'text-white drop-shadow-lg'
-                        : 'text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    Categories
-                  </Link>
+                  <CategoriesMegaMenu
+                    transparentHeader={transparentHeader}
+                    isScrolled={isScrolled}
+                  />
                   {!isAuthenticated && (
                     <>
-                      <Link
-                        to="/for-hosts"
-                        className={`font-medium transition-colors ${
-                          transparentHeader && !isScrolled
-                            ? 'text-white drop-shadow-lg hover:text-white/80'
-                            : 'text-gray-700 hover:text-primary dark:text-gray-300 dark:hover:text-primary'
-                        }`}
-                      >
-                        For Hosts
-                      </Link>
                       <Link
                         to="/list-your-property"
                         className={`font-medium transition-colors ${
@@ -164,8 +149,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                   <div className={transparentHeader && !isScrolled ? 'text-white drop-shadow-lg' : ''}>
                     <MegaMenu />
                   </div>
-                  <a
-                    href="#pricing"
+                  <Link
+                    to="/pricing"
                     className={`hover:text-primary transition-colors font-medium ${
                       transparentHeader && !isScrolled
                         ? 'text-white drop-shadow-lg'
@@ -173,7 +158,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                     }`}
                   >
                     Pricing
-                  </a>
+                  </Link>
                   <a
                     href="#resources"
                     className={`hover:text-primary transition-colors font-medium ${
@@ -379,22 +364,12 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                     >
                       Browse All
                     </Link>
-                    <Link
-                      to="/categories"
-                      className="text-gray-700 dark:text-gray-300 hover:text-primary font-medium"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Categories
-                    </Link>
+                    <div className="py-2">
+                      <div className="font-medium text-gray-700 dark:text-gray-300 mb-2">Categories</div>
+                      <CategoriesMegaMenuMobile />
+                    </div>
                     {!isAuthenticated && (
                       <>
-                        <Link
-                          to="/for-hosts"
-                          className="text-gray-700 dark:text-gray-300 hover:text-primary font-medium"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          For Hosts
-                        </Link>
                         <Link
                           to="/list-your-property"
                           className="text-primary dark:text-primary font-medium hover:text-primary/80"
@@ -417,13 +392,13 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                     <div className="py-2">
                       <MegaMenuMobile />
                     </div>
-                    <a
-                      href="#pricing"
+                    <Link
+                      to="/pricing"
                       className="text-gray-700 dark:text-gray-300 hover:text-primary font-medium"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       Pricing
-                    </a>
+                    </Link>
                     <a
                       href="#resources"
                       className="text-gray-700 dark:text-gray-300 hover:text-primary font-medium"
@@ -540,11 +515,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                 For Hosts
               </h3>
               <ul className="space-y-2 text-sm">
-                <li>
-                  <Link to="/for-hosts" className="text-gray-600 dark:text-gray-400 hover:text-primary">
-                    Why Vilo?
-                  </Link>
-                </li>
                 <li>
                   <Link to="/manage/properties" className="text-gray-600 dark:text-gray-400 hover:text-primary">
                     List Your Property

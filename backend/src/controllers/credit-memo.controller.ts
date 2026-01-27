@@ -200,7 +200,7 @@ export const regeneratePDF = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error regenerating PDF:', error);
+      logger.error('Error regenerating PDF:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -236,7 +236,7 @@ export const generateCreditMemo = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error generating credit memo:', error);
+      logger.error('Error generating credit memo:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',

@@ -57,7 +57,7 @@ export const createRefundRequest = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error creating refund request:', error);
+      logger.error('Error creating refund request:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -91,7 +91,7 @@ export const getBookingRefunds = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching booking refunds:', error);
+      logger.error('Error fetching booking refunds:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -122,7 +122,7 @@ export const getRefundDetails = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching refund details:', error);
+      logger.error('Error fetching refund details:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -152,7 +152,7 @@ export const getRefundStatus = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching refund status:', error);
+      logger.error('Error fetching refund status:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -182,7 +182,7 @@ export const calculateSuggestedRefund = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error calculating suggested refund:', error);
+      logger.error('Error calculating suggested refund:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -236,7 +236,7 @@ export const listMyRefunds = async (req: Request, res: Response) => {
       logger.error('Error listing user refunds', {
         error: errorMessage,
         stack: errorDetails,
-        userId
+        userId: req.user?.id
       });
       res.status(500).json({
         success: false,
@@ -274,7 +274,7 @@ export const withdrawRefundRequest = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error withdrawing refund request:', error);
+      logger.error('Error withdrawing refund request:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -328,7 +328,7 @@ export const listRefunds = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error listing refunds:', error);
+      logger.error('Error listing refunds:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -358,7 +358,7 @@ export const getAdminRefundDetails = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching admin refund details:', error);
+      logger.error('Error fetching admin refund details:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -402,7 +402,7 @@ export const approveRefund = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error approving refund:', error);
+      logger.error('Error approving refund:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -447,7 +447,7 @@ export const rejectRefund = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error rejecting refund:', error);
+      logger.error('Error rejecting refund:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -483,7 +483,7 @@ export const processRefund = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error processing refund:', error);
+      logger.error('Error processing refund:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -528,7 +528,7 @@ export const markManualRefundComplete = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error marking manual refund complete:', error);
+      logger.error('Error marking manual refund complete:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -565,7 +565,7 @@ export const retryFailedRefund = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error retrying refund:', error);
+      logger.error('Error retrying refund:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -620,7 +620,7 @@ export const addComment = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error adding refund comment:', error);
+      logger.error('Error adding refund comment:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -655,7 +655,7 @@ export const getComments = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching refund comments:', error);
+      logger.error('Error fetching refund comments:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -690,7 +690,7 @@ export const getActivityFeed = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching refund activity feed:', error);
+      logger.error('Error fetching refund activity feed:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -725,7 +725,7 @@ export const getStatusHistory = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching refund status history:', error);
+      logger.error('Error fetching refund status history:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -781,7 +781,7 @@ export const uploadDocument = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error uploading document:', error);
+      logger.error('Error uploading document:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -816,7 +816,7 @@ export const getDocuments = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching documents:', error);
+      logger.error('Error fetching documents:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -851,7 +851,7 @@ export const deleteDocument = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error deleting document:', error);
+      logger.error('Error deleting document:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -887,7 +887,7 @@ export const verifyDocument = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error verifying document:', error);
+      logger.error('Error verifying document:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -920,7 +920,7 @@ export const getDocumentDownloadUrl = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error getting download URL:', error);
+      logger.error('Error getting download URL:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',

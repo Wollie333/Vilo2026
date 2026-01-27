@@ -31,13 +31,7 @@ const ReviewIcon = () => (
   </svg>
 );
 
-const PointsIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const metricIcons = [<BookingIcon />, <UpcomingIcon />, <ReviewIcon />, <PointsIcon />];
+const metricIcons = [<BookingIcon />, <UpcomingIcon />, <ReviewIcon />];
 
 const quickActions: QuickAction[] = [
   {
@@ -91,6 +85,7 @@ export const GuestDashboard: React.FC = () => {
   const [data, setData] = useState<GuestDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
 
   // Get user display name
   const displayName = user?.full_name || user?.email?.split('@')[0] || 'Guest';
@@ -171,24 +166,32 @@ export const GuestDashboard: React.FC = () => {
     >
       <div className="space-y-6">
         {/* Welcome Banner */}
-        <div className="p-4 bg-primary rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-brand-black dark:text-brand-white">
-                Welcome to Your Customer Portal!
-              </h2>
-              <p className="text-brand-black/80 dark:text-brand-white/90 text-sm mt-1">
-                Manage your bookings, reviews, and account settings all in one place.
-              </p>
+        {showWelcomeBanner && (
+          <div className="p-4 bg-primary rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Welcome to Your Customer Portal!
+                </h2>
+                <p className="text-white/90 text-sm mt-1">
+                  Manage your bookings, reviews, and account settings all in one place.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowWelcomeBanner(false)}
+                className="p-2 hover:bg-white/10 rounded-md transition-colors"
+                aria-label="Close welcome banner"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <Button variant="secondary" size="sm">
-              Take a Tour
-            </Button>
           </div>
-        </div>
+        )}
 
         {/* Booking Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {data.bookingMetrics.map((metric, index) => (
             <MetricCard
               key={metric.id}
@@ -200,33 +203,6 @@ export const GuestDashboard: React.FC = () => {
             />
           ))}
         </div>
-
-        {/* Loyalty Points Card */}
-        <Card variant="bordered" className="bg-gradient-to-r from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10">
-          <Card.Body>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  <PointsIcon />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Your Loyalty Points</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {data.loyaltyPoints.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                  Earn points on every booking
-                </p>
-                <Button variant="outline" size="sm">
-                  View Rewards
-                </Button>
-              </div>
-            </div>
-          </Card.Body>
-        </Card>
 
         {/* Upcoming and Past Stays */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

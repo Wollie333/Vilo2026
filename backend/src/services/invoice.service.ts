@@ -8,6 +8,8 @@ import * as propertyService from './property.service';
 import * as companyService from './company.service';
 import type {
   Invoice,
+  SubscriptionInvoice,
+  BookingInvoice,
   InvoiceSettings,
   UpdateInvoiceSettingsDTO,
   InvoiceListParams,
@@ -29,7 +31,11 @@ type MulterFile = Express.Multer.File;
  * Get current invoice settings (global admin settings only)
  */
 export const getInvoiceSettings = async (): Promise<InvoiceSettings> => {
+  logger.info('[INVOICE_SERVICE] getInvoiceSettings called - querying database');
+
   const supabase = getAdminClient();
+
+  logger.info('[INVOICE_SERVICE] Executing query: invoice_settings table, filter: company_id IS NULL');
 
   const { data, error } = await supabase
     .from('invoice_settings')
@@ -37,8 +43,28 @@ export const getInvoiceSettings = async (): Promise<InvoiceSettings> => {
     .is('company_id', null) // Only get global settings (company_id IS NULL)
     .single();
 
+  if (error) {
+    logger.error('[INVOICE_SERVICE] Database error getting invoice settings', {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
+  }
+
+  if (!data) {
+    logger.warn('[INVOICE_SERVICE] No invoice settings found in database, returning defaults');
+  } else {
+    logger.info('[INVOICE_SERVICE] Found invoice settings in database', {
+      id: data.id,
+      companyName: data.company_name,
+      hasLogo: !!data.logo_url,
+    });
+  }
+
   if (error || !data) {
     // Return default settings if none exist
+    logger.info('[INVOICE_SERVICE] Returning default invoice settings');
     return {
       id: '',
       company_id: null,
@@ -109,6 +135,11 @@ export const updateInvoiceSettings = async (
   input: UpdateInvoiceSettingsDTO,
   actorId: string
 ): Promise<InvoiceSettings> => {
+  logger.info('[INVOICE_SERVICE] updateInvoiceSettings called', {
+    actorId,
+    fieldsToUpdate: Object.keys(input),
+  });
+
   const supabase = getAdminClient();
 
   // Get current settings
@@ -118,6 +149,10 @@ export const updateInvoiceSettings = async (
 
   if (currentSettings.id) {
     // Update existing
+    logger.info('[INVOICE_SERVICE] Updating existing invoice settings', {
+      settingsId: currentSettings.id,
+    });
+
     const { data, error } = await supabase
       .from('invoice_settings')
       .update({
@@ -128,13 +163,29 @@ export const updateInvoiceSettings = async (
       .select()
       .single();
 
-    if (error || !data) {
+    if (error) {
+      logger.error('[INVOICE_SERVICE] Error updating invoice settings', {
+        error: error.message,
+        code: error.code,
+        settingsId: currentSettings.id,
+      });
       throw new AppError('INTERNAL_ERROR', 'Failed to update invoice settings');
     }
+
+    if (!data) {
+      logger.error('[INVOICE_SERVICE] No data returned after update');
+      throw new AppError('INTERNAL_ERROR', 'Failed to update invoice settings');
+    }
+
+    logger.info('[INVOICE_SERVICE] Successfully updated invoice settings', {
+      settingsId: data.id,
+    });
 
     result = data;
   } else {
     // Create new
+    logger.info('[INVOICE_SERVICE] Creating new invoice settings (none exist)');
+
     const { data, error } = await supabase
       .from('invoice_settings')
       .insert({
@@ -143,9 +194,22 @@ export const updateInvoiceSettings = async (
       .select()
       .single();
 
-    if (error || !data) {
+    if (error) {
+      logger.error('[INVOICE_SERVICE] Error creating invoice settings', {
+        error: error.message,
+        code: error.code,
+      });
       throw new AppError('INTERNAL_ERROR', 'Failed to create invoice settings');
     }
+
+    if (!data) {
+      logger.error('[INVOICE_SERVICE] No data returned after insert');
+      throw new AppError('INTERNAL_ERROR', 'Failed to create invoice settings');
+    }
+
+    logger.info('[INVOICE_SERVICE] Successfully created invoice settings', {
+      settingsId: data.id,
+    });
 
     result = data;
   }
@@ -346,7 +410,7 @@ export const generateInvoice = async (checkoutId: string): Promise<Invoice> => {
     .from('checkouts')
     .select(`
       *,
-      subscription_type:subscription_types (id, name, display_name, description, pricing, currency),
+      subscription_type:subscription_types (id, name, display_name, description, pricing_tiers, currency),
       user:users (id, email, full_name)
     `)
     .eq('id', checkoutId)
@@ -409,11 +473,15 @@ export const generateInvoice = async (checkoutId: string): Promise<Invoice> => {
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
     .insert({
+      invoice_type: 'subscription', // Explicit type for subscription invoices (SaaS-to-User)
       invoice_number: invoiceNumber,
       user_id: checkout.user_id,
       company_id: null, // Subscription invoices use global settings
       checkout_id: checkoutId,
       subscription_id: subscription?.id || null,
+      booking_id: null, // Explicit null for subscription invoices
+      booking_reference: null,
+      property_name: null,
       customer_name: user.full_name || user.email,
       customer_email: user.email,
       customer_address: null,
@@ -503,6 +571,7 @@ export const generateBookingInvoice = async (
   let companyPhone: string | null = settings.company_phone;
   let companyVatNumber: string | null = settings.vat_number;
   let companyRegistrationNumber: string | null = settings.registration_number;
+  let vatPercentage: number = 15; // Default to 15%
 
   if (companyId) {
     // Get company details to override settings if available
@@ -527,6 +596,7 @@ export const generateBookingInvoice = async (
       companyPhone = company.contact_phone || companyPhone;
       companyVatNumber = company.vat_number || companyVatNumber;
       companyRegistrationNumber = company.registration_number || companyRegistrationNumber;
+      vatPercentage = company.vat_percentage !== null && company.vat_percentage !== undefined ? company.vat_percentage : 15;
 
       logger.info('Using company details for booking invoice', {
         companyId,
@@ -583,15 +653,28 @@ export const generateBookingInvoice = async (
 
   // Calculate totals in cents
   const subtotalCents = Math.round(booking.subtotal * 100);
-  const totalCents = Math.round(booking.total_amount * 100);
+
+  // Calculate tax using company's VAT percentage
+  const taxRate = vatPercentage / 100; // Convert percentage to decimal (e.g., 15 -> 0.15)
+  const taxAmount = booking.subtotal * taxRate;
+  const taxCents = Math.round(taxAmount * 100);
+
+  // Total includes tax
+  const totalWithTax = booking.subtotal + taxAmount;
+  const totalCents = Math.round(totalWithTax * 100);
 
   // Create invoice record
   const { data: invoice, error: invoiceError} = await supabase
     .from('invoices')
     .insert({
+      invoice_type: 'booking', // Explicit type for booking invoices (User-to-Guest)
       invoice_number: invoiceNumber,
       user_id: propertyOwnerId,
       booking_id: booking.id,
+      booking_reference: booking.booking_reference,
+      property_name: booking.property_name,
+      checkout_id: null, // Explicit null for booking invoices
+      subscription_id: null,
       customer_name: booking.guest_name,
       customer_email: booking.guest_email,
       customer_phone: booking.guest_phone,
@@ -604,8 +687,8 @@ export const generateBookingInvoice = async (
       company_vat_number: companyVatNumber,
       company_registration_number: companyRegistrationNumber,
       subtotal_cents: subtotalCents,
-      tax_cents: 0,
-      tax_rate: 0,
+      tax_cents: taxCents,
+      tax_rate: vatPercentage,
       total_cents: totalCents,
       currency: booking.currency,
       payment_method: booking.payment_method,
@@ -614,8 +697,6 @@ export const generateBookingInvoice = async (
       line_items: lineItems,
       status: booking.payment_status === 'paid' ? 'paid' as InvoiceStatus : 'draft' as InvoiceStatus,
       notes: booking.special_requests,
-      booking_reference: booking.booking_reference,
-      property_name: booking.property_name,
     })
     .select()
     .single();
@@ -1302,4 +1383,99 @@ export const regenerateInvoicePDF = async (
   });
 
   return pdfUrl;
+};
+
+// ============================================================================
+// TYPE-SPECIFIC INVOICE RETRIEVAL (Semantic Helpers)
+// ============================================================================
+
+/**
+ * Get subscription invoices for a user (SaaS billing)
+ * Returns invoices where the user is the payer (subscription owner)
+ */
+export const getUserSubscriptionInvoices = async (
+  userId: string
+): Promise<SubscriptionInvoice[]> => {
+  const supabase = getAdminClient();
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('invoice_type', 'subscription')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error('Failed to fetch subscription invoices', { userId, error });
+    throw new AppError('INTERNAL_ERROR', 'Failed to fetch subscription invoices');
+  }
+
+  return (data || []) as SubscriptionInvoice[];
+};
+
+/**
+ * Get booking invoices issued by property owner (User-to-Guest billing)
+ * Returns invoices where the user is the issuer (property owner)
+ */
+export const getPropertyOwnerBookingInvoices = async (
+  ownerId: string
+): Promise<BookingInvoice[]> => {
+  const supabase = getAdminClient();
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('user_id', ownerId)
+    .eq('invoice_type', 'booking')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error('Failed to fetch property owner booking invoices', { ownerId, error });
+    throw new AppError('INTERNAL_ERROR', 'Failed to fetch booking invoices');
+  }
+
+  return (data || []) as BookingInvoice[];
+};
+
+/**
+ * Get booking invoices received by guest
+ * Returns invoices for bookings where the user is the guest
+ */
+export const getGuestBookingInvoices = async (
+  guestUserId: string
+): Promise<BookingInvoice[]> => {
+  const supabase = getAdminClient();
+
+  // Query through bookings table to get booking IDs for this guest
+  const { data: bookings, error: bookingsError } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('guest_id', guestUserId);
+
+  if (bookingsError) {
+    logger.error('Failed to fetch guest bookings', { guestUserId, error: bookingsError });
+    throw new AppError('INTERNAL_ERROR', 'Failed to fetch bookings');
+  }
+
+  const bookingIds = bookings?.map((b) => b.id) || [];
+
+  // If no bookings, return empty array
+  if (bookingIds.length === 0) {
+    return [];
+  }
+
+  // Get invoices for those bookings
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .in('booking_id', bookingIds)
+    .eq('invoice_type', 'booking')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error('Failed to fetch guest booking invoices', { guestUserId, error });
+    throw new AppError('INTERNAL_ERROR', 'Failed to fetch invoices');
+  }
+
+  return (data || []) as BookingInvoice[];
 };

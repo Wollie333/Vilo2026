@@ -31,6 +31,13 @@ export interface UserProperty {
   is_primary: boolean;
 }
 
+export interface UserType {
+  id: string;
+  name: string;
+  display_name: string;
+  category: 'saas' | 'customer';
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -61,6 +68,9 @@ export interface UserProfile {
   last_login_at: string | null;
   last_active_at: string | null;
   onboarding_completed_at: string | null;
+  user_type_id?: string;
+  user_type?: UserType;
+  parent_user_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -102,3 +112,24 @@ export interface AuthTokens {
   refreshToken: string;
   expiresAt: number;
 }
+
+export interface UserStats {
+  propertyCount: number;
+  roomCount: number;
+  addonCount: number;
+  teamMemberCount: number;
+  bookingCount: number;
+  reviewCount: number;
+  customerCount: number;
+}
+
+export interface UserWithStats extends UserWithRoles {
+  stats?: UserStats;
+}
+
+export type UserFunctionalRole =
+  | 'Property Owner'
+  | 'Guest'
+  | 'Admin'
+  | 'Super Admin'
+  | 'Team Member';

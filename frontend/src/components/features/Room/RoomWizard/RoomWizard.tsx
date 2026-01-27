@@ -575,6 +575,12 @@ export const RoomWizard: React.FC<RoomWizardProps> = ({
       setSubmitting(true);
       setError(null);
 
+      // 💰 PRICE DEBUG: Log pricing data before submission
+      console.log('=== 💰 [ROOM_WIZARD] handleSubmit - PRICE DEBUG ===');
+      console.log('💰 [ROOM_WIZARD] Form data pricing:', formData.pricing.base_price_per_night);
+      console.log('💰 [ROOM_WIZARD] Form data pricing type:', typeof formData.pricing.base_price_per_night);
+      console.log('💰 [ROOM_WIZARD] Full pricing object:', JSON.stringify(formData.pricing, null, 2));
+
       if (mode === 'create') {
         // Room is already created in earlier steps (createdRoomId exists)
         // Sync add-on assignments
@@ -585,12 +591,25 @@ export const RoomWizard: React.FC<RoomWizardProps> = ({
         // Room was already created during step progression
         // Pass the existing room ID to parent (via a special property)
         const createRequest = formDataToCreateRequest(formData);
+
+        // 💰 PRICE DEBUG: Log the request payload before sending
+        console.log('💰 [ROOM_WIZARD] Create request price:', createRequest.base_price_per_night);
+        console.log('💰 [ROOM_WIZARD] Create request type:', typeof createRequest.base_price_per_night);
+        console.log('💰 [ROOM_WIZARD] Full create request:', JSON.stringify(createRequest, null, 2));
+
         // Add existingRoomId to the request so parent knows not to create again
         (createRequest as any).existingRoomId = createdRoomId;
         await onSubmit(createRequest);
       } else {
         // Edit mode: Run management saves AND room update in parallel for faster performance
         const updateRequest = formDataToUpdateRequest(formData);
+
+        // 💰 PRICE DEBUG: Log the update request payload before sending
+        if (updateRequest.base_price_per_night !== undefined) {
+          console.log('💰 [ROOM_WIZARD] Update request price:', updateRequest.base_price_per_night);
+          console.log('💰 [ROOM_WIZARD] Update request type:', typeof updateRequest.base_price_per_night);
+          console.log('💰 [ROOM_WIZARD] Full update request:', JSON.stringify(updateRequest, null, 2));
+        }
 
         await Promise.all([
           // Management operations (beds, rates, promotions, payment rules, add-ons)

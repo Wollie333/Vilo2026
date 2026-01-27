@@ -66,6 +66,20 @@ const generateUniqueSlug = async (name: string, excludeId?: string): Promise<str
   return slug;
 };
 
+/**
+ * TEMPORARY HELPER: Get user's company IDs
+ * TODO: Remove this when owner_id is fixed and use owner_id directly
+ */
+const getUserCompanyIds = async (userId: string): Promise<string[]> => {
+  const supabase = getAdminClient();
+  const { data: userCompanies } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('user_id', userId);
+
+  return userCompanies?.map(c => c.id) || [];
+};
+
 // ============================================================================
 // PROPERTY CRUD OPERATIONS
 // ============================================================================
@@ -83,7 +97,10 @@ export const listUserProperties = async (
   const limit = params?.limit || 20;
   const offset = (page - 1) * limit;
 
-  // Build query - get properties where owner_id matches or company belongs to user
+  // TEMPORARY FIX: Get properties via user's company since owner_id is temporarily null
+  const companyIds = await getUserCompanyIds(userId);
+
+  // Build query - get properties where company belongs to user
   let query = supabase
     .from('properties')
     .select(`
@@ -93,7 +110,7 @@ export const listUserProperties = async (
         logo_url
       )
     `, { count: 'exact' })
-    .eq('owner_id', userId);
+    .in('company_id', companyIds.length > 0 ? companyIds : ['00000000-0000-0000-0000-000000000000']); // Use dummy UUID if no companies
 
   // Filters
   if (params?.company_id) {
@@ -150,6 +167,9 @@ export const getPropertyById = async (
 ): Promise<PropertyWithCompany> => {
   const supabase = getAdminClient();
 
+  // TEMPORARY FIX: Get user's company IDs first
+  const companyIds = await getUserCompanyIds(userId);
+
   const { data, error } = await supabase
     .from('properties')
     .select(`
@@ -160,7 +180,7 @@ export const getPropertyById = async (
       )
     `)
     .eq('id', id)
-    .eq('owner_id', userId)
+    .in('company_id', companyIds.length > 0 ? companyIds : ['00000000-0000-0000-0000-000000000000'])
     .single();
 
   if (error || !data) {
@@ -373,11 +393,24 @@ export const updateProperty = async (
   if (input.promotions !== undefined) updateData.promotions = input.promotions;
 
   console.log('\n📤 Updating property in database...');
+
+  // TEMPORARY FIX: Verify ownership via company instead of owner_id
+  const companyIds = await getUserCompanyIds(userId);
+  const { data: propertyCheck } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('id', id)
+    .in('company_id', companyIds.length > 0 ? companyIds : ['00000000-0000-0000-0000-000000000000'])
+    .single();
+
+  if (!propertyCheck) {
+    throw new AppError('FORBIDDEN', 'Property not found or access denied');
+  }
+
   const { data, error } = await supabase
     .from('properties')
     .update(updateData)
     .eq('id', id)
-    .eq('owner_id', userId)
     .select()
     .single();
 
@@ -589,11 +622,14 @@ export const getPropertyLimitInfo = async (userId: string): Promise<PropertyLimi
   // Get user's subscription
   const subscription = await getUserSubscription(userId);
 
+  // TEMPORARY FIX: Count properties by company_id
+  const companyIds = await getUserCompanyIds(userId);
+
   // Count current properties
   const { count: currentCount } = await supabase
     .from('properties')
     .select('*', { count: 'exact', head: true })
-    .eq('owner_id', userId);
+    .in('company_id', companyIds.length > 0 ? companyIds : ['00000000-0000-0000-0000-000000000000']);
 
   const propertyCount = currentCount || 0;
 

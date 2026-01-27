@@ -1,0 +1,514 @@
+/* Quill Editor Custom Styling */
+.quill-wrapper {
+  min-height: 600px;
+  display: block !important;
+  visibility: visible !important;
+  position: relative !important;
+}
+
+.quill-wrapper .ql-container {
+  min-height: 550px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+  /* Don't force line-height - let Word formatting control it */
+  display: block !important;
+  visibility: visible !important;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+}
+
+.quill-wrapper .ql-editor {
+  min-height: 550px;
+  padding: 24px;
+  /* Allow Word to control spacing */
+  line-height: inherit;
+  display: block !important;
+  visibility: visible !important;
+  background-color: white !important;
+  color: #1f2937 !important;
+}
+
+.quill-wrapper .ql-toolbar {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  background-color: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.quill-wrapper .ql-container {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Dark mode support */
+.dark .quill-wrapper {
+  display: block !important;
+  visibility: visible !important;
+}
+
+.dark .quill-wrapper .ql-toolbar {
+  background-color: #1f2937;
+  border-bottom-color: #374151;
+  display: block !important;
+  visibility: visible !important;
+}
+
+.dark .quill-wrapper .ql-stroke {
+  stroke: #9ca3af;
+}
+
+.dark .quill-wrapper .ql-fill {
+  fill: #9ca3af;
+}
+
+.dark .quill-wrapper .ql-picker-label {
+  color: #9ca3af;
+}
+
+.dark .quill-wrapper .ql-container {
+  background-color: #111827 !important;
+  border-color: #374151;
+  display: block !important;
+  visibility: visible !important;
+}
+
+.dark .quill-wrapper .ql-editor {
+  color: #f3f4f6 !important;
+  background-color: #111827 !important;
+  display: block !important;
+  visibility: visible !important;
+}
+
+/* Editor content styling */
+.quill-wrapper .ql-editor h1,
+.quill-wrapper .ql-editor h2,
+.quill-wrapper .ql-editor h3 {
+  color: #047857;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.dark .quill-wrapper .ql-editor h1,
+.dark .quill-wrapper .ql-editor h2,
+.dark .quill-wrapper .ql-editor h3 {
+  color: #10b981;
+}
+
+.quill-wrapper .ql-editor h1 {
+  font-size: 28px;
+}
+
+.quill-wrapper .ql-editor h2 {
+  font-size: 24px;
+}
+
+.quill-wrapper .ql-editor h3 {
+  font-size: 18px;
+}
+
+.quill-wrapper .ql-editor p {
+  margin-bottom: 1em;
+}
+
+.quill-wrapper .ql-editor ul,
+.quill-wrapper .ql-editor ol {
+  margin-bottom: 1em;
+  padding-left: 2em;
+}
+
+.quill-wrapper .ql-editor li {
+  margin-bottom: 0.5em;
+}
+
+.quill-wrapper .ql-editor a {
+  color: #047857;
+  text-decoration: underline;
+}
+
+.dark .quill-wrapper .ql-editor a {
+  color: #10b981;
+}
+
+.quill-wrapper .ql-editor hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 2em 0;
+}
+
+.dark .quill-wrapper .ql-editor hr {
+  border-top-color: #374151;
+}
+
+/* ============================================ */
+/* Word Paste Formatting Preservation */
+/* ============================================ */
+
+/* Preserve line spacing from Word */
+.quill-wrapper .ql-editor p[style*="line-height"],
+.quill-wrapper .ql-editor div[style*="line-height"],
+.quill-wrapper .ql-editor span[style*="line-height"] {
+  line-height: inherit !important;
+}
+
+/* Preserve paragraph spacing from Word */
+.quill-wrapper .ql-editor p[style*="margin"],
+.quill-wrapper .ql-editor div[style*="margin"] {
+  margin-top: inherit !important;
+  margin-bottom: inherit !important;
+}
+
+/* Support all heading levels from Word */
+.quill-wrapper .ql-editor h4 {
+  font-size: 16px;
+  color: #047857;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.quill-wrapper .ql-editor h5 {
+  font-size: 14px;
+  color: #047857;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.quill-wrapper .ql-editor h6 {
+  font-size: 12px;
+  color: #047857;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.dark .quill-wrapper .ql-editor h4,
+.dark .quill-wrapper .ql-editor h5,
+.dark .quill-wrapper .ql-editor h6 {
+  color: #10b981;
+}
+
+/* Support font sizes from Word */
+.quill-wrapper .ql-editor .ql-size-small {
+  font-size: 0.75em;
+}
+
+.quill-wrapper .ql-editor .ql-size-large {
+  font-size: 1.5em;
+}
+
+.quill-wrapper .ql-editor .ql-size-huge {
+  font-size: 2em;
+}
+
+/* Support font families from Word */
+.quill-wrapper .ql-editor .ql-font-serif {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.quill-wrapper .ql-editor .ql-font-monospace {
+  font-family: 'Courier New', monospace;
+}
+
+/* Preserve text colors from Word */
+.quill-wrapper .ql-editor .ql-color-red {
+  color: #e74c3c;
+}
+
+.quill-wrapper .ql-editor .ql-color-orange {
+  color: #f39c12;
+}
+
+.quill-wrapper .ql-editor .ql-color-yellow {
+  color: #f1c40f;
+}
+
+.quill-wrapper .ql-editor .ql-color-green {
+  color: #27ae60;
+}
+
+.quill-wrapper .ql-editor .ql-color-blue {
+  color: #3498db;
+}
+
+.quill-wrapper .ql-editor .ql-color-purple {
+  color: #9b59b6;
+}
+
+/* Preserve background colors (highlights) from Word */
+.quill-wrapper .ql-editor .ql-bg-red {
+  background-color: #fdeaea;
+}
+
+.quill-wrapper .ql-editor .ql-bg-orange {
+  background-color: #fdf4e3;
+}
+
+.quill-wrapper .ql-editor .ql-bg-yellow {
+  background-color: #fef9e3;
+}
+
+.quill-wrapper .ql-editor .ql-bg-green {
+  background-color: #eafaf1;
+}
+
+.quill-wrapper .ql-editor .ql-bg-blue {
+  background-color: #eaf2f8;
+}
+
+.quill-wrapper .ql-editor .ql-bg-purple {
+  background-color: #f4ecf7;
+}
+
+/* Preserve alignment from Word */
+.quill-wrapper .ql-editor .ql-align-center {
+  text-align: center;
+}
+
+.quill-wrapper .ql-editor .ql-align-right {
+  text-align: right;
+}
+
+.quill-wrapper .ql-editor .ql-align-justify {
+  text-align: justify;
+}
+
+/* Preserve indentation from Word */
+.quill-wrapper .ql-editor .ql-indent-1 {
+  padding-left: 3em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-2 {
+  padding-left: 6em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-3 {
+  padding-left: 9em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-4 {
+  padding-left: 12em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-5 {
+  padding-left: 15em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-6 {
+  padding-left: 18em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-7 {
+  padding-left: 21em;
+}
+
+.quill-wrapper .ql-editor .ql-indent-8 {
+  padding-left: 24em;
+}
+
+/* Blockquotes from Word */
+.quill-wrapper .ql-editor blockquote {
+  border-left: 4px solid #047857;
+  padding-left: 16px;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: #6b7280;
+  background-color: #f9fafb;
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+
+.dark .quill-wrapper .ql-editor blockquote {
+  border-left-color: #10b981;
+  background-color: #1f2937;
+  color: #9ca3af;
+}
+
+/* Code blocks from Word */
+.quill-wrapper .ql-editor pre.ql-syntax {
+  background-color: #f3f4f6;
+  color: #1f2937;
+  padding: 16px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dark .quill-wrapper .ql-editor pre.ql-syntax {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
+/* Images from Word */
+.quill-wrapper .ql-editor img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em auto;
+  border-radius: 4px;
+}
+
+/* Subscript and superscript from Word */
+.quill-wrapper .ql-editor sub {
+  vertical-align: sub;
+  font-size: smaller;
+}
+
+.quill-wrapper .ql-editor sup {
+  vertical-align: super;
+  font-size: smaller;
+}
+
+/* Strikethrough from Word */
+.quill-wrapper .ql-editor s {
+  text-decoration: line-through;
+}
+
+/* Underline from Word */
+.quill-wrapper .ql-editor u {
+  text-decoration: underline;
+}
+
+/* Strong (bold) from Word */
+.quill-wrapper .ql-editor strong {
+  font-weight: 700;
+}
+
+/* Emphasis (italic) from Word */
+.quill-wrapper .ql-editor em {
+  font-style: italic;
+}
+
+/* ============================================ */
+/* Compact Quill Wrapper (for Cancellation Policy Description) */
+/* ============================================ */
+
+.quill-wrapper-compact {
+  min-height: 250px;
+}
+
+.quill-wrapper-compact .ql-container {
+  min-height: 200px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+}
+
+.quill-wrapper-compact .ql-editor {
+  min-height: 200px;
+  padding: 16px;
+  line-height: inherit;
+}
+
+.quill-wrapper-compact .ql-toolbar {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  background-color: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.quill-wrapper-compact .ql-container {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Dark mode for compact editor */
+.dark .quill-wrapper-compact .ql-toolbar {
+  background-color: #1f2937;
+  border-bottom-color: #374151;
+}
+
+.dark .quill-wrapper-compact .ql-stroke {
+  stroke: #9ca3af;
+}
+
+.dark .quill-wrapper-compact .ql-fill {
+  fill: #9ca3af;
+}
+
+.dark .quill-wrapper-compact .ql-picker-label {
+  color: #9ca3af;
+}
+
+.dark .quill-wrapper-compact .ql-container {
+  background-color: #111827;
+  border-color: #374151;
+}
+
+.dark .quill-wrapper-compact .ql-editor {
+  color: #f3f4f6;
+}
+
+/* Apply all Word formatting preservation styles to compact editor too */
+.quill-wrapper-compact .ql-editor p[style*="line-height"],
+.quill-wrapper-compact .ql-editor div[style*="line-height"],
+.quill-wrapper-compact .ql-editor span[style*="line-height"] {
+  line-height: inherit !important;
+}
+
+.quill-wrapper-compact .ql-editor p[style*="margin"],
+.quill-wrapper-compact .ql-editor div[style*="margin"] {
+  margin-top: inherit !important;
+  margin-bottom: inherit !important;
+}
+
+.quill-wrapper-compact .ql-editor strong {
+  font-weight: 700;
+}
+
+.quill-wrapper-compact .ql-editor em {
+  font-style: italic;
+}
+
+.quill-wrapper-compact .ql-editor u {
+  text-decoration: underline;
+}
+
+.quill-wrapper-compact .ql-editor h1,
+.quill-wrapper-compact .ql-editor h2,
+.quill-wrapper-compact .ql-editor h3 {
+  color: #047857;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.dark .quill-wrapper-compact .ql-editor h1,
+.dark .quill-wrapper-compact .ql-editor h2,
+.dark .quill-wrapper-compact .ql-editor h3 {
+  color: #10b981;
+}
+
+.quill-wrapper-compact .ql-editor h1 {
+  font-size: 24px;
+}
+
+.quill-wrapper-compact .ql-editor h2 {
+  font-size: 20px;
+}
+
+.quill-wrapper-compact .ql-editor h3 {
+  font-size: 16px;
+}
+
+.quill-wrapper-compact .ql-editor ul,
+.quill-wrapper-compact .ql-editor ol {
+  margin-bottom: 1em;
+  padding-left: 2em;
+}
+
+.quill-wrapper-compact .ql-editor li {
+  margin-bottom: 0.5em;
+}
+
+.quill-wrapper-compact .ql-editor a {
+  color: #047857;
+  text-decoration: underline;
+}
+
+.dark .quill-wrapper-compact .ql-editor a {
+  color: #10b981;
+}

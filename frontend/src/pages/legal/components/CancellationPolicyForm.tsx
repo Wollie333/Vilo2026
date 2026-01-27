@@ -5,11 +5,16 @@
  * Uses AdminDetailLayout for consistent styling with other admin forms.
  */
 
-import React, { useState, useMemo } from 'react';
-import { Button, Input, Textarea, Alert, Card, Badge } from '@/components/ui';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
+import { Button, Input, Textarea, Alert, Card, Badge, Spinner } from '@/components/ui';
 import { AdminDetailLayout } from '@/components/layout';
 import type { AdminNavSection } from '@/components/layout/AdminDetailLayout/AdminDetailLayout.types';
 import type { CancellationPolicy, CancellationPolicyTier, CreateCancellationPolicyData } from '@/types/legal.types';
+import 'react-quill/dist/quill.snow.css';
+import './TermsTab.css'; // Import shared Quill styles
+
+// Lazy load React Quill
+const ReactQuill = lazy(() => import('react-quill'));
 
 // ============================================================================
 // Types
@@ -306,15 +311,70 @@ const DetailsSection: React.FC<DetailsSectionProps> = ({ formData, onChange, dis
       helperText="Give your policy a clear, recognizable name"
     />
 
-    <Textarea
-      label="Description"
-      value={formData.description}
-      onChange={(e) => onChange({ description: e.target.value })}
-      placeholder="Describe when refunds are available and any conditions..."
-      rows={3}
-      disabled={disabled}
-      helperText="Help guests understand the refund conditions"
-    />
+    {/* Rich Text Editor for Description */}
+    <div>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Description
+        <span className="text-xs text-gray-500 ml-2">(Optional)</span>
+      </label>
+      <Suspense
+        fallback={
+          <div className="h-48 flex items-center justify-center bg-gray-50 dark:bg-dark-bg rounded-lg border border-gray-200 dark:border-dark-border">
+            <Spinner size="sm" />
+          </div>
+        }
+      >
+        <div className="quill-wrapper-compact">
+          <ReactQuill
+            value={formData.description}
+            onChange={(content) => onChange({ description: content })}
+            theme="snow"
+            placeholder="Describe when refunds are available and any conditions... You can paste formatted content from Word!"
+            style={{ height: '200px', marginBottom: '50px' }}
+            modules={{
+              toolbar: [
+                [{ header: [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                [{ align: [] }],
+                ['link'],
+                ['clean'],
+              ],
+              clipboard: {
+                matchVisual: false,
+                matchers: [
+                  ['p', (node: any, delta: any) => {
+                    const lineHeight = node.style.lineHeight;
+                    if (lineHeight) {
+                      delta.ops.forEach((op: any) => {
+                        if (op.insert && typeof op.insert === 'string') {
+                          op.attributes = op.attributes || {};
+                          op.attributes.lineHeight = lineHeight;
+                        }
+                      });
+                    }
+                    return delta;
+                  }],
+                ],
+              },
+            }}
+            formats={[
+              'header',
+              'bold',
+              'italic',
+              'underline',
+              'list',
+              'bullet',
+              'align',
+              'link',
+            ]}
+          />
+        </div>
+      </Suspense>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Help guests understand the refund conditions. You can paste formatted content from Microsoft Word.
+      </p>
+    </div>
   </div>
 );
 

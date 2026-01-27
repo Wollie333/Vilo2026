@@ -36,9 +36,14 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('🔑 [AUTH] authenticate called');
+    console.log('   Path:', req.path);
+
     const token = extractToken(req);
+    console.log('   Has token:', !!token);
 
     if (!token) {
+      console.log('   ❌ No token - UNAUTHORIZED');
       throw new AppError('UNAUTHORIZED', 'Authentication required');
     }
 
@@ -46,17 +51,22 @@ export const authenticate = async (
 
     // Verify the JWT and get user
     const { data: { user }, error } = await supabase.auth.getUser(token);
+    console.log('   Supabase getUser error:', error);
+    console.log('   User found:', !!user);
 
     if (error || !user) {
+      console.log('   ❌ Invalid token - UNAUTHORIZED');
       throw new AppError('UNAUTHORIZED', 'Invalid or expired token');
     }
 
     // Attach user and token to request
     req.user = user;
     req.accessToken = token;
+    console.log('   ✅ User authenticated:', user.email);
 
     next();
   } catch (error) {
+    console.log('   ❌ Error in authenticate:', error);
     next(error);
   }
 };
@@ -102,13 +112,17 @@ export const loadUserProfile = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('[AUTH] loadUserProfile started for user:', req.user?.id);
+
     if (!req.user) {
       throw new AppError('UNAUTHORIZED', 'Authentication required');
     }
 
     const supabase = getAdminClient();
+    console.log('[AUTH] Supabase client obtained');
 
     // Get user profile with user type
+    console.log('[AUTH] Step 1: Fetching user profile...');
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select(`
@@ -126,6 +140,8 @@ export const loadUserProfile = async (
       `)
       .eq('id', req.user.id)
       .single();
+
+    console.log('[AUTH] Step 1 complete. Profile:', profile?.email, 'User type:', profile?.user_type?.name);
 
     if (profileError || !profile) {
       throw new AppError('NOT_FOUND', 'User profile not found');
@@ -145,6 +161,7 @@ export const loadUserProfile = async (
     }
 
     // Get permissions from user_type_permissions (NEW: replaces role-based)
+    console.log('[AUTH] Step 2: Fetching user type permissions...');
     let userTypePermissions: any[] = [];
     if (profile.user_type_id) {
       const { data: utPerms, error: utPermsError } = await supabase
@@ -159,15 +176,21 @@ export const loadUserProfile = async (
         `)
         .eq('user_type_id', profile.user_type_id);
 
+      console.log('[AUTH] Step 2 complete. Permissions count:', utPerms?.length || 0);
+
       if (utPermsError) {
         throw new AppError('INTERNAL_ERROR', 'Failed to load user type permissions');
       }
       userTypePermissions = utPerms || [];
+    } else {
+      console.log('[AUTH] Step 2 skipped (no user_type_id)');
     }
 
     // NEW: Get subscription permissions (for customer category users)
+    console.log('[AUTH] Step 3: Checking subscription permissions...');
     let subscriptionPermissions: any[] = [];
     if (profile.user_type?.category === 'customer') {
+      console.log('[AUTH] Step 3a: Fetching user subscription...');
       const { data: subscription } = await supabase
         .from('user_subscriptions')
         .select(`
@@ -182,7 +205,10 @@ export const loadUserProfile = async (
         .in('status', ['active', 'trial'])
         .single();
 
+      console.log('[AUTH] Step 3a complete. Subscription:', subscription?.subscription_type?.name || 'none');
+
       if (subscription?.subscription_type_id) {
+        console.log('[AUTH] Step 3b: Fetching subscription permissions...');
         const { data: subPerms } = await supabase
           .from('subscription_type_permissions')
           .select(`
@@ -195,17 +221,25 @@ export const loadUserProfile = async (
           `)
           .eq('subscription_type_id', subscription.subscription_type_id);
 
+        console.log('[AUTH] Step 3b complete. Subscription permissions count:', subPerms?.length || 0);
         subscriptionPermissions = (subPerms || []).map((sp: any) => sp.permission).filter(Boolean);
+      } else {
+        console.log('[AUTH] Step 3b skipped (no active subscription)');
       }
+    } else {
+      console.log('[AUTH] Step 3 skipped (user_type category is not customer)');
     }
 
     // NEW: Get company team member permissions
+    console.log('[AUTH] Step 4: Fetching company team member permissions...');
     let teamPermissions: string[] = [];
     const { data: teamMemberships } = await supabase
       .from('company_team_members')
       .select('permissions')
       .eq('user_id', req.user.id)
       .eq('is_active', true);
+
+    console.log('[AUTH] Step 4 complete. Team memberships:', teamMemberships?.length || 0);
 
     if (teamMemberships && teamMemberships.length > 0) {
       for (const membership of teamMemberships) {
@@ -218,6 +252,7 @@ export const loadUserProfile = async (
     (profile as any).team_permissions = teamPermissions;
 
     // Get direct permission overrides (KEPT: for individual customization)
+    console.log('[AUTH] Step 5: Fetching direct permission overrides...');
     const { data: directPermissions, error: permError } = await supabase
       .from('user_permissions')
       .select(`
@@ -227,39 +262,43 @@ export const loadUserProfile = async (
       .eq('user_id', req.user.id)
       .or('expires_at.is.null,expires_at.gt.now()');
 
+    console.log('[AUTH] Step 5 complete. Direct permissions:', directPermissions?.length || 0);
+
     if (permError) {
       throw new AppError('INTERNAL_ERROR', 'Failed to load user permissions');
     }
 
     // Get user properties
+    console.log('[AUTH] Step 6: Fetching user properties...');
     const { data: userProperties, error: propError } = await supabase
       .from('user_properties')
       .select('*')
       .eq('user_id', req.user.id);
+
+    console.log('[AUTH] Step 6 complete. User properties:', userProperties?.length || 0);
 
     if (propError) {
       throw new AppError('INTERNAL_ERROR', 'Failed to load user properties');
     }
 
     // LEGACY: Get user roles (for backward compatibility during transition)
+    console.log('[AUTH] Step 7: Fetching legacy user roles...');
     const { data: userRoles } = await supabase
-      .from('user_roles')
+      .from('user_user_roles')
       .select(`
         *,
-        role:roles (
-          *,
-          permissions:role_permissions (
-            permission:permissions (*)
-          )
+        role:user_roles (
+          *
         )
       `)
       .eq('user_id', req.user.id);
 
+    console.log('[AUTH] Step 7 complete. User roles:', userRoles?.length || 0);
+
     // Build roles with permissions (LEGACY - for backward compatibility)
-    const roles = (userRoles || []).map((ur: any) => ({
-      ...ur.role,
-      permissions: (ur.role?.permissions || []).map((rp: any) => rp.permission),
-    }));
+    const roles = (userRoles || [])
+      .map((ur: any) => ur.role)
+      .filter(Boolean);
 
     // Calculate effective permissions (NEW: from user type + overrides + subscription)
     const effectivePermissions = calculateEffectivePermissionsFromUserType(
@@ -278,6 +317,9 @@ export const loadUserProfile = async (
       properties: userProperties || [],
     };
 
+    console.log('[AUTH] All steps complete. User profile loaded successfully.');
+    console.log('[AUTH] Effective permissions count:', effectivePermissions?.length || 0);
+
     // Update last active timestamp (fire and forget)
     supabase
       .from('users')
@@ -287,6 +329,7 @@ export const loadUserProfile = async (
 
     next();
   } catch (error) {
+    console.error('[AUTH] loadUserProfile FAILED:', error);
     next(error);
   }
 };

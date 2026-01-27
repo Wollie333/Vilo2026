@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Spinner, Alert } from '@/components/ui';
+import { Spinner, Alert, Modal, ModalBody, Button } from '@/components/ui';
 import { PropertyBrandingHeader } from './components/PropertyBrandingHeader';
 import { WizardFooter } from './components/WizardFooter';
 import { PricingSummary } from './components/PricingSummary';
@@ -14,7 +14,7 @@ import { DatesRoomsStep } from './steps/DatesRoomsStep';
 import { AddOnsStep } from './steps/AddOnsStep';
 import { GuestPaymentStep } from './steps/GuestPaymentStep';
 import { ConfirmationStep } from './steps/ConfirmationStep';
-import { discoveryService, bookingWizardService } from '@/services';
+import { discoveryService, bookingWizardService, checkoutService, roomService } from '@/services';
 import type {
   RoomSelection,
   AddOnSelection,
@@ -23,6 +23,7 @@ import type {
   PricingBreakdown,
   BookingWizardStep,
   PropertyBranding,
+  AvailablePaymentMethod,
 } from '@/types/booking-wizard.types';
 import type { PublicPropertyDetail } from '@/types';
 
@@ -31,12 +32,22 @@ export const BookingWizardPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  // Ref for scrolling to form content (not page top)
+  const formContentRef = React.useRef<HTMLDivElement>(null);
+
   // State
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [property, setProperty] = useState<PublicPropertyDetail | null>(null);
+
+  // Room unavailability modal
+  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+  const [unavailableRoomInfo, setUnavailableRoomInfo] = useState<{
+    roomName: string;
+  } | null>(null);
 
   // Step 1 Data
   const [checkIn, setCheckIn] = useState<Date | null>(null);
@@ -52,13 +63,13 @@ export const BookingWizardPage: React.FC = () => {
     lastName: '',
     email: '',
     phone: '',
-    password: '',
     specialRequests: '',
     termsAccepted: false,
-    marketingConsent: false,
+    platformTermsAccepted: false,
   });
   const [paymentMethod, setPaymentMethod] = useState<PaymentProvider | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<AvailablePaymentMethod[]>([]);
 
   // Promo Code
   const [promoCode, setPromoCode] = useState<string>('');
@@ -75,6 +86,7 @@ export const BookingWizardPage: React.FC = () => {
   // Step 4 Data (after completion)
   const [bookingReference, setBookingReference] = useState<string>('');
   const [bookingId, setBookingId] = useState<string>('');
+  const [isNewUser, setIsNewUser] = useState<boolean>(false);
 
   // Load property data on mount
   useEffect(() => {
@@ -99,6 +111,25 @@ export const BookingWizardPage: React.FC = () => {
     // Room pre-selection will be handled after property loads
   }, [searchParams]);
 
+  // Load available payment methods when property is loaded
+  useEffect(() => {
+    const loadPaymentMethods = async () => {
+      if (!property?.id) return;
+
+      try {
+        console.log('[BookingWizard] Loading payment methods for property:', property.id);
+        const response = await bookingWizardService.getAvailablePaymentMethods(property.id);
+        console.log('[BookingWizard] Payment methods loaded:', response.payment_methods);
+        setAvailablePaymentMethods(response.payment_methods);
+      } catch (err) {
+        console.error('[BookingWizard] Failed to load payment methods:', err);
+        // Don't show error to user - will fall back to "no methods available" message
+        setAvailablePaymentMethods([]);
+      }
+    };
+    loadPaymentMethods();
+  }, [property?.id]);
+
   const loadProperty = async () => {
     if (!slug) return;
 
@@ -118,6 +149,14 @@ export const BookingWizardPage: React.FC = () => {
         roomsCount: data.rooms?.length || 0,
         addonsCount: data.addons?.length || 0,
         addons: data.addons
+      });
+      console.log('🔍 [BookingWizard] CANCELLATION POLICY DEBUG:', {
+        has_cancellation_policy_field: 'cancellation_policy' in data,
+        cancellation_policy_value: data.cancellation_policy,
+        has_cancellation_policy_detail_field: 'cancellation_policy_detail' in data,
+        cancellation_policy_detail_value: data.cancellation_policy_detail,
+        cancellation_policy_detail_type: typeof data.cancellation_policy_detail,
+        full_detail_object: JSON.stringify(data.cancellation_policy_detail, null, 2)
       });
       setProperty(data);
     } catch (err) {
@@ -218,7 +257,8 @@ export const BookingWizardPage: React.FC = () => {
   ];
 
   // Validation functions
-  const validateStep1 = (): boolean => {
+  const validateStep1 = async (): Promise<boolean> => {
+    console.log('[BookingWizard] Validating step 1 with availability check...');
     const newErrors: Record<string, string> = {};
 
     if (!checkIn) newErrors.checkIn = 'Check-in date is required';
@@ -243,6 +283,55 @@ export const BookingWizardPage: React.FC = () => {
       }
     });
 
+    // If basic validation fails, don't check availability
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return false;
+    }
+
+    // CHECK ROOM AVAILABILITY (CRITICAL FOR PREVENTING DOUBLE BOOKINGS)
+    if (checkIn && checkOut && selectedRooms.length > 0) {
+      console.log('[BookingWizard] Checking availability for', selectedRooms.length, 'room(s)...');
+
+      try {
+        // Format dates as YYYY-MM-DD for API
+        const checkInDate = checkIn.toISOString().split('T')[0];
+        const checkOutDate = checkOut.toISOString().split('T')[0];
+
+        // Check availability for each room
+        for (const room of selectedRooms) {
+          console.log('[BookingWizard] Checking room:', room.room_name, '(', checkInDate, '-', checkOutDate, ')');
+
+          const availability = await roomService.checkAvailability({
+            room_id: room.room_id,
+            check_in_date: checkInDate,
+            check_out_date: checkOutDate,
+          });
+
+          console.log('[BookingWizard] Availability result:', availability);
+
+          if (!availability.is_available) {
+            console.error('[BookingWizard] ❌ Room NOT available:', room.room_name);
+
+            // Show modal instead of inline error
+            setUnavailableRoomInfo({
+              roomName: room.room_name,
+            });
+
+            console.log('[BookingWizard] Opening unavailability modal');
+            setShowUnavailableModal(true);
+
+            return false; // Stop validation and don't proceed
+          }
+
+          console.log('[BookingWizard] ✅ Room available:', room.room_name);
+        }
+      } catch (error) {
+        console.error('[BookingWizard] Failed to check availability:', error);
+        newErrors.rooms = 'Failed to verify room availability. Please try again.';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -256,7 +345,10 @@ export const BookingWizardPage: React.FC = () => {
     if (!guestDetails.lastName || guestDetails.lastName.trim().length < 2) {
       newErrors.lastName = 'Last name must be at least 2 characters';
     }
-    if (!guestDetails.email || !/\S+@\S+\.\S+/.test(guestDetails.email)) {
+    // Email validation - more strict pattern
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const sanitizedEmail = guestDetails.email.trim().replace(/[,.\s]+$/, '');
+    if (!sanitizedEmail || !emailPattern.test(sanitizedEmail)) {
       newErrors.email = 'Valid email is required';
     }
     // Phone validation - check if not empty and has at least 7 digits (flexible for international numbers)
@@ -265,23 +357,13 @@ export const BookingWizardPage: React.FC = () => {
       newErrors.phone = 'Valid phone number is required';
     }
 
-    // Password validation - check all requirements
-    if (!guestDetails.password) {
-      newErrors.password = 'Password is required';
-    } else {
-      if (guestDetails.password.length < 8) {
-        newErrors.password = 'Password must be at least 8 characters';
-      } else if (!/[A-Z]/.test(guestDetails.password)) {
-        newErrors.password = 'Password must include an uppercase letter';
-      } else if (!/[a-z]/.test(guestDetails.password)) {
-        newErrors.password = 'Password must include a lowercase letter';
-      } else if (!/[0-9]/.test(guestDetails.password)) {
-        newErrors.password = 'Password must include a number';
-      }
-    }
+    // Password validation removed - accounts created automatically with backend-generated password
 
     if (!guestDetails.termsAccepted) {
-      newErrors.termsAccepted = 'You must accept the terms and conditions';
+      newErrors.termsAccepted = 'You must accept the property terms and cancellation policy';
+    }
+    if (!guestDetails.platformTermsAccepted) {
+      newErrors.platformTermsAccepted = 'You must accept the Vilo Terms of Service and Privacy Policy';
     }
     if (!paymentMethod) {
       newErrors.paymentMethod = 'Please select a payment method';
@@ -291,28 +373,61 @@ export const BookingWizardPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Helper: Scroll to top of form content (not page top)
+  const scrollToFormTop = () => {
+    if (formContentRef.current) {
+      formContentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   // Step navigation
   const handleContinue = async () => {
-    if (currentStep === 1) {
-      if (validateStep1()) {
-        setCurrentStep(2);
-        window.scrollTo(0, 0);
+    console.log('🚀 [BookingWizard] handleContinue called, currentStep:', currentStep);
+
+    try {
+      if (currentStep === 1) {
+        console.log('📝 [BookingWizard] Validating step 1...');
+        // Show loading state while checking availability (separate from booking submission)
+        setIsCheckingAvailability(true);
+        setError(null); // Clear any previous errors
+
+        const isValid = await validateStep1();
+        setIsCheckingAvailability(false);
+
+        console.log('✓ [BookingWizard] Step 1 validation result:', isValid);
+
+        if (isValid) {
+          console.log('➡️ [BookingWizard] Moving to step 2 (Add-ons)');
+          setCurrentStep(2);
+          scrollToFormTop();
+        } else {
+          console.warn('❌ [BookingWizard] Step 1 validation failed');
+        }
+      } else if (currentStep === 2) {
+        console.log('➡️ [BookingWizard] Moving to step 3 (Guest & Payment)');
+        // Add-ons are optional, just continue
+        setCurrentStep(3);
+        scrollToFormTop();
+      } else if (currentStep === 3) {
+        console.log('📝 [BookingWizard] Validating step 3...');
+        if (validateStep3()) {
+          console.log('💳 [BookingWizard] Submitting booking...');
+          await handleSubmitBooking();
+        } else {
+          console.warn('❌ [BookingWizard] Step 3 validation failed');
+        }
       }
-    } else if (currentStep === 2) {
-      // Add-ons are optional, just continue
-      setCurrentStep(3);
-      window.scrollTo(0, 0);
-    } else if (currentStep === 3) {
-      if (validateStep3()) {
-        await handleSubmitBooking();
-      }
+    } catch (err) {
+      console.error('❌ [BookingWizard] Error in handleContinue:', err);
+      setIsCheckingAvailability(false);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
     }
   };
 
   const handleBack = () => {
     if (currentStep > 1 && currentStep < 4) {
       setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3);
-      window.scrollTo(0, 0);
+      scrollToFormTop();
     }
   };
 
@@ -327,15 +442,18 @@ export const BookingWizardPage: React.FC = () => {
     setError(null);
 
     try {
-      // Step 1: Check if email already exists
-      const emailExists = await bookingWizardService.checkEmail(guestDetails.email);
+      // Step 1: Sanitize guest email (remove trailing commas, dots, whitespace)
+      const sanitizedEmail = guestDetails.email.trim().replace(/[,.\s]+$/, '');
+
+      // Step 2: Check if email already exists
+      const emailExists = await bookingWizardService.checkEmail(sanitizedEmail);
       if (emailExists) {
         setError('An account with this email already exists. Please use a different email or log in.');
         setIsSubmitting(false);
         return;
       }
 
-      // Step 2: Create pending booking
+      // Step 3: Create pending booking with sanitized email
       const bookingData = {
         property_id: property.id,
         property_slug: slug!,
@@ -344,48 +462,76 @@ export const BookingWizardPage: React.FC = () => {
         nights,
         rooms: selectedRooms,
         addons: selectedAddOns,
-        guest: guestDetails,
+        guest: {
+          ...guestDetails,
+          email: sanitizedEmail, // Use sanitized email
+        },
         payment_method: paymentMethod!,
         total_amount: pricing.total_amount,
         currency: property.currency,
       };
 
+      // Step 3: Check if book via chat
+      if (paymentMethod === 'book_via_chat') {
+        console.log('[BookingWizard] Creating booking via chat');
+        const chatBookingResult = await bookingWizardService.createBookingViaChat(bookingData);
+        console.log('[BookingWizard] Chat booking created:', chatBookingResult);
+
+        // Store booking result and move to confirmation step (same as other payment methods)
+        setBookingReference(chatBookingResult.booking_reference);
+        setBookingId(chatBookingResult.booking_id);
+        setIsNewUser(chatBookingResult.is_new_user || false);
+
+        // Store chat URL in session for the confirmation step to use
+        sessionStorage.setItem('bookingChatUrl', chatBookingResult.chat_url);
+        sessionStorage.setItem('bookingIsNewUser', String(chatBookingResult.is_new_user || false));
+        sessionStorage.setItem('bookingGuestEmail', guestDetails.email);
+
+        setCurrentStep(4); // Go to thank you page
+        return;
+      }
+
+      // Step 4: Create pending booking for other payment methods
       const pendingBooking = await bookingWizardService.initiateBooking(bookingData);
 
-      // Step 3: Process payment
-      // TODO: Integrate real payment gateway (Paystack/PayPal/EFT)
-      // For now, we'll simulate payment success
-      const paymentReference = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      // Step 5: Store booking data in session storage for callback
+      sessionStorage.setItem(
+        'pendingBooking',
+        JSON.stringify({
+          booking_id: pendingBooking.booking_id,
+          booking_reference: pendingBooking.booking_reference,
+          property_id: property.id,
+          guest_email: guestDetails.email,
+          is_new_user: pendingBooking.is_new_user || false,
+          guest_details: {
+            email: guestDetails.email,
+            full_name: `${guestDetails.firstName} ${guestDetails.lastName}`,
+            phone: guestDetails.phone,
+            marketing_consent: guestDetails.marketingConsent,
+          },
+          total_amount: pricing.total_amount,
+          currency: property.currency,
+        })
+      );
 
-      // Mock payment processing delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Step 6: Initialize payment with Paystack
+      if (paymentMethod === 'paystack') {
+        const paymentInit = await bookingWizardService.initializePayment({
+          booking_id: pendingBooking.booking_id,
+          property_id: property.id,
+          guest_email: guestDetails.email,
+          amount: pricing.total_amount,
+          currency: property.currency,
+        });
 
-      // Step 4: Create guest account
-      const guestAccount = await bookingWizardService.registerGuest({
-        email: guestDetails.email,
-        password: guestDetails.password,
-        full_name: `${guestDetails.firstName} ${guestDetails.lastName}`,
-        phone: guestDetails.phone,
-        marketing_consent: guestDetails.marketingConsent,
-      });
-
-      // Step 5: Confirm booking after payment success
-      const confirmedBooking = await bookingWizardService.confirmBooking({
-        booking_id: pendingBooking.booking_id,
-        user_id: guestAccount.user.id,
-        payment_reference: paymentReference,
-      });
-
-      // Step 6: Auto-login (store tokens from guest registration)
-      localStorage.setItem('accessToken', guestAccount.accessToken);
-      localStorage.setItem('refreshToken', guestAccount.refreshToken);
-      localStorage.setItem('user', JSON.stringify(guestAccount.user));
-
-      // Update state with confirmed booking details
-      setBookingReference(confirmedBooking.booking_reference);
-      setBookingId(confirmedBooking.booking_id);
-      setCurrentStep(4);
-      window.scrollTo(0, 0);
+        // Redirect to Paystack payment page
+        window.location.href = paymentInit.authorization_url;
+      } else {
+        // For other payment methods (PayPal, EFT), show error for now
+        throw new Error(
+          'This payment method is not yet supported. Please select Paystack or Book via Chat.'
+        );
+      }
     } catch (err) {
       console.error('Booking error:', err);
       const message = err instanceof Error ? err.message : 'Failed to complete booking';
@@ -442,6 +588,9 @@ export const BookingWizardPage: React.FC = () => {
 
   // Guest details handler
   const handleGuestDetailsChange = (field: keyof GuestDetails, value: any) => {
+    // Note: Email sanitization (trim, remove trailing commas/dots) happens during validation/submission
+    // NOT during typing to allow users to type periods and other characters normally
+
     setGuestDetails((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => {
@@ -539,46 +688,108 @@ export const BookingWizardPage: React.FC = () => {
   }
 
   if (!property) {
+    console.error('❌ [BookingWizard] Property data is null');
     return null;
+  }
+
+  // Safety check: Ensure property has required fields
+  if (!property.id || !property.name || !property.currency) {
+    console.error('❌ [BookingWizard] Property is missing required fields:', {
+      has_id: !!property.id,
+      has_name: !!property.name,
+      has_currency: !!property.currency,
+      property
+    });
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-dark-bg p-4">
+        <div className="max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            Property Data Error
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            This property is missing required information. Please contact support.
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Property branding data
   const propertyBranding: PropertyBranding = {
     id: property.id,
     name: property.name,
-    listing_title: property.listing_title ?? undefined,
-    featured_image_url: property.featured_image_url ?? undefined,
-    property_type: property.property_type ?? '',
-    city_name: property.city_name ?? undefined,
-    province_name: property.province_name ?? undefined,
-    country_name: property.country_name ?? undefined,
+    listing_title: property.listing_title || property.name, // Fallback to name if listing_title is null
+    featured_image_url: property.featured_image_url || undefined,
+    property_type: property.property_type || 'Property',
+    city_name: property.city_name || undefined,
+    province_name: property.province_name || undefined,
+    country_name: property.country_name || undefined,
     overall_rating: property.overall_rating,
     review_count: property.review_count,
     currency: property.currency,
   };
 
+  // Debug: Log property branding to verify data
+  console.log('🏨 [BookingWizard] Property Branding:', {
+    name: propertyBranding.name,
+    listing_title: propertyBranding.listing_title,
+    featured_image_url: propertyBranding.featured_image_url,
+    has_featured_image: !!propertyBranding.featured_image_url,
+  });
+
+  // Debug: Log cancellation policy data
+  console.log('📋 [BookingWizard] Cancellation Policy Data:', {
+    has_cancellation_policy_detail: !!property.cancellation_policy_detail,
+    cancellation_policy_detail: property.cancellation_policy_detail,
+    policy_id: property.cancellation_policy_detail?.id,
+    policy_name: property.cancellation_policy_detail?.name,
+    has_tiers: !!property.cancellation_policy_detail?.tiers,
+    tiers_count: property.cancellation_policy_detail?.tiers?.length || 0,
+  });
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-dark-bg">
-      {/* Left Panel - Property Branding + Progress (Desktop Only) */}
-      <div className="lg:w-[400px] xl:w-[480px] bg-gray-950 text-white lg:min-h-screen">
+      {/* Left Panel - Property Branding + Progress (Desktop Only) - Fixed Position */}
+      <div className="lg:w-[400px] xl:w-[480px] bg-gray-950 text-white lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
         <PropertyBrandingHeader property={propertyBranding} steps={steps} />
       </div>
 
       {/* Right Panel - Form Content */}
       <div className="flex-1 flex flex-col lg:flex-row">
-        {/* Main Content Area */}
-        <div className="flex-1 lg:max-w-3xl mx-auto w-full px-6 py-8">
-          {/* Back to Property Button */}
+        {/* Main Content Area - Scrollable */}
+        <div ref={formContentRef} className="flex-1 lg:max-w-3xl mx-auto w-full px-6 py-8">
+          {/* Navigation Buttons */}
           {currentStep < 4 && (
-            <button
-              onClick={() => navigate(`/accommodation/${slug}`)}
-              className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span>Back to {property.name}</span>
-            </button>
+            <div className="flex items-center justify-between mb-6">
+              {/* Back to Property Button */}
+              <button
+                onClick={() => navigate(`/accommodation/${slug}`)}
+                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Back to {property.name}</span>
+              </button>
+
+              {/* Request Quote Button */}
+              <button
+                onClick={() => navigate(`/accommodation/${slug}#quote`)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-lg hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                title="Request a custom quote instead"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <span>Request Quote</span>
+              </button>
+            </div>
           )}
 
           {/* Error Alert */}
@@ -589,7 +800,7 @@ export const BookingWizardPage: React.FC = () => {
           )}
 
           {/* Step Content */}
-          {currentStep === 1 && (
+          {currentStep === 1 && property.rooms && (
             <DatesRoomsStep
               checkIn={checkIn}
               checkOut={checkOut}
@@ -599,7 +810,7 @@ export const BookingWizardPage: React.FC = () => {
               onRoomSelect={handleRoomSelect}
               onRoomRemove={handleRoomRemove}
               onRoomUpdate={handleRoomUpdate}
-              availableRooms={property.rooms}
+              availableRooms={property.rooms || []}
               currency={property.currency}
               isLoading={false}
             />
@@ -612,20 +823,36 @@ export const BookingWizardPage: React.FC = () => {
               propertyHasAddonsField: 'addons' in property,
               propertyKeys: Object.keys(property)
             });
-            return (
-              <AddOnsStep
-                selectedAddOns={selectedAddOns}
-                availableAddOns={property.addons || []}
-                onAddOnSelect={handleAddOnSelect}
-                onAddOnRemove={handleAddOnRemove}
-                onQuantityChange={handleQuantityChange}
-                currency={property.currency}
-                nights={nights}
-                totalGuests={selectedRooms.reduce((sum, room) => sum + room.adults + room.children, 0)}
-                roomCount={selectedRooms.length}
-                isLoading={false}
-              />
-            );
+
+            try {
+              return (
+                <AddOnsStep
+                  selectedAddOns={selectedAddOns || []}
+                  availableAddOns={property.addons || []}
+                  onAddOnSelect={handleAddOnSelect}
+                  onAddOnRemove={handleAddOnRemove}
+                  onQuantityChange={handleQuantityChange}
+                  currency={property.currency || 'ZAR'}
+                  nights={nights || 1}
+                  totalGuests={selectedRooms.reduce((sum, room) => sum + room.adults + room.children, 0)}
+                  roomCount={selectedRooms.length}
+                  isLoading={false}
+                />
+              );
+            } catch (err) {
+              console.error('❌ [BookingWizard] Error rendering AddOnsStep:', err);
+              return (
+                <div className="text-center py-8">
+                  <p className="text-red-600 mb-4">Error loading add-ons step</p>
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                  >
+                    Skip to Next Step
+                  </button>
+                </div>
+              );
+            }
           })()}
 
           {currentStep === 3 && (
@@ -639,6 +866,11 @@ export const BookingWizardPage: React.FC = () => {
               onApplyPromoCode={handleApplyPromoCode}
               promoCodeStatus={promoCodeStatus}
               errors={errors}
+              propertyTerms={property?.terms_and_conditions}
+              propertyCancellationPolicy={property?.cancellation_policy_detail}
+              propertyName={property?.listing_title || property?.name}
+              propertyId={property?.id}
+              availablePaymentMethods={availablePaymentMethods}
             />
           )}
 
@@ -655,6 +887,7 @@ export const BookingWizardPage: React.FC = () => {
               totalAmount={pricing?.total_amount || 0}
               currency={property.currency}
               propertySlug={slug || ''}
+              isNewUser={isNewUser}
             />
           )}
 
@@ -670,7 +903,7 @@ export const BookingWizardPage: React.FC = () => {
                   ? 'Continue to Guest Details'
                   : 'Complete Booking & Pay'
               }
-              isLoading={isSubmitting}
+              isLoading={currentStep === 1 ? isCheckingAvailability : isSubmitting}
               showBack={currentStep > 1}
               continueDisabled={
                 currentStep === 1
@@ -680,8 +913,8 @@ export const BookingWizardPage: React.FC = () => {
                     !guestDetails.lastName ||
                     !guestDetails.email ||
                     !guestDetails.phone ||
-                    !guestDetails.password ||
                     !guestDetails.termsAccepted ||
+                    !guestDetails.platformTermsAccepted ||
                     !paymentMethod
                   : false
               }
@@ -693,6 +926,7 @@ export const BookingWizardPage: React.FC = () => {
         {currentStep < 4 && (
           <div className="lg:w-[380px] lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto p-6">
             <PricingSummary
+              key={`pricing-${selectedRooms.length}-${selectedAddOns.length}-${selectedRooms.map(r => `${r.adults}-${r.children}`).join('-')}`}
               pricing={pricing}
               checkIn={checkIn}
               checkOut={checkOut}
@@ -706,6 +940,165 @@ export const BookingWizardPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Room Unavailable Modal */}
+      <Modal
+        isOpen={showUnavailableModal}
+        onClose={() => {
+          console.log('[BookingWizard] Closing unavailable modal');
+          setShowUnavailableModal(false);
+        }}
+        size="md"
+      >
+        <ModalBody>
+          <div className="p-6">
+            {/* Icon */}
+            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/20">
+              <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 text-center">
+              Room Not Available
+            </h3>
+
+            {/* Message */}
+            <div className="text-center mb-6">
+              <p className="text-gray-700 dark:text-gray-300">
+                <span className="font-semibold">{unavailableRoomInfo?.roomName}</span> is already booked for the dates you selected.
+              </p>
+            </div>
+
+            {/* Options */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                What would you like to do?
+              </p>
+              <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1.5 ml-4">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>Select a different room from the available options</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>Change your check-in or check-out dates</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Close Button */}
+            <Button
+              variant="primary"
+              onClick={() => setShowUnavailableModal(false)}
+              className="w-full"
+            >
+              Close
+            </Button>
+          </div>
+        </ModalBody>
+      </Modal>
+
+      {/* Availability Check Modal - Shows during room availability validation */}
+      <Modal isOpen={isCheckingAvailability} onClose={() => {}} size="md">
+        <ModalBody>
+          <div className="flex flex-col items-center justify-center py-12 px-6">
+            {/* Animated Icon */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 border-4 border-primary/20 rounded-full"></div>
+              </div>
+              <div className="relative">
+                <Spinner size="lg" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 text-center">
+              Checking Availability...
+            </h3>
+
+            {/* Description */}
+            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-6">
+              We're verifying that your selected rooms are available for the dates you chose. This will only take a moment.
+            </p>
+
+            {/* Info Box */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 w-full max-w-md">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  This ensures you won't experience any booking conflicts.
+                </p>
+              </div>
+            </div>
+          </div>
+        </ModalBody>
+      </Modal>
+
+      {/* Booking Submission Modal - Shows during booking creation */}
+      <Modal isOpen={isSubmitting} onClose={() => {}} size="md">
+        <ModalBody>
+          <div className="flex flex-col items-center justify-center py-12 px-6">
+            {/* Animated Icon */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 border-4 border-green-200 dark:border-green-800 rounded-full animate-pulse"></div>
+              </div>
+              <div className="relative">
+                <Spinner size="lg" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 text-center">
+              Creating Your Booking...
+            </h3>
+
+            {/* Description */}
+            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-6">
+              We're processing your reservation and preparing your booking confirmation. This may take a few moments.
+            </p>
+
+            {/* Progress Steps */}
+            <div className="w-full max-w-md space-y-3 mb-6">
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-gray-700 dark:text-gray-300">Validating booking details</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center flex-shrink-0">
+                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                </div>
+                <span className="text-gray-700 dark:text-gray-300">Creating reservation</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
+                <span className="text-gray-500 dark:text-gray-500">Preparing confirmation</span>
+              </div>
+            </div>
+
+            {/* Warning */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 w-full max-w-md">
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Please do not close this window
+                </span>
+              </div>
+            </div>
+          </div>
+        </ModalBody>
+      </Modal>
     </div>
   );
 };

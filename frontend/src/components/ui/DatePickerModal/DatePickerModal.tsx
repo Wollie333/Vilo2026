@@ -98,25 +98,37 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
 
   // Handle date click
   const handleDateClick = (date: Date | null) => {
-    if (!date || isDateDisabled(date)) return;
+    console.log('📅 [DatePickerModal] Date clicked:', date?.toLocaleDateString());
+
+    if (!date || isDateDisabled(date)) {
+      console.log('❌ [DatePickerModal] Date is null or disabled');
+      return;
+    }
 
     if (mode === 'single') {
+      console.log('📅 [DatePickerModal] Single mode - setting check-in');
       setCheckIn(date);
       setCheckOut(null);
     } else {
       // Range mode
       if (!checkIn || (checkIn && checkOut)) {
         // Start new selection
+        console.log('📅 [DatePickerModal] Range mode - starting new selection');
         setCheckIn(date);
         setCheckOut(null);
       } else {
         // Complete the range
+        console.log('📅 [DatePickerModal] Range mode - completing range');
         if (date < checkIn) {
           setCheckOut(checkIn);
           setCheckIn(date);
         } else {
           setCheckOut(date);
         }
+        console.log('✅ [DatePickerModal] Range selected:', {
+          checkIn: checkIn.toLocaleDateString(),
+          checkOut: date.toLocaleDateString()
+        });
       }
     }
   };
@@ -144,9 +156,17 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
 
   // Confirm selection
   const handleConfirm = () => {
+    console.log('✅ [DatePickerModal] Confirm clicked:', {
+      checkIn: checkIn?.toLocaleDateString(),
+      checkOut: checkOut?.toLocaleDateString()
+    });
+
     if (checkIn) {
+      console.log('📅 [DatePickerModal] Calling onDateSelect');
       onDateSelect(checkIn, checkOut || undefined);
       onClose();
+    } else {
+      console.log('❌ [DatePickerModal] No check-in date selected');
     }
   };
 
@@ -160,6 +180,13 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   ];
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  console.log('📅 [DatePickerModal] Rendering:', {
+    isOpen,
+    mode,
+    checkIn: checkIn?.toLocaleDateString(),
+    checkOut: checkOut?.toLocaleDateString()
+  });
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="md" headerClassName="bg-primary">

@@ -2,6 +2,7 @@ import { getAdminClient, getAnonClient } from '../config/supabase';
 import { AppError } from '../utils/errors';
 import { SignUpInput, LoginInput, ResetPasswordInput } from '../validators/auth.validators';
 import { UserWithRoles } from '../types/user.types';
+import { finalizeUserSetup } from './user-finalization.service';
 
 interface AuthResult {
   user: any;
@@ -19,7 +20,13 @@ export const signUp = async (
   const supabase = getAdminClient();
   const anonClient = getAnonClient();
 
+  console.log('=== SIGNUP STARTED ===');
+  console.log('Email:', data.email);
+  console.log('Full Name:', data.fullName);
+  console.log('Phone:', data.phone || 'not provided');
+
   // Check if email already exists
+  console.log('Step 1: Checking if email already exists in public.users...');
   const { data: existingProfile } = await supabase
     .from('users')
     .select('id')
@@ -27,10 +34,13 @@ export const signUp = async (
     .single();
 
   if (existingProfile) {
+    console.log('❌ Email already exists in public.users:', existingProfile.id);
     throw new AppError('CONFLICT', 'An account with this email already exists');
   }
+  console.log('✓ Email not found in public.users');
 
   // Create auth user with email auto-confirmed
+  console.log('Step 2: Creating auth user in auth.users...');
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: data.email,
     password: data.password,
@@ -42,15 +52,42 @@ export const signUp = async (
   });
 
   if (authError) {
+    console.log('❌ Auth user creation failed:', authError.message);
     throw new AppError('BAD_REQUEST', authError.message);
   }
 
   if (!authData.user) {
+    console.log('❌ Auth user created but no user object returned');
     throw new AppError('INTERNAL_ERROR', 'Failed to create user');
   }
 
-  // Create or update user profile
-  // Using upsert to handle cases where the database trigger doesn't exist
+  console.log('✓ Auth user created successfully:', authData.user.id);
+
+  // Get 'free' customer user type FIRST (required by database NOT NULL constraint)
+  // New signups should be 'free' (can have subscriptions), not 'guest' (cannot have subscriptions)
+  // They will be upgraded to 'paid' after successful payment
+  console.log('Step 3: Getting free user type...');
+  console.log('Querying user_types table for name="free" and category="customer"...');
+  const { data: customerType, error: typeError } = await supabase
+    .from('user_types')
+    .select('id, name, category')
+    .eq('name', 'free')
+    .eq('category', 'customer')
+    .single();
+
+  console.log('User type query result:', { customerType, typeError });
+
+  if (!customerType) {
+    console.error('❌ No "free" user type found', typeError);
+    console.log('Rolling back: Deleting auth user...');
+    await supabase.auth.admin.deleteUser(authData.user.id);
+    throw new AppError('INTERNAL_ERROR', 'User type configuration error. Please contact support.');
+  }
+
+  console.log(`✓ Found customer user type: ${customerType.name} (${customerType.id})`);
+
+  // Create user profile WITH user_type_id (required by NOT NULL constraint)
+  console.log('Step 4: Creating user profile in public.users...');
   const { error: profileError } = await supabase
     .from('users')
     .upsert({
@@ -59,6 +96,7 @@ export const signUp = async (
       full_name: data.fullName,
       phone: data.phone || null,
       status: 'active', // Allow immediate access
+      user_type_id: customerType.id, // CRITICAL: Include user_type_id in initial insert
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, {
@@ -67,67 +105,45 @@ export const signUp = async (
 
   if (profileError) {
     // Cleanup: delete auth user if profile creation fails
-    console.error('Profile creation error:', profileError);
+    console.error('❌ Profile creation error:', profileError);
+    console.log('Rolling back: Deleting auth user...');
     await supabase.auth.admin.deleteUser(authData.user.id);
     throw new AppError('INTERNAL_ERROR', 'Failed to create user profile');
   }
+  console.log('✓ User profile created successfully with user_type_id:', customerType.id);
 
-  // Auto-assign free user type and subscription
+  // Finalize user setup (create subscription, assign role if needed, set status)
+  console.log('Step 4.5: Finalizing user setup (subscription, role, status)...');
   try {
-    // Get free user type (customer category)
-    const { data: freeType } = await supabase
-      .from('user_types')
-      .select('id')
-      .eq('name', 'free')
-      .eq('category', 'customer')
-      .single();
-
-    // Get free tier subscription plan
-    const { data: freePlan } = await supabase
-      .from('subscription_types')
-      .select('id')
-      .eq('name', 'free_tier')
-      .single();
-
-    if (!freePlan) {
-      console.error('Free tier subscription plan not found - skipping auto-assignment');
-    } else {
-      // Assign free user type if found
-      if (freeType) {
-        await supabase
-          .from('users')
-          .update({ user_type_id: freeType.id })
-          .eq('id', authData.user.id);
-      }
-
-      // Create free tier subscription
-      await supabase
-        .from('user_subscriptions')
-        .insert({
-          user_id: authData.user.id,
-          subscription_type_id: freePlan.id,
-          status: 'active',
-          started_at: new Date().toISOString(),
-          is_active: true,
-        });
-
-      console.log(`Auto-assigned free tier subscription to user ${authData.user.id}`);
-    }
-  } catch (err) {
-    // Log error but don't fail signup if free tier assignment fails
-    console.error('Failed to auto-assign free tier:', err);
+    await finalizeUserSetup({
+      userId: authData.user.id,
+      userTypeId: customerType.id,
+    });
+    console.log('✓ User finalization completed');
+  } catch (finalizationError) {
+    console.error('⚠️  User finalization failed:', finalizationError);
+    // Don't block signup - user is created, finalization can be retried
+    console.warn('User created but finalization incomplete. They may need subscription assigned manually.');
   }
 
   // Sign in the user to get a session for auto-login
+  console.log('Step 5: Signing in user to create session...');
   const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
     email: data.email,
     password: data.password,
   });
 
   if (signInError || !signInData.session) {
+    console.error('❌ Failed to sign in after registration:', signInError);
     // User is created but couldn't auto-login - they can login manually
     throw new AppError('INTERNAL_ERROR', 'Account created but auto-login failed. Please log in manually.');
   }
+
+  console.log('✓ User signed in successfully');
+  console.log('=== SIGNUP COMPLETED SUCCESSFULLY ===');
+  console.log('User ID:', signInData.user.id);
+  console.log('Email:', data.email);
+  console.log('Session created:', !!signInData.session);
 
   // Return user and session for auto-login
   return {
@@ -587,6 +603,19 @@ export const registerGuest = async (data: {
     // Don't fail - profile exists, just couldn't update fields
   } else {
     console.log('✅ Profile updated to active status');
+  }
+
+  // Finalize user setup (create subscription, set proper status)
+  console.log('Finalizing guest user setup (subscription)...');
+  try {
+    await finalizeUserSetup({
+      userId: authData.user.id,
+    });
+    console.log('✅ Guest user finalization completed');
+  } catch (finalizationError) {
+    console.error('⚠️  Guest user finalization failed:', finalizationError);
+    // Don't block registration - user is created, finalization can be retried
+    console.warn('Guest user created but finalization incomplete.');
   }
 
   // Sign in the user to get a session for auto-login

@@ -12,6 +12,7 @@ import {
   UserStats,
 } from '../types/user.types';
 import { CreateUserInput } from '../validators/user.validators';
+import { finalizeUserSetup } from './user-finalization.service';
 
 /**
  * List users with pagination and filters
@@ -157,12 +158,11 @@ export const createUser = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to update user profile');
   }
 
-  // NOTE: Roles are no longer assigned here - permissions come from user_type_permissions
-  // based on the user_type_id set above
-
-  // Create subscription if provided
+  // Create custom subscription if admin provided one
+  let hasCustomSubscription = false;
   if (data.subscription) {
     try {
+      console.log('[USERS_SERVICE] Admin provided custom subscription');
       // Check for existing active subscription
       const { data: existingSub } = await supabase
         .from('user_subscriptions')
@@ -185,16 +185,35 @@ export const createUser = async (
           });
 
         if (subError) {
-          console.error('Subscription creation failed:', subError);
-          // Don't fail user creation - admin can assign subscription manually later
+          console.error('[USERS_SERVICE] Custom subscription creation failed:', subError);
+          // Don't fail user creation - finalization will create free tier
+        } else {
+          hasCustomSubscription = true;
+          console.log('✅ [USERS_SERVICE] Custom subscription created');
         }
       } else {
-        console.warn(`User ${userId} already has an active subscription`);
+        hasCustomSubscription = true;
+        console.warn(`[USERS_SERVICE] User ${userId} already has an active subscription`);
       }
     } catch (subError) {
-      console.error('Subscription creation error:', subError);
-      // Continue - user creation succeeded
+      console.error('[USERS_SERVICE] Custom subscription creation error:', subError);
+      // Continue - finalization will create free tier
     }
+  }
+
+  // Finalize user setup (auto-assign subscription if not custom, assign roles for super_admin)
+  console.log('[USERS_SERVICE] Finalizing user setup...');
+  try {
+    await finalizeUserSetup({
+      userId,
+      userTypeId: data.userTypeId,
+      skipSubscription: hasCustomSubscription, // Skip if admin created custom subscription
+    });
+    console.log('✅ [USERS_SERVICE] User finalization completed');
+  } catch (finalizationError) {
+    console.error('⚠️ [USERS_SERVICE] User finalization failed:', finalizationError);
+    console.warn('[USERS_SERVICE] User created but finalization incomplete.');
+    // Don't fail - user is created, admin can fix manually
   }
 
   return getUser(userId);
@@ -229,14 +248,22 @@ export const getUser = async (userId: string): Promise<UserWithRoles> => {
 
 /**
  * Update user profile
+ *
+ * When a guest updates their profile, contact field changes are automatically
+ * synced to all their customer instances across all properties.
  */
 export const updateUser = async (
   userId: string,
   data: UpdateUserRequest,
   actorId: string
 ): Promise<UserWithRoles> => {
+  console.log('=== [USER_SERVICE] Update user profile ===');
+  console.log('[USER_SERVICE] User ID:', userId);
+  console.log('[USER_SERVICE] Update data:', JSON.stringify(data, null, 2));
+
   const supabase = getAdminClient();
 
+  // Fetch old profile to detect changes
   const { data: oldProfile, error: fetchError } = await supabase
     .from('users')
     .select('*')
@@ -246,6 +273,8 @@ export const updateUser = async (
   if (fetchError || !oldProfile) {
     throw new AppError('NOT_FOUND', 'User not found');
   }
+
+  console.log('[USER_SERVICE] Old profile fetched');
 
   // Update profile
   const { data: newProfile, error: updateError } = await supabase
@@ -259,9 +288,59 @@ export const updateUser = async (
     .single();
 
   if (updateError || !newProfile) {
+    console.error('[USER_SERVICE] Failed to update user:', updateError);
     throw new AppError('INTERNAL_ERROR', 'Failed to update user');
   }
 
+  console.log('[USER_SERVICE] User profile updated successfully');
+
+  // Sync contact changes to all customer instances
+  const { syncGuestContactToCustomers, syncGuestEmailToCustomers } = await import('./customer-sync.service');
+
+  const contactUpdates: any = {};
+
+  // Detect contact field changes
+  if (data.full_name !== undefined && data.full_name !== oldProfile.full_name) {
+    console.log('[USER_SERVICE] full_name changed:', oldProfile.full_name, '->', data.full_name);
+    contactUpdates.full_name = data.full_name;
+  }
+
+  if (data.phone !== undefined && data.phone !== oldProfile.phone) {
+    console.log('[USER_SERVICE] phone changed:', oldProfile.phone, '->', data.phone);
+    contactUpdates.phone = data.phone;
+  }
+
+  if (data.marketing_consent !== undefined && data.marketing_consent !== oldProfile.marketing_consent) {
+    console.log('[USER_SERVICE] marketing_consent changed:', oldProfile.marketing_consent, '->', data.marketing_consent);
+    contactUpdates.marketing_consent = data.marketing_consent;
+  }
+
+  // Sync non-email contact updates
+  if (Object.keys(contactUpdates).length > 0) {
+    console.log('[USER_SERVICE] Syncing contact updates to customer instances...');
+    try {
+      await syncGuestContactToCustomers(userId, contactUpdates);
+      console.log('[USER_SERVICE] Contact sync completed successfully');
+    } catch (error) {
+      console.error('[USER_SERVICE] Contact sync failed:', error);
+      // Don't throw - user profile is already updated, sync failure shouldn't block
+      // The sync can be retried manually via sync endpoint if needed
+    }
+  }
+
+  // Handle email change separately (more complex due to unique constraint)
+  if (data.email !== undefined && data.email !== oldProfile.email) {
+    console.log('[USER_SERVICE] Email changed - syncing to customer instances...');
+    try {
+      await syncGuestEmailToCustomers(userId, oldProfile.email, data.email);
+      console.log('[USER_SERVICE] Email sync completed successfully');
+    } catch (error) {
+      console.error('[USER_SERVICE] Email sync failed:', error);
+      // Don't throw - user profile is already updated
+    }
+  }
+
+  console.log('[USER_SERVICE] User update complete');
   return enrichUserProfile(newProfile);
 };
 
@@ -2053,20 +2132,22 @@ export const getUserSubscriptionDetails = async (userId: string): Promise<any> =
       user_id,
       subscription_type_id,
       status,
-      starts_at,
+      started_at,
       expires_at,
       trial_ends_at,
-      auto_renew,
+      cancelled_at,
+      cancellation_reason,
+      is_active,
       created_at,
       subscription_types (
         id,
         name,
         display_name,
         description,
-        price_cents,
         currency,
-        billing_cycle_days,
-        is_recurring
+        pricing_tiers,
+        billing_types,
+        limits
       )
     `)
     .eq('user_id', userId)

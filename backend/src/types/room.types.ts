@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { PaymentRule } from './payment-rules.types';
+import { BookingStatus } from './booking.types';
 
 // Enums matching database
 export type PricingMode = 'per_unit' | 'per_person' | 'per_person_sharing';
@@ -515,7 +516,7 @@ export interface AvailabilityCheckResponse {
     guest_name: string;
     check_in: string;
     check_out: string;
-    status: string;
+    status: BookingStatus;
   }>;
 }
 

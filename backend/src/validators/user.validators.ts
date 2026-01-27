@@ -65,6 +65,14 @@ export const createUserSchema = z.object({
   phone: z.string().max(50).optional(),
   status: z.enum(['active', 'pending']).default('active'),
   userTypeId: z.string().uuid('Invalid user type ID').optional(),
+
+  // Subscription configuration (optional)
+  subscription: z.object({
+    subscription_type_id: z.string().uuid('Invalid subscription type ID'),
+    status: z.enum(['active', 'trial']).default('active'),
+    trial_ends_at: z.string().datetime().optional(),
+    expires_at: z.string().datetime().optional(),
+  }).optional(),
 });
 
 export type UserIdParam = z.infer<typeof userIdParamSchema>;

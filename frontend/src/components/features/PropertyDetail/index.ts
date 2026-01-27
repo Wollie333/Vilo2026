@@ -31,3 +31,6 @@ export type { LocationTabProps } from './tabs/LocationTab.types';
 
 export { PromotionsTab } from './tabs/PromotionsTab';
 export type { PromotionsTabProps } from './tabs/PromotionsTab.types';
+
+export { QuoteRequestTab } from './tabs/QuoteRequestTab';
+export type { QuoteRequestTabProps } from './tabs/QuoteRequestTab.types';

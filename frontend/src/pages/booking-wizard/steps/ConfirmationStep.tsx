@@ -4,10 +4,13 @@
  * Step 4: Show booking confirmation and guide user to portal
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui';
 import { HiCheckCircle, HiEye, HiEyeOff, HiDownload } from 'react-icons/hi';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { supabase } from '@/config/supabase';
+import { bookingService } from '@/services/booking.service';
+import { invoiceService } from '@/services/invoice.service';
 
 interface ConfirmationStepProps {
   bookingReference: string;
@@ -21,6 +24,7 @@ interface ConfirmationStepProps {
   totalAmount: number;
   currency: string;
   propertySlug: string;
+  isNewUser?: boolean; // Whether guest account was newly created
 }
 
 export const ConfirmationStep: React.FC<ConfirmationStepProps> = ({
@@ -35,9 +39,23 @@ export const ConfirmationStep: React.FC<ConfirmationStepProps> = ({
   totalAmount,
   currency,
   propertySlug,
+  isNewUser = false,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
+  const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false);
+
+  // Update URL hash with booking reference when component mounts
+  useEffect(() => {
+    if (bookingReference) {
+      // Update URL to include booking reference in hash
+      // Example: /accommodation/pandokkie-house/book#ABC123
+      const newUrl = `${location.pathname}#${bookingReference}`;
+      window.history.replaceState(null, '', newUrl);
+      console.log('[ConfirmationStep] Updated URL hash with booking reference:', bookingReference);
+    }
+  }, [bookingReference, location.pathname]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -48,17 +66,71 @@ export const ConfirmationStep: React.FC<ConfirmationStepProps> = ({
     });
   };
 
-  const handleGoToPortal = () => {
-    navigate(`/portal/bookings/${bookingId}`);
+  const handleGoToPortal = async () => {
+    console.log('[ConfirmationStep] Portal button clicked');
+    console.log('[ConfirmationStep] Booking email:', guestEmail);
+    console.log('[ConfirmationStep] Is new user:', isNewUser);
+
+    // Check if user is currently logged in
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      console.log('[ConfirmationStep] User is logged in as:', session.user.email);
+
+      // Check if logged-in email matches booking email
+      if (session.user.email?.toLowerCase() !== guestEmail.toLowerCase()) {
+        console.log('[ConfirmationStep] Email mismatch - logging out and redirecting to login');
+
+        // Auto-logout and redirect to login with booking email pre-filled
+        await supabase.auth.signOut();
+
+        // Redirect to login with email pre-filled
+        navigate(`/login?email=${encodeURIComponent(guestEmail)}&message=${encodeURIComponent('Please log in with your booking account')}`);
+        return;
+      }
+
+      // Email matches - user is already logged in with correct account
+      console.log('[ConfirmationStep] Email matches - redirecting to dashboard');
+      navigate('/dashboard');
+      return;
+    }
+
+    // No session - proceed with normal flow
+    if (isNewUser) {
+      // New users need to set password first
+      console.log('[ConfirmationStep] Redirecting to set password');
+      navigate(`/auth/set-password?booking=${bookingReference}&email=${encodeURIComponent(guestEmail)}`);
+    } else {
+      // Existing users can login directly
+      console.log('[ConfirmationStep] Redirecting to login');
+      navigate(`/login?email=${encodeURIComponent(guestEmail)}`);
+    }
   };
 
   const handleBackToProperty = () => {
     navigate(`/accommodation/${propertySlug}`);
   };
 
-  const handleDownloadReceipt = () => {
-    // TODO: Implement receipt download
-    console.log('Download receipt for booking:', bookingId);
+  const handleDownloadReceipt = async () => {
+    console.log('[ConfirmationStep] Download receipt clicked for booking:', bookingId);
+    setIsDownloadingReceipt(true);
+
+    try {
+      // Step 1: Generate/get invoice for this booking
+      console.log('[ConfirmationStep] Generating invoice...');
+      const invoice = await bookingService.generateInvoice(bookingId);
+      console.log('[ConfirmationStep] Invoice generated:', invoice.id, invoice.invoice_number);
+
+      // Step 2: Download the invoice PDF using the invoice ID
+      console.log('[ConfirmationStep] Downloading invoice PDF:', invoice.id);
+      await invoiceService.downloadInvoice(invoice.id);
+      console.log('[ConfirmationStep] Invoice download initiated successfully');
+    } catch (error) {
+      console.error('[ConfirmationStep] Failed to download receipt:', error);
+      alert('Failed to download receipt. Please try again or contact support.');
+    } finally {
+      setIsDownloadingReceipt(false);
+    }
   };
 
   return (
@@ -145,25 +217,46 @@ export const ConfirmationStep: React.FC<ConfirmationStepProps> = ({
         </div>
       </div>
 
-      {/* Account Created */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-        <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
-          Your Account Has Been Created!
-        </h4>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          You can now access your booking portal to view your reservation details, communicate with
-          the host, and manage your booking.
-        </p>
-        <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Email</div>
-          <div className="font-medium text-gray-900 dark:text-white mb-3">
-            {guestEmail}
-          </div>
-          <div className="text-xs text-gray-500 dark:text-gray-500">
-            A confirmation email with your account details has been sent to this address.
+      {/* Account Status */}
+      {isNewUser ? (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
+            📧 Check Your Email
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            We've created your account and sent you an email with a link to set your password.
+            Once you set your password, you can access your booking portal.
+          </p>
+          <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Email</div>
+            <div className="font-medium text-gray-900 dark:text-white mb-3">
+              {guestEmail}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-500">
+              Check your email for the password setup link and booking confirmation.
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
+            ✅ Booking Confirmed
+          </h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Your booking has been confirmed! Log in to your portal to view reservation details,
+            communicate with the host, and manage your booking.
+          </p>
+          <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Email</div>
+            <div className="font-medium text-gray-900 dark:text-white mb-3">
+              {guestEmail}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-500">
+              A booking confirmation has been sent to this address.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -172,7 +265,7 @@ export const ConfirmationStep: React.FC<ConfirmationStepProps> = ({
           onClick={handleGoToPortal}
           className="flex-1 flex items-center justify-center gap-2"
         >
-          Go to My Portal
+          {isNewUser ? 'Set Password & Access Portal' : 'Log into Portal'}
         </Button>
         <Button
           variant="outline"
@@ -185,9 +278,11 @@ export const ConfirmationStep: React.FC<ConfirmationStepProps> = ({
           variant="outline"
           onClick={handleDownloadReceipt}
           className="flex items-center justify-center gap-2"
+          disabled={isDownloadingReceipt}
+          isLoading={isDownloadingReceipt}
         >
           <HiDownload className="w-5 h-5" />
-          Download Receipt
+          {isDownloadingReceipt ? 'Downloading...' : 'Download Receipt'}
         </Button>
       </div>
 

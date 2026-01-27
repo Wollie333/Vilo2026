@@ -81,6 +81,7 @@ export function Header({
   onLogout,
   onHelpClick,
   rightContent,
+  headerActions,
 }: HeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -115,19 +116,28 @@ export function Header({
 
   return (
     <header className="h-14 px-5 flex items-center justify-between bg-white dark:bg-dark-sidebar border-b border-gray-200 dark:border-dark-border">
-      {/* Left: Title */}
-      <div>
-        {title && (
-          <h1 className="text-sm font-semibold text-gray-900 dark:text-white">
-            {title}
-          </h1>
-        )}
-        {subtitle && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
+      {/* Left: Title with inline actions */}
+      <div className="flex items-center justify-between flex-1 mr-4">
+        <div>
+          {title && (
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">
+              {title}
+            </h1>
+          )}
+          {subtitle && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
+          )}
+        </div>
+
+        {/* Header Actions - Inline with title */}
+        {headerActions && (
+          <div className="flex items-center gap-2">
+            {headerActions}
+          </div>
         )}
       </div>
 
-      {/* Right: Actions */}
+      {/* Right: Utility Actions */}
       <div className="flex items-center gap-2">
         {rightContent}
 
@@ -208,7 +218,7 @@ export function Header({
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             onMouseEnter={() => setShowUserTooltip(true)}
             onMouseLeave={() => setShowUserTooltip(false)}
-            className="flex items-center gap-2 p-1 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
+            className="flex items-center gap-2 p-1.5 hover:bg-primary-100 dark:hover:bg-primary dark:hover:text-black rounded-md transition-colors"
           >
             {userAvatar ? (
               <img

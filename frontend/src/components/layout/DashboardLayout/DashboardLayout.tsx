@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayoutProps } from './DashboardLayout.types';
 import { Sidebar } from '../Sidebar';
 import { Header } from '../Header';
@@ -10,9 +10,29 @@ import { useProperty } from '@/context/PropertyContext';
 // Wrapper component for the subscription banner
 const SubscriptionBannerWrapper = () => {
   const { accessStatus, isLoading } = useSubscription();
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  // Check if banner was dismissed today
+  useEffect(() => {
+    const dismissedDate = localStorage.getItem('subscription_banner_dismissed');
+    if (dismissedDate) {
+      const today = new Date().toDateString();
+      const dismissed = new Date(dismissedDate).toDateString();
+      if (today === dismissed) {
+        setIsDismissed(true);
+      }
+    }
+  }, []);
+
+  // Handle banner dismissal
+  const handleDismiss = () => {
+    const today = new Date().toISOString();
+    localStorage.setItem('subscription_banner_dismissed', today);
+    setIsDismissed(true);
+  };
 
   // Don't show banner while loading or if no access status
-  if (isLoading || !accessStatus) return null;
+  if (isLoading || !accessStatus || isDismissed) return null;
 
   // Don't show banner if user has full access and doesn't require payment
   // But DO show if they're in trial (to show countdown) or have pending checkout
@@ -29,6 +49,7 @@ const SubscriptionBannerWrapper = () => {
       message={accessStatus.message}
       trialDaysRemaining={accessStatus.trialDaysRemaining}
       hasPendingCheckout={accessStatus.hasPendingCheckout}
+      onDismiss={handleDismiss}
     />
   );
 };
@@ -51,6 +72,7 @@ export function DashboardLayout({
   onNavItemClick,
   headerTitle,
   headerSubtitle,
+  headerActions,
   userName,
   userEmail,
   userAvatar,
@@ -159,6 +181,7 @@ export function DashboardLayout({
           <Header
             title={headerTitle}
             subtitle={headerSubtitle}
+            headerActions={headerActions}
             userName={userName}
             userEmail={userEmail}
             userAvatar={userAvatar}

@@ -275,6 +275,72 @@ export async function getGuestReviews(guestId: string): Promise<Review[]> {
   return reviews || [];
 }
 
+/**
+ * Get all reviews for a specific user (written by user + for user's properties)
+ * Used by super admin to view all user's reviews
+ */
+export async function getReviewsByUser(
+  userId: string,
+  params?: { status?: string; rating?: number; property_id?: string }
+): Promise<Review[]> {
+  // First, get all property IDs owned by this user
+  const { data: properties } = await supabaseAdmin
+    .from('properties')
+    .select('id')
+    .eq('owner_id', userId);
+
+  const propertyIds = properties?.map((p) => p.id) || [];
+
+  // Build query to fetch reviews where:
+  // 1. User wrote the review (guest_id = userId)
+  // 2. OR review is for a property owned by user (property_id in propertyIds)
+  let query = supabaseAdmin
+    .from('property_reviews')
+    .select(`
+      *,
+      property:properties!inner (
+        id,
+        name
+      )
+    `);
+
+  // Apply OR filter: reviewer OR property owner
+  if (propertyIds.length > 0) {
+    query = query.or(`guest_id.eq.${userId},property_id.in.(${propertyIds.join(',')})`);
+  } else {
+    // If user has no properties, only show reviews written by them
+    query = query.eq('guest_id', userId);
+  }
+
+  // Apply additional filters
+  if (params?.property_id) {
+    query = query.eq('property_id', params.property_id);
+  }
+
+  if (params?.status) {
+    if (params.status === 'withdrawn') {
+      query = query.not('withdrawn_at', 'is', null);
+    } else if (params.status === 'published') {
+      query = query.is('withdrawn_at', null);
+    }
+  }
+
+  if (params?.rating) {
+    query = query.eq('overall_rating', params.rating);
+  }
+
+  // Order by creation date
+  query = query.order('created_at', { ascending: false });
+
+  const { data: reviews, error } = await query;
+
+  if (error) {
+    throw new AppError('DATABASE_ERROR', `Failed to fetch user reviews: ${error.message}`);
+  }
+
+  return reviews || [];
+}
+
 // ============================================================================
 // ELIGIBILITY CHECKING
 // ============================================================================
@@ -415,6 +481,71 @@ export async function getEligibleBookingsForReview(
   });
 
   return eligibleBookings;
+}
+
+/**
+ * Get review status for a specific booking (for BookingDetailPage integration)
+ */
+export async function getBookingReviewStatus(bookingId: string): Promise<{
+  eligible: boolean;
+  hasReview: boolean;
+  review: Review | null;
+  daysRemaining: number;
+  reason?: string;
+}> {
+  // Get booking details
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from('bookings')
+    .select('*')
+    .eq('id', bookingId)
+    .single();
+
+  if (bookingError || !booking) {
+    return {
+      eligible: false,
+      hasReview: false,
+      review: null,
+      daysRemaining: 0,
+      reason: 'Booking not found',
+    };
+  }
+
+  // Check if review already exists
+  const { data: existingReview } = await supabaseAdmin
+    .from('property_reviews')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .single();
+
+  if (existingReview) {
+    return {
+      eligible: false,
+      hasReview: true,
+      review: existingReview,
+      daysRemaining: 0,
+      reason: 'Review already submitted',
+    };
+  }
+
+  // Check eligibility
+  const eligibility = await checkReviewEligibility(bookingId, booking.guest_id);
+
+  // Calculate days remaining if checked out
+  let daysRemaining = 0;
+  if (booking.checked_out_at) {
+    const checkedOutDate = new Date(booking.checked_out_at);
+    const expiryDate = new Date(checkedOutDate.getTime() + ELIGIBILITY_DAYS * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    daysRemaining = Math.max(0, Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  }
+
+  return {
+    eligible: eligibility.eligible,
+    hasReview: false,
+    review: null,
+    daysRemaining,
+    reason: eligibility.reason,
+  };
 }
 
 // ============================================================================

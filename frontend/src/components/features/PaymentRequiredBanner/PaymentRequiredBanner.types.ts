@@ -4,4 +4,5 @@ export interface PaymentRequiredBannerProps {
   checkoutUrl?: string;
   hasPendingCheckout?: boolean;
   supportEmail?: string;
+  onDismiss?: () => void;
 }

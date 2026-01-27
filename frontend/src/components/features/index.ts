@@ -178,6 +178,7 @@ export {
   ReviewsTab,
   LocationTab,
   PromotionsTab,
+  QuoteRequestTab,
 } from './PropertyDetail';
 export type {
   ImageLightboxProps,
@@ -190,6 +191,7 @@ export type {
   ReviewsTabProps,
   LocationTabProps,
   PromotionsTabProps,
+  QuoteRequestTabProps,
 } from './PropertyDetail';
 
 export { SearchModal } from './SearchModal';
@@ -197,3 +199,21 @@ export type { SearchModalProps } from './SearchModal';
 
 export { PaymentProofUpload } from './PaymentProofUpload';
 export type { PaymentProofUploadProps, UploadedFileInfo } from './PaymentProofUpload';
+
+export { TermsModal, PolicyModal } from './Property';
+export type { TermsModalProps } from './Property/TermsModal';
+export type { PolicyModalProps, PolicyType, CancellationPolicyData } from './Property/PolicyModal';
+
+export { ClaimPromoModal } from './ClaimPromoModal';
+export type { ClaimPromoModalProps } from './ClaimPromoModal';
+
+export { PausedAccountModal } from './PausedAccountModal';
+export type { PausedAccountModalProps } from './PausedAccountModal';
+
+export { PendingUpgradeNotification } from './PendingUpgradeNotification';
+export type { PendingUpgradeNotificationProps } from './PendingUpgradeNotification';
+
+export { UpgradeConfirmationModal } from './UpgradeConfirmationModal';
+export type { UpgradeConfirmationModalProps } from './UpgradeConfirmationModal';
+
+export { PasswordChangePrompt } from './PasswordChangePrompt';

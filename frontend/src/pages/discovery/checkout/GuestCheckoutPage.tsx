@@ -29,6 +29,7 @@ interface Property {
   address?: string;
   city?: string;
   featured_image?: string;
+  terms_and_conditions?: string | null;
 }
 
 interface CheckoutState {
@@ -334,6 +335,11 @@ export const GuestCheckoutPage: React.FC = () => {
             checkInDate={checkoutState.checkIn}
             onContinue={handleGuestDetailsContinue}
             onBack={() => setCurrentStep(1)}
+            propertyTerms={property?.terms_and_conditions}
+            propertyPrivacyPolicy={undefined}
+            propertyRefundPolicy={undefined}
+            propertyName={property?.name}
+            propertyId={property?.id}
           />
         )}
 

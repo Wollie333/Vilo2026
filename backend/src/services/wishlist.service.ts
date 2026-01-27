@@ -3,7 +3,7 @@
  * Handles user wishlist/favorites functionality
  */
 
-import { supabase } from '../config/supabase';
+import { getAdminClient } from '../config/supabase';
 import type {
   WishlistWithProperty,
   WishlistResponse,
@@ -20,7 +20,7 @@ export async function addToWishlist(
   notes?: string
 ): Promise<void> {
   // Check if property exists and is publicly listed
-  const { data: property, error: propError } = await supabase
+  const { data: property, error: propError } = await getAdminClient()
     .from('properties')
     .select('id, is_listed_publicly, is_active')
     .eq('id', propertyId)
@@ -35,7 +35,7 @@ export async function addToWishlist(
   }
 
   // Check if already in wishlist
-  const { data: existing } = await supabase
+  const { data: existing } = await getAdminClient()
     .from('user_wishlists')
     .select('id')
     .eq('user_id', userId)
@@ -47,7 +47,7 @@ export async function addToWishlist(
   }
 
   // Add to wishlist
-  const { error: insertError } = await supabase
+  const { error: insertError } = await getAdminClient()
     .from('user_wishlists')
     .insert({
       user_id: userId,
@@ -68,7 +68,7 @@ export async function removeFromWishlist(
   userId: string,
   propertyId: string
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getAdminClient()
     .from('user_wishlists')
     .delete()
     .eq('user_id', userId)
@@ -85,7 +85,7 @@ export async function removeFromWishlist(
  */
 export async function getUserWishlist(userId: string): Promise<WishlistResponse> {
   // Fetch wishlist items
-  const { data: wishlistItems, error } = await supabase
+  const { data: wishlistItems, error } = await getAdminClient()
     .from('user_wishlists')
     .select(`
       id,
@@ -111,7 +111,7 @@ export async function getUserWishlist(userId: string): Promise<WishlistResponse>
 
   // Fetch property details
   const propertyIds = wishlistItems.map((item) => item.property_id);
-  const { data: properties, error: propError } = await supabase
+  const { data: properties, error: propError } = await getAdminClient()
     .from('properties')
     .select(`
       id,
@@ -141,7 +141,7 @@ export async function getUserWishlist(userId: string): Promise<WishlistResponse>
   }
 
   // Fetch pricing data
-  const { data: roomPricing } = await supabase
+  const { data: roomPricing } = await getAdminClient()
     .from('rooms')
     .select('property_id, base_price_per_night')
     .in('property_id', propertyIds)
@@ -149,7 +149,7 @@ export async function getUserWishlist(userId: string): Promise<WishlistResponse>
     .eq('is_paused', false);
 
   // Fetch review stats
-  const { data: reviewStats } = await supabase
+  const { data: reviewStats } = await getAdminClient()
     .from('property_reviews')
     .select('property_id, rating_overall')
     .in('property_id', propertyIds)
@@ -219,7 +219,7 @@ export async function isPropertyInWishlist(
   userId: string,
   propertyId: string
 ): Promise<WishlistStatusResponse> {
-  const { data: wishlist, error } = await supabase
+  const { data: wishlist, error } = await getAdminClient()
     .from('user_wishlists')
     .select('id')
     .eq('user_id', userId)
@@ -245,7 +245,7 @@ export async function updateWishlistNotes(
   propertyId: string,
   notes: string
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await getAdminClient()
     .from('user_wishlists')
     .update({ notes })
     .eq('user_id', userId)

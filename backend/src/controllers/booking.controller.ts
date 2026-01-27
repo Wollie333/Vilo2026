@@ -8,6 +8,7 @@ import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import * as bookingService from '../services/booking.service';
+import { generateBookingInvoice, getInvoiceDownloadUrl } from '../services/invoice.service';
 import {
   CreateBookingRequest,
   UpdateBookingRequest,
@@ -33,7 +34,10 @@ import {
 
 /**
  * GET /api/bookings
- * List all bookings for the current user's properties
+ * List bookings for the current user
+ * - Default: bookings at properties user owns (bookingType=received)
+ * - With bookingType=made: bookings user made as guest at other properties
+ * - With bookingType=all: both types combined
  */
 export const listBookings = async (
   req: Request,
@@ -59,6 +63,7 @@ export const listBookings = async (
       sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
       page: req.query.page ? parseInt(req.query.page as string) : undefined,
       limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+      bookingType: req.query.bookingType as 'received' | 'made' | 'all' | undefined,
     };
 
     const result = await bookingService.listBookings(req.user!.id, params);
@@ -79,7 +84,11 @@ export const getBooking = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const booking = await bookingService.getBookingById(id, req.user!.id);
+
+    // Check if user is super admin (can view all bookings)
+    const isSuperAdmin = req.userProfile?.user_type?.name === 'super_admin';
+
+    const booking = await bookingService.getBookingById(id, req.user!.id, isSuperAdmin);
     sendSuccess(res, booking);
   } catch (error) {
     next(error);
@@ -626,9 +635,6 @@ export const getBookingInvoice = async (
     // Get the booking first to verify ownership
     const booking = await bookingService.getBookingById(id, req.user!.id);
 
-    // Import invoice service dynamically to avoid circular dependencies
-    const { generateBookingInvoice } = await import('../services/invoice.service');
-
     // Get or generate the invoice
     const invoice = await generateBookingInvoice(booking, req.user!.id);
 
@@ -652,9 +658,6 @@ export const downloadBookingInvoice = async (
 
     // Get the booking first to verify ownership
     const booking = await bookingService.getBookingById(id, req.user!.id);
-
-    // Import invoice service dynamically to avoid circular dependencies
-    const { generateBookingInvoice, getInvoiceDownloadUrl } = await import('../services/invoice.service');
 
     // Get or generate the invoice
     const invoice = await generateBookingInvoice(booking, req.user!.id);
@@ -723,7 +726,7 @@ export const getBookingHistory = async (req: Request, res: Response) => {
         error: error.message,
       });
     } else {
-      logger.error('Error fetching booking history:', error);
+      logger.error('Error fetching booking history:', error instanceof Error ? { message: error.message, stack: error.stack } : { error });
       res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -771,29 +774,29 @@ export const uploadPaymentProof = async (
     const userId = req.user?.id;
 
     if (!userId) {
-      throw AppError.unauthorized('Authentication required');
+      throw new AppError('UNAUTHORIZED', 'Authentication required');
     }
 
     const uploadData: UploadPaymentProofRequest = req.body;
 
     // Validate required fields
     if (!uploadData.file_url) {
-      throw AppError.badRequest('file_url is required');
+      throw new AppError('BAD_REQUEST', 'file_url is required');
     }
     if (!uploadData.file_name) {
-      throw AppError.badRequest('file_name is required');
+      throw new AppError('BAD_REQUEST', 'file_name is required');
     }
     if (!uploadData.file_size) {
-      throw AppError.badRequest('file_size is required');
+      throw new AppError('BAD_REQUEST', 'file_size is required');
     }
     if (!uploadData.mime_type) {
-      throw AppError.badRequest('mime_type is required');
+      throw new AppError('BAD_REQUEST', 'mime_type is required');
     }
 
     // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (uploadData.file_size > maxSize) {
-      throw AppError.badRequest('File size must not exceed 5MB');
+      throw new AppError('BAD_REQUEST', 'File size must not exceed 5MB');
     }
 
     // Validate MIME type
@@ -805,7 +808,7 @@ export const uploadPaymentProof = async (
       'image/webp',
     ];
     if (!allowedTypes.includes(uploadData.mime_type)) {
-      throw AppError.badRequest('Invalid file type. Only PDF, JPEG, PNG, and WebP are allowed');
+      throw new AppError('BAD_REQUEST', 'Invalid file type. Only PDF, JPEG, PNG, and WebP are allowed');
     }
 
     const result = await bookingService.uploadPaymentProof(bookingId, uploadData, userId);
@@ -816,7 +819,7 @@ export const uploadPaymentProof = async (
       fileUrl: result.payment_proof_url,
     });
 
-    sendSuccess(res, result, 'Payment proof uploaded successfully');
+    sendSuccess(res, result, 200);
   } catch (error) {
     next(error);
   }
@@ -836,22 +839,22 @@ export const verifyEFTPayment = async (
     const userId = req.user?.id;
 
     if (!userId) {
-      throw AppError.unauthorized('Authentication required');
+      throw new AppError('UNAUTHORIZED', 'Authentication required');
     }
 
     const verifyData: VerifyEFTPaymentRequest = req.body;
 
     // Validate required fields
     if (!verifyData.action) {
-      throw AppError.badRequest('action is required (approve or reject)');
+      throw new AppError('BAD_REQUEST', 'action is required (approve or reject)');
     }
 
     if (!['approve', 'reject'].includes(verifyData.action)) {
-      throw AppError.badRequest('action must be either "approve" or "reject"');
+      throw new AppError('BAD_REQUEST', 'action must be either "approve" or "reject"');
     }
 
     if (verifyData.action === 'reject' && !verifyData.rejection_reason) {
-      throw AppError.badRequest('rejection_reason is required when rejecting payment proof');
+      throw new AppError('BAD_REQUEST', 'rejection_reason is required when rejecting payment proof');
     }
 
     const result = await bookingService.verifyEFTPayment(bookingId, verifyData, userId);
@@ -863,7 +866,7 @@ export const verifyEFTPayment = async (
       success: result.success,
     });
 
-    sendSuccess(res, result, result.message);
+    sendSuccess(res, result, 200);
   } catch (error) {
     next(error);
   }

@@ -53,6 +53,41 @@ const imageUpload = multer({
 
 const router = Router();
 
+// ============================================================================
+// PUBLIC ROUTES (no authentication required)
+// ============================================================================
+
+/**
+ * POST /api/rooms/:id/availability/public
+ * Check room availability (PUBLIC - for guest bookings)
+ */
+export const publicRoomRoutes = Router();
+
+// Debug logging middleware for public routes
+publicRoomRoutes.use((req, _res, next) => {
+  console.log('🔓 [PUBLIC_ROOM_ROUTES] Request received:', req.method, req.path);
+  console.log('🔓 [PUBLIC_ROOM_ROUTES] Full URL:', req.originalUrl);
+  console.log('🔓 [PUBLIC_ROOM_ROUTES] Params:', req.params);
+  next();
+});
+
+publicRoomRoutes.post(
+  '/:id/availability/public',
+  (req, _res, next) => {
+    console.log('✅ [PUBLIC_ROOM_ROUTES] MATCHED availability/public route!');
+    console.log('  Room ID:', req.params.id);
+    console.log('  Body:', req.body);
+    next();
+  },
+  validateParams(roomIdParamSchema),
+  validateBody(availabilityCheckSchema),
+  roomController.checkAvailability
+);
+
+// ============================================================================
+// AUTHENTICATED ROUTES
+// ============================================================================
+
 // All routes require authentication
 router.use(authenticate);
 router.use(loadUserProfile);

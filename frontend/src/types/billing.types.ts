@@ -32,7 +32,7 @@ export interface CreateUserTypeData {
 export interface UpdateUserTypeData {
   display_name?: string;
   description?: string;
-  category?: UserTypeCategory; // NEW - can update
+  // Note: category cannot be changed after creation for data integrity
   can_have_subscription?: boolean;
   can_have_team?: boolean;
   sort_order?: number;
@@ -42,7 +42,7 @@ export interface UpdateUserTypeData {
 // Subscription Status (replaces billing_statuses table)
 // ============================================================================
 
-export type SubscriptionStatus = 'active' | 'trial' | 'cancelled' | 'expired' | 'past_due';
+export type SubscriptionStatus = 'active' | 'trial' | 'cancelled' | 'expired' | 'past_due' | 'paused';
 
 export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   active: 'Active',
@@ -50,6 +50,7 @@ export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   cancelled: 'Cancelled',
   expired: 'Expired',
   past_due: 'Past Due',
+  paused: 'Paused',
 };
 
 export const SUBSCRIPTION_STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -57,6 +58,7 @@ export const SUBSCRIPTION_STATUS_COLORS: Record<SubscriptionStatus, string> = {
   trial: 'blue',
   cancelled: 'gray',
   expired: 'red',
+  paused: 'yellow',
   past_due: 'yellow',
 };
 
@@ -127,6 +129,15 @@ export interface SubscriptionType {
   billing_types: BillingTypesEnabled; // Which billing types are enabled
   pricing_tiers: PricingTiersEnhanced; // Detailed config per billing type
 
+  // NEW: CMS fields for checkout page customization
+  slug: string; // URL-friendly identifier for /plans/:slug
+  custom_headline?: string | null; // Custom headline for checkout page
+  custom_description?: string | null; // Detailed description for checkout
+  custom_features?: string[] | null; // JSONB array of custom feature strings
+  custom_cta_text?: string | null; // Custom CTA button text
+  checkout_badge?: string | null; // Badge text (e.g., "Most Popular")
+  checkout_accent_color?: string | null; // Hex color for branding
+
   created_at: string;
   updated_at: string;
 }
@@ -152,6 +163,15 @@ export interface CreateSubscriptionTypeData {
   monthly_price_cents?: number;
   annual_price_cents?: number;
   one_off_price_cents?: number;
+
+  // NEW: CMS fields for checkout page customization
+  slug: string; // Required: URL-friendly identifier
+  custom_headline?: string;
+  custom_description?: string;
+  custom_features?: string[];
+  custom_cta_text?: string;
+  checkout_badge?: string;
+  checkout_accent_color?: string;
 }
 
 export interface UpdateSubscriptionTypeData {
@@ -174,6 +194,15 @@ export interface UpdateSubscriptionTypeData {
   monthly_price_cents?: number;
   annual_price_cents?: number;
   one_off_price_cents?: number;
+
+  // NEW: CMS fields for checkout page customization
+  slug?: string; // URL-friendly identifier
+  custom_headline?: string;
+  custom_description?: string;
+  custom_features?: string[];
+  custom_cta_text?: string;
+  checkout_badge?: string;
+  checkout_accent_color?: string;
 }
 
 // ============================================================================
@@ -191,6 +220,7 @@ export interface UserSubscription {
   is_active: boolean;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  paused_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -288,11 +318,12 @@ export interface UserSubscriptionListResponse {
 // ============================================================================
 
 export const LIMIT_KEY_LABELS: Record<string, string> = {
-  max_properties: 'Max Properties',
-  max_rooms: 'Max Rooms',
-  max_team_members: 'Max Team Members',
-  max_bookings_per_month: 'Max Bookings/Month',
-  max_storage_mb: 'Storage (MB)',
+  max_properties: 'Properties',
+  max_rooms: 'Rooms',
+  max_team_members: 'Team Members',
+  max_companies: 'Companies',
+  max_bookings_per_month: 'Bookings per Month',
+  max_storage_mb: 'Storage',
 };
 
 export const DEFAULT_LIMITS: Record<string, number> = {

@@ -12,6 +12,12 @@ import {
   processEFTVerificationReminders,
   sendAbandonedCartRecoveryEmails,
 } from './services/booking-cron.service';
+import {
+  runWhatsAppCronJobs,
+  processWhatsAppQueue,
+  processScheduledMessages,
+  cleanupOldQueueItems,
+} from './services/whatsapp-cron.service';
 
 // ============================================================================
 // CRON JOB SCHEDULES
@@ -27,7 +33,10 @@ export function initializeCronJobs(): void {
   if (process.env.NODE_ENV === 'development') {
     console.log('🔧 Development mode: Running cron jobs on startup');
     runBookingCronJobs().catch((err) => {
-      console.error('Error running startup cron jobs:', err);
+      console.error('Error running startup booking cron jobs:', err);
+    });
+    runWhatsAppCronJobs().catch((err) => {
+      console.error('Error running startup WhatsApp cron jobs:', err);
     });
   }
 
@@ -112,7 +121,61 @@ export function initializeCronJobs(): void {
 
   console.log('✅ Scheduled: Abandoned Cart Recovery (Daily at 3:00 AM)');
 
-  console.log('🎯 All booking cron jobs initialized successfully');
+  // ============================================================================
+  // WHATSAPP JOBS
+  // ============================================================================
+
+  // ============================================================================
+  // JOB 6: WhatsApp Queue Processing - Every 5 minutes
+  // ============================================================================
+  cron.schedule('*/5 * * * *', async () => {
+    console.log('⏰ [CRON] Running WhatsApp queue processing');
+    try {
+      await processWhatsAppQueue();
+    } catch (error) {
+      console.error('❌ [CRON] WhatsApp queue processing failed:', error);
+    }
+  }, {
+    timezone: 'Africa/Johannesburg',
+  });
+
+  console.log('✅ Scheduled: WhatsApp Queue Processing (Every 5 minutes)');
+
+  // ============================================================================
+  // JOB 7: WhatsApp Scheduled Messages - Every 6 hours
+  // (Payment reminders and pre-arrival messages)
+  // ============================================================================
+  cron.schedule('0 */6 * * *', async () => {
+    console.log('⏰ [CRON] Running WhatsApp scheduled messages');
+    try {
+      await processScheduledMessages();
+    } catch (error) {
+      console.error('❌ [CRON] WhatsApp scheduled messages failed:', error);
+    }
+  }, {
+    timezone: 'Africa/Johannesburg',
+  });
+
+  console.log('✅ Scheduled: WhatsApp Scheduled Messages (Every 6 hours)');
+
+  // ============================================================================
+  // JOB 8: WhatsApp Queue Cleanup - Daily at 4:00 AM
+  // (Runs after abandoned cart recovery)
+  // ============================================================================
+  cron.schedule('0 4 * * *', async () => {
+    console.log('⏰ [CRON] Running WhatsApp queue cleanup');
+    try {
+      await cleanupOldQueueItems();
+    } catch (error) {
+      console.error('❌ [CRON] WhatsApp queue cleanup failed:', error);
+    }
+  }, {
+    timezone: 'Africa/Johannesburg',
+  });
+
+  console.log('✅ Scheduled: WhatsApp Queue Cleanup (Daily at 4:00 AM)');
+
+  console.log('🎯 All cron jobs initialized successfully (Booking + WhatsApp)');
 }
 
 /**
@@ -121,4 +184,5 @@ export function initializeCronJobs(): void {
 export async function runManualCronJobs(): Promise<void> {
   console.log('🔧 Running manual cron jobs...');
   await runBookingCronJobs();
+  await runWhatsAppCronJobs();
 }

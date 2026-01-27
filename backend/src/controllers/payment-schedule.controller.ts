@@ -17,7 +17,7 @@ export const getBookingSchedule = async (req: Request, res: Response): Promise<v
     const { id } = req.params;
 
     if (!id) {
-      throw new AppError('Booking ID is required', 400);
+      throw new AppError('BAD_REQUEST', 'Booking ID is required');
     }
 
     const schedule = await getBookingPaymentSchedule(id);

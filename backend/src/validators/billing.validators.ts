@@ -31,6 +31,7 @@ export const updateUserTypeSchema = z.object({
   can_have_subscription: z.boolean().optional(),
   can_have_team: z.boolean().optional(),
   sort_order: z.number().int().min(0).optional(),
+  // Note: category and name cannot be changed after creation for data integrity
 });
 
 // ============================================================================
@@ -102,45 +103,67 @@ export const createSubscriptionTypeSchema = z.object({
     .regex(/^[a-z_]+$/, 'Name must be lowercase with underscores only'),
   display_name: z.string().min(1, 'Display name is required').max(100),
   description: z.string().max(500).optional(),
-  billing_cycle_days: z.number().int().min(1).max(730).optional().nullable(),
-  is_recurring: z.boolean().default(true),
-  price_cents: z.number().int().min(0).default(0), // Legacy - use pricing instead
   currency: z.string().length(3).default('USD'),
   trial_period_days: z.number().int().min(0).max(365).optional().nullable(),
   is_active: z.boolean().default(true),
   sort_order: z.number().int().min(0).default(0),
-  limits: limitsSchema, // Embedded JSONB limits
-  pricing: pricingSchema, // Embedded JSONB pricing tiers - LEGACY
+  limits: limitsSchema.optional().default({}), // Embedded JSONB limits
 
-  // NEW: Multi-billing support
+  // Multi-billing support
   billing_types: billingTypesEnabledSchema.optional(), // Which billing types to enable
   pricing_tiers: pricingTiersEnhancedSchema.optional(), // Config for each billing type
   // Alternative: Individual price inputs (UI convenience)
   monthly_price_cents: z.number().int().min(0).optional(),
   annual_price_cents: z.number().int().min(0).optional(),
   one_off_price_cents: z.number().int().min(0).optional(),
+
+  // CMS fields for checkout page customization
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
+  custom_headline: z.string().max(200).optional().nullable(),
+  custom_description: z.string().max(1000).optional().nullable(),
+  custom_features: z.array(z.string().max(200)).optional().default([]),
+  custom_cta_text: z.string().max(50).optional().nullable(),
+  checkout_badge: z.string().max(50).optional().nullable(),
+  checkout_accent_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color').optional().nullable(),
+
+  // Legacy fields (accepted but ignored - for backward compatibility)
+  billing_cycle_days: z.number().int().min(1).max(730).optional().nullable(),
+  is_recurring: z.boolean().optional(),
+  price_cents: z.number().int().min(0).optional(),
+  pricing: pricingSchema.optional(),
 });
 
 export const updateSubscriptionTypeSchema = z.object({
   display_name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional().nullable(),
-  billing_cycle_days: z.number().int().min(1).max(730).optional().nullable(),
-  is_recurring: z.boolean().optional(),
-  price_cents: z.number().int().min(0).optional(), // Legacy - use pricing instead
   currency: z.string().length(3).optional(),
   trial_period_days: z.number().int().min(0).max(365).optional().nullable(),
   is_active: z.boolean().optional(),
   sort_order: z.number().int().min(0).optional(),
   limits: limitsSchema.optional(), // Embedded JSONB limits
-  pricing: pricingSchema.optional(), // Embedded JSONB pricing tiers - LEGACY
 
-  // NEW: Multi-billing support
+  // Multi-billing support
   billing_types: billingTypesEnabledSchema.optional(), // Which billing types to enable
   pricing_tiers: pricingTiersEnhancedSchema.optional(), // Config for each billing type
   // Alternative: Individual price inputs (UI convenience)
   monthly_price_cents: z.number().int().min(0).optional(),
   annual_price_cents: z.number().int().min(0).optional(),
   one_off_price_cents: z.number().int().min(0).optional(),
+
+  // CMS fields for checkout page customization
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens').optional(),
+  custom_headline: z.string().max(200).optional().nullable(),
+  custom_description: z.string().max(1000).optional().nullable(),
+  custom_features: z.array(z.string().max(200)).optional(),
+  custom_cta_text: z.string().max(50).optional().nullable(),
+  checkout_badge: z.string().max(50).optional().nullable(),
+  checkout_accent_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be a valid hex color').optional().nullable(),
+
+  // Legacy fields (accepted but ignored - for backward compatibility)
+  billing_cycle_days: z.number().int().min(1).max(730).optional().nullable(),
+  is_recurring: z.boolean().optional(),
+  price_cents: z.number().int().min(0).optional(),
+  pricing: pricingSchema.optional(),
 });
 
 export const subscriptionTypeListQuerySchema = z.object({

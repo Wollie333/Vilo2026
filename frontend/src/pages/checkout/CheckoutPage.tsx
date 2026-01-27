@@ -496,8 +496,9 @@ export const CheckoutPage: React.FC = () => {
 
       try {
         // Load plan details and payment methods in parallel
+        // Use getSubscriptionTypeBySlug since planId is a slug (e.g., "plus") not a UUID
         const [planData, methodsData] = await Promise.all([
-          billingService.getSubscriptionType(planId),
+          billingService.getSubscriptionTypeBySlug(planId),
           checkoutService.getPaymentMethods(),
         ]);
 
@@ -512,7 +513,7 @@ export const CheckoutPage: React.FC = () => {
 
         // Initialize checkout
         const checkoutData = await checkoutService.initializeCheckout({
-          subscription_type_id: planId,
+          subscription_type_id: planData.id, // Use UUID from fetched plan, not slug from URL
           billing_interval: initialInterval,
         });
 
@@ -530,11 +531,11 @@ export const CheckoutPage: React.FC = () => {
   // Reinitialize checkout when interval changes
   useEffect(() => {
     const reinitialize = async () => {
-      if (!planId || step === 'loading' || step === 'error') return;
+      if (!planId || !plan || step === 'loading' || step === 'error') return;
 
       try {
         const checkoutData = await checkoutService.initializeCheckout({
-          subscription_type_id: planId,
+          subscription_type_id: plan.id, // Use UUID from plan object
           billing_interval: selectedInterval,
         });
         setCheckout(checkoutData);
@@ -546,7 +547,7 @@ export const CheckoutPage: React.FC = () => {
     if (selectedInterval !== initialInterval) {
       reinitialize();
     }
-  }, [selectedInterval, planId, step, initialInterval]);
+  }, [selectedInterval, planId, plan, step, initialInterval]);
 
   // Handle Continue button - process payment
   const handleContinue = async () => {
@@ -597,9 +598,9 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  // Get the display price
-  const monthlyPrice = plan?.pricing?.monthly || 0;
-  const annualPrice = plan?.pricing?.annual || 0;
+  // Get the display price from pricing_tiers
+  const monthlyPrice = plan?.pricing_tiers?.monthly?.price_cents || 0;
+  const annualPrice = plan?.pricing_tiers?.annual?.price_cents || 0;
   const displayPrice = selectedInterval === 'monthly' ? monthlyPrice : annualPrice;
 
   // Calculate savings percentage for annual
@@ -960,11 +961,11 @@ export const CheckoutPage: React.FC = () => {
                 </div>
 
                 {/* Trial Info */}
-                {plan?.trial_period_days && plan.trial_period_days > 0 && (
+                {plan?.trial_period_days && plan.trial_period_days > 0 ? (
                   <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
                     Includes a {plan.trial_period_days}-day free trial
                   </p>
-                )}
+                ) : null}
               </div>
             </>
           )}

@@ -121,9 +121,15 @@ export const patchCompany = async (
   try {
     const { id } = req.params;
     const input: UpdateCompanyRequest = req.body;
+    console.log('🟢 [CompanyController] PATCH /companies/:id - Received update request');
+    console.log('🟢 [CompanyController] Company ID:', id);
+    console.log('🟢 [CompanyController] Request body:', JSON.stringify(input, null, 2));
+    console.log('🟢 [CompanyController] VAT Percentage in request:', input.vat_percentage);
     const company = await companyService.updateCompany(id, req.user!.id, input);
+    console.log('✅ [CompanyController] Company updated, returning:', JSON.stringify(company, null, 2));
     sendSuccess(res, company);
   } catch (error) {
+    console.error('❌ [CompanyController] Error updating company:', error);
     next(error);
   }
 };

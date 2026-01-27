@@ -25,9 +25,17 @@ export const createApp = (): Express => {
       origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
+
+        // Check if origin is in allowed list
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);
         }
+
+        // Allow *.localhost:5173, *.localhost:5174, etc. for subdomain testing
+        if (origin && /^http:\/\/[^.]+\.localhost:(5173|5174|5175|5176)$/.test(origin)) {
+          return callback(null, true);
+        }
+
         return callback(new Error('Not allowed by CORS'));
       },
       credentials: true,

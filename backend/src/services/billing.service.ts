@@ -28,6 +28,9 @@ import {
   Permission,
   PricingTiersEnhanced,
   BillingTypesEnabled,
+  SubscriptionDisplayInfo,
+  SUBSCRIPTION_STATUS_LABELS,
+  SUBSCRIPTION_STATUS_COLORS,
 } from '../types/billing.types';
 
 // ============================================================================
@@ -244,11 +247,11 @@ export const listSubscriptionTypes = async (
     throw new AppError('INTERNAL_ERROR', 'Failed to fetch subscription types');
   }
 
-  // Ensure limits and pricing are always objects
+  // Ensure limits are always objects
   return (data || []).map((item: any) => ({
     ...item,
     limits: item.limits || {},
-    pricing: item.pricing || { monthly: 0, annual: 0 },
+    // pricing: Removed legacy fallback - use pricing_tiers instead
   }));
 };
 
@@ -271,7 +274,7 @@ export const getSubscriptionType = async (id: string): Promise<SubscriptionType>
   return {
     ...data,
     limits: data.limits || {},
-    pricing: data.pricing || { monthly: 0, annual: 0 },
+    // pricing: Removed legacy fallback - use pricing_tiers instead
   };
 };
 
@@ -288,7 +291,33 @@ export const getSubscriptionTypeByName = async (name: string): Promise<Subscript
     .single();
 
   if (error) return null;
-  return { ...data, limits: data.limits || {}, pricing: data.pricing || { monthly: 0, annual: 0 } };
+  return { ...data, limits: data.limits || {} }; // pricing: Removed legacy fallback
+};
+
+/**
+ * Get subscription type by slug (for public /plans/:slug checkout pages)
+ * Only returns active plans
+ */
+export const getSubscriptionTypeBySlug = async (slug: string): Promise<SubscriptionType> => {
+  const supabase = getAdminClient();
+
+  const { data, error } = await supabase
+    .from('subscription_types')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true) // Only return active plans
+    .single();
+
+  if (error || !data) {
+    throw new AppError('NOT_FOUND', 'Subscription plan not found');
+  }
+
+  return {
+    ...data,
+    limits: data.limits || {},
+    // pricing: Removed legacy fallback - use pricing_tiers instead
+    custom_features: data.custom_features || [],
+  };
 };
 
 /**
@@ -299,6 +328,10 @@ export const createSubscriptionType = async (
   actorId: string
 ): Promise<SubscriptionType> => {
   const supabase = getAdminClient();
+
+  console.log('🎯 [SERVICE] createSubscriptionType called');
+  console.log('🎯 [SERVICE] Input data:', JSON.stringify(input, null, 2));
+  console.log('🎯 [SERVICE] Actor ID:', actorId);
 
   const existing = await getSubscriptionTypeByName(input.name);
   if (existing) {
@@ -312,12 +345,6 @@ export const createSubscriptionType = async (
       throw new AppError('VALIDATION_ERROR', 'At least one billing type must be enabled');
     }
   }
-
-  // Build default pricing from price_cents if pricing not provided (backward compatibility)
-  const defaultPricing = {
-    monthly: input.price_cents ?? 0,
-    annual: (input.price_cents ?? 0) * 12,
-  };
 
   // Build pricing_tiers from individual price inputs (UI convenience)
   const pricingTiers: PricingTiersEnhanced = {};
@@ -344,6 +371,8 @@ export const createSubscriptionType = async (
     };
   }
 
+  console.log('🔧 [SERVICE] Built pricing_tiers:', JSON.stringify(pricingTiers, null, 2));
+
   // Use provided pricing_tiers or build from individual inputs
   const finalPricingTiers = input.pricing_tiers || pricingTiers;
 
@@ -354,30 +383,50 @@ export const createSubscriptionType = async (
     one_off: input.is_recurring === false,
   };
 
+  console.log('🔧 [SERVICE] Final billing_types:', JSON.stringify(billingTypes, null, 2));
+  console.log('🔧 [SERVICE] Final pricing_tiers:', JSON.stringify(finalPricingTiers, null, 2));
+
+  const insertData = {
+    name: input.name,
+    display_name: input.display_name,
+    description: input.description || null,
+    currency: input.currency ?? 'USD',
+    trial_period_days: input.trial_period_days ?? null,
+    is_active: input.is_active ?? true,
+    sort_order: input.sort_order ?? 0,
+    limits: input.limits || {},
+    billing_types: billingTypes,
+    pricing_tiers: finalPricingTiers,
+    // CMS fields for checkout page
+    slug: input.slug,
+    custom_headline: input.custom_headline || null,
+    custom_description: input.custom_description || null,
+    custom_features: input.custom_features || [],
+    custom_cta_text: input.custom_cta_text || 'Get Started',
+    checkout_badge: input.checkout_badge || null,
+    checkout_accent_color: input.checkout_accent_color || null,
+  };
+
+  console.log('📤 [SERVICE] Inserting into database:', JSON.stringify(insertData, null, 2));
+
   const { data, error } = await supabase
     .from('subscription_types')
-    .insert({
-      name: input.name,
-      display_name: input.display_name,
-      description: input.description || null,
-      billing_cycle_days: input.billing_cycle_days ?? null,
-      is_recurring: input.is_recurring ?? true,
-      price_cents: input.price_cents ?? 0,
-      currency: input.currency ?? 'USD',
-      trial_period_days: input.trial_period_days ?? null,
-      is_active: input.is_active ?? true,
-      sort_order: input.sort_order ?? 0,
-      limits: input.limits || {},
-      pricing: input.pricing ? { ...defaultPricing, ...input.pricing } : defaultPricing, // Legacy
-      billing_types: billingTypes, // NEW
-      pricing_tiers: finalPricingTiers, // NEW
-    })
+    .insert(insertData)
     .select()
     .single();
 
-  if (error || !data) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to create subscription type');
+  if (error) {
+    console.error('❌ [SERVICE] Database error:', error);
+    throw new AppError('INTERNAL_ERROR', `Failed to create subscription type: ${error.message}`);
   }
+
+  if (!data) {
+    console.error('❌ [SERVICE] No data returned from insert');
+    throw new AppError('INTERNAL_ERROR', 'Failed to create subscription type: No data returned');
+  }
+
+  console.log('✅ [SERVICE] Database insert successful');
+  console.log('📥 [SERVICE] Returned data:', JSON.stringify(data, null, 2));
 
   await createAuditLog({
     actor_id: actorId,
@@ -387,13 +436,16 @@ export const createSubscriptionType = async (
     new_data: { type: 'subscription_type', ...input },
   });
 
-  return {
+  const result = {
     ...data,
     limits: data.limits || {},
-    pricing: data.pricing || { monthly: 0, annual: 0 },
     billing_types: data.billing_types || { monthly: false, annual: false, one_off: false },
     pricing_tiers: data.pricing_tiers || {},
   };
+
+  console.log('✅ [SERVICE] Returning final result:', JSON.stringify(result, null, 2));
+
+  return result;
 };
 
 /**
@@ -404,45 +456,56 @@ export const updateSubscriptionType = async (
   input: UpdateSubscriptionTypeRequest,
   actorId: string
 ): Promise<SubscriptionType> => {
+  console.log('🔧 [BACKEND] updateSubscriptionType called');
+  console.log('🔧 [BACKEND] ID:', id);
+  console.log('🔧 [BACKEND] Actor ID:', actorId);
+  console.log('🔧 [BACKEND] Input data:', JSON.stringify(input, null, 2));
+
   const supabase = getAdminClient();
 
   const current = await getSubscriptionType(id);
+  console.log('🔧 [BACKEND] Current subscription loaded:', current.name);
 
   const updateData: any = { updated_at: new Date().toISOString() };
 
+  // Basic fields
   if (input.display_name !== undefined) updateData.display_name = input.display_name;
   if (input.description !== undefined) updateData.description = input.description;
-  if (input.billing_cycle_days !== undefined) updateData.billing_cycle_days = input.billing_cycle_days;
-  if (input.is_recurring !== undefined) updateData.is_recurring = input.is_recurring;
-  if (input.price_cents !== undefined) updateData.price_cents = input.price_cents;
   if (input.currency !== undefined) updateData.currency = input.currency;
   if (input.trial_period_days !== undefined) updateData.trial_period_days = input.trial_period_days;
   if (input.is_active !== undefined) updateData.is_active = input.is_active;
   if (input.sort_order !== undefined) updateData.sort_order = input.sort_order;
   if (input.limits !== undefined) updateData.limits = input.limits;
-  if (input.pricing !== undefined) {
-    // Merge with existing pricing to allow partial updates (legacy)
-    updateData.pricing = { ...(current.pricing || {}), ...input.pricing };
-  }
 
-  // NEW: Handle billing_types updates
+  // CRITICAL: Handle billing_types updates (which billing options are enabled)
   if (input.billing_types !== undefined) {
+    console.log('🔧 [BACKEND] billing_types received:', JSON.stringify(input.billing_types, null, 2));
     // Validate at least one billing type is enabled
     const hasEnabled = Object.values(input.billing_types).some((v) => v === true);
     if (!hasEnabled) {
       throw new AppError('VALIDATION_ERROR', 'At least one billing type must be enabled');
     }
     updateData.billing_types = input.billing_types;
+    console.log('✅ [BACKEND] billing_types will be updated');
+  } else {
+    console.warn('⚠️ [BACKEND] billing_types NOT provided in update request - this may cause display issues!');
   }
 
   // NEW: Handle pricing_tiers updates (either direct or from individual price inputs)
   if (input.pricing_tiers !== undefined) {
+    console.log('💰 [BACKEND] Updating pricing_tiers directly:', input.pricing_tiers);
     updateData.pricing_tiers = input.pricing_tiers;
   } else if (
     input.monthly_price_cents !== undefined ||
     input.annual_price_cents !== undefined ||
     input.one_off_price_cents !== undefined
   ) {
+    console.log('💰 [BACKEND] Building pricing_tiers from individual inputs:', {
+      monthly_price_cents: input.monthly_price_cents,
+      annual_price_cents: input.annual_price_cents,
+      one_off_price_cents: input.one_off_price_cents,
+    });
+
     // Build pricing_tiers from individual price inputs (UI convenience)
     const currentPricingTiers = current.pricing_tiers || {};
     const newPricingTiers: PricingTiersEnhanced = { ...currentPricingTiers };
@@ -454,6 +517,7 @@ export const updateSubscriptionType = async (
         billing_cycle_days: 30,
         trial_period_days: input.trial_period_days ?? current.trial_period_days ?? null,
       };
+      console.log('   ✓ Added monthly pricing:', newPricingTiers.monthly);
     }
     if (input.annual_price_cents !== undefined && input.billing_types?.annual !== false) {
       newPricingTiers.annual = {
@@ -462,16 +526,41 @@ export const updateSubscriptionType = async (
         billing_cycle_days: 365,
         trial_period_days: input.trial_period_days ?? current.trial_period_days ?? null,
       };
+      console.log('   ✓ Added annual pricing:', newPricingTiers.annual);
     }
     if (input.one_off_price_cents !== undefined && input.billing_types?.one_off !== false) {
       newPricingTiers.one_off = {
         enabled: true,
         price_cents: input.one_off_price_cents,
       };
+      console.log('   ✓ Added one-off pricing:', newPricingTiers.one_off);
     }
 
     updateData.pricing_tiers = newPricingTiers;
+    console.log('💰 [BACKEND] Final pricing_tiers to save:', updateData.pricing_tiers);
+  } else {
+    console.log('⚠️ [BACKEND] No pricing data provided in update');
   }
+
+  // CMS fields for checkout page customization
+  // Always update these fields if they're present in the input (even if null)
+  if (input.slug !== undefined && input.slug !== null) updateData.slug = input.slug;
+  if ('custom_headline' in input) updateData.custom_headline = input.custom_headline;
+  if ('custom_description' in input) updateData.custom_description = input.custom_description;
+  if ('custom_features' in input) updateData.custom_features = input.custom_features;
+  if ('custom_cta_text' in input) updateData.custom_cta_text = input.custom_cta_text;
+  if ('checkout_badge' in input) updateData.checkout_badge = input.checkout_badge;
+  if ('checkout_accent_color' in input) updateData.checkout_accent_color = input.checkout_accent_color;
+
+  console.log('🔧 [BACKEND] CMS Fields in updateData:', {
+    slug: updateData.slug,
+    custom_headline: updateData.custom_headline,
+    custom_description: updateData.custom_description,
+    checkout_badge: updateData.checkout_badge,
+    checkout_accent_color: updateData.checkout_accent_color,
+  });
+
+  console.log('🔧 [BACKEND] Full updateData being sent to Supabase:', JSON.stringify(updateData, null, 2));
 
   const { data, error } = await supabase
     .from('subscription_types')
@@ -480,9 +569,24 @@ export const updateSubscriptionType = async (
     .select()
     .single();
 
-  if (error || !data) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to update subscription type');
+  if (error) {
+    console.error('❌ [BACKEND] Supabase update error:', error);
+    throw new AppError('INTERNAL_ERROR', `Failed to update subscription type: ${error.message}`);
   }
+
+  if (!data) {
+    console.error('❌ [BACKEND] No data returned from Supabase update');
+    throw new AppError('INTERNAL_ERROR', 'Failed to update subscription type: No data returned');
+  }
+
+  console.log('✅ [BACKEND] Subscription updated successfully');
+  console.log('✅ [BACKEND] Updated CMS fields:', {
+    slug: data.slug,
+    custom_headline: data.custom_headline,
+    custom_description: data.custom_description,
+    checkout_badge: data.checkout_badge,
+    checkout_accent_color: data.checkout_accent_color,
+  });
 
   await createAuditLog({
     actor_id: actorId,
@@ -496,7 +600,7 @@ export const updateSubscriptionType = async (
   return {
     ...data,
     limits: data.limits || {},
-    pricing: data.pricing || { monthly: 0, annual: 0 },
+    // pricing: Removed - use pricing_tiers instead
     billing_types: data.billing_types || { monthly: false, annual: false, one_off: false },
     pricing_tiers: data.pricing_tiers || {},
   };
@@ -508,26 +612,77 @@ export const updateSubscriptionType = async (
 export const deleteSubscriptionType = async (id: string, actorId: string): Promise<void> => {
   const supabase = getAdminClient();
 
-  const current = await getSubscriptionType(id);
+  console.log('🗑️ [DELETE] Starting subscription type deletion:', id);
 
-  const { data: subscriptions } = await supabase
+  const current = await getSubscriptionType(id);
+  console.log('🗑️ [DELETE] Current subscription type loaded:', current.name);
+
+  // Check if subscription type is in use by active subscriptions
+  const { data: subscriptions, error: checkError } = await supabase
     .from('user_subscriptions')
     .select('id')
     .eq('subscription_type_id', id)
     .limit(1);
 
-  if (subscriptions && subscriptions.length > 0) {
-    throw new AppError('CONFLICT', 'Cannot delete subscription type that is in use');
+  if (checkError) {
+    console.error('🗑️ [DELETE] Error checking subscriptions:', checkError);
+    throw new AppError('INTERNAL_ERROR', `Failed to check subscription usage: ${checkError.message}`);
   }
 
+  if (subscriptions && subscriptions.length > 0) {
+    console.log('🗑️ [DELETE] Cannot delete - subscription type is in use by active subscriptions');
+    throw new AppError('CONFLICT', 'Cannot delete subscription type that has active subscriptions');
+  }
+
+  console.log('🗑️ [DELETE] No active subscriptions found');
+
+  // Check if subscription type is referenced by checkouts
+  const { data: checkouts, error: checkoutError } = await supabase
+    .from('checkouts')
+    .select('id')
+    .eq('subscription_type_id', id)
+    .limit(1);
+
+  if (checkoutError) {
+    console.error('🗑️ [DELETE] Error checking checkouts:', checkoutError);
+    throw new AppError('INTERNAL_ERROR', `Failed to check checkout usage: ${checkoutError.message}`);
+  }
+
+  if (checkouts && checkouts.length > 0) {
+    console.log('🗑️ [DELETE] Cannot delete - subscription type is referenced by checkouts');
+    throw new AppError(
+      'CONFLICT',
+      'Cannot delete subscription plan that has checkout history. To hide this plan from users, deactivate it instead by setting "Active" to off in the plan settings.'
+    );
+  }
+
+  console.log('🗑️ [DELETE] No checkouts found, proceeding with deletion');
+
+  // Delete related permissions first (even though CASCADE should handle this)
+  const { error: permError } = await supabase
+    .from('subscription_type_permissions')
+    .delete()
+    .eq('subscription_type_id', id);
+
+  if (permError) {
+    console.error('🗑️ [DELETE] Error deleting permissions:', permError);
+    // Don't fail here - continue with deletion as CASCADE should handle it
+  } else {
+    console.log('🗑️ [DELETE] Permissions deleted successfully');
+  }
+
+  // Delete the subscription type
   const { error } = await supabase
     .from('subscription_types')
     .delete()
     .eq('id', id);
 
   if (error) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to delete subscription type');
+    console.error('🗑️ [DELETE] Error deleting subscription type:', error);
+    throw new AppError('INTERNAL_ERROR', `Failed to delete subscription type: ${error.message}`);
   }
+
+  console.log('🗑️ [DELETE] Subscription type deleted successfully');
 
   await createAuditLog({
     actor_id: actorId,
@@ -536,6 +691,103 @@ export const deleteSubscriptionType = async (id: string, actorId: string): Promi
     entity_id: id,
     old_data: { type: 'subscription_type', ...current },
   });
+
+  console.log('🗑️ [DELETE] Audit log created, deletion complete');
+};
+
+/**
+ * Force delete a subscription type (deletes checkout history first)
+ * WARNING: This is destructive and removes billing history
+ */
+export const forceDeleteSubscriptionType = async (id: string, actorId: string): Promise<void> => {
+  const supabase = getAdminClient();
+
+  console.log('💥 [FORCE DELETE] Starting force deletion:', id);
+
+  const current = await getSubscriptionType(id);
+  console.log('💥 [FORCE DELETE] Current subscription type loaded:', current.name);
+
+  // Check if subscription type is in use by active subscriptions
+  const { data: subscriptions, error: checkError } = await supabase
+    .from('user_subscriptions')
+    .select('id')
+    .eq('subscription_type_id', id)
+    .limit(1);
+
+  if (checkError) {
+    console.error('💥 [FORCE DELETE] Error checking subscriptions:', checkError);
+    throw new AppError('INTERNAL_ERROR', `Failed to check subscription usage: ${checkError.message}`);
+  }
+
+  if (subscriptions && subscriptions.length > 0) {
+    console.log('💥 [FORCE DELETE] Cannot force delete - subscription type has active subscriptions');
+    throw new AppError('CONFLICT', 'Cannot delete subscription type that has active subscriptions. Users must cancel their subscriptions first.');
+  }
+
+  console.log('💥 [FORCE DELETE] No active subscriptions found');
+
+  // Count checkouts before deletion (for logging)
+  const { count: checkoutCount } = await supabase
+    .from('checkouts')
+    .select('id', { count: 'exact', head: true })
+    .eq('subscription_type_id', id);
+
+  console.log(`💥 [FORCE DELETE] Found ${checkoutCount || 0} checkout records to delete`);
+
+  // Delete checkouts (billing history) - DESTRUCTIVE
+  const { error: checkoutDeleteError } = await supabase
+    .from('checkouts')
+    .delete()
+    .eq('subscription_type_id', id);
+
+  if (checkoutDeleteError) {
+    console.error('💥 [FORCE DELETE] Error deleting checkouts:', checkoutDeleteError);
+    throw new AppError('INTERNAL_ERROR', `Failed to delete checkout records: ${checkoutDeleteError.message}`);
+  }
+
+  console.log(`💥 [FORCE DELETE] Deleted ${checkoutCount || 0} checkout records`);
+
+  // Delete related permissions
+  const { error: permError } = await supabase
+    .from('subscription_type_permissions')
+    .delete()
+    .eq('subscription_type_id', id);
+
+  if (permError) {
+    console.error('💥 [FORCE DELETE] Error deleting permissions:', permError);
+    // Don't fail here - continue with deletion
+  } else {
+    console.log('💥 [FORCE DELETE] Permissions deleted successfully');
+  }
+
+  // Delete the subscription type
+  const { error } = await supabase
+    .from('subscription_types')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('💥 [FORCE DELETE] Error deleting subscription type:', error);
+    throw new AppError('INTERNAL_ERROR', `Failed to delete subscription type: ${error.message}`);
+  }
+
+  console.log('💥 [FORCE DELETE] Subscription type deleted successfully');
+
+  await createAuditLog({
+    actor_id: actorId,
+    action: 'user.deleted' as any,
+    entity_type: 'user' as any,
+    entity_id: id,
+    old_data: {
+      type: 'subscription_type',
+      ...current,
+      force_deleted: true,
+      checkouts_deleted: checkoutCount || 0,
+    },
+  });
+
+  console.log('💥 [FORCE DELETE] Audit log created, force deletion complete');
+  console.log(`💥 [FORCE DELETE] SUMMARY: Deleted plan "${current.name}" and ${checkoutCount || 0} checkout records`);
 };
 
 // ============================================================================
@@ -556,9 +808,17 @@ export const getUserSubscription = async (userId: string): Promise<UserSubscript
     `)
     .eq('user_id', userId)
     .eq('is_active', true)
-    .single();
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle(); // Use maybeSingle() instead of single() - more forgiving
 
-  if (error || !data) {
+  if (error) {
+    logger.error('Error fetching user subscription', { userId, error: error.message });
+    return null;
+  }
+
+  if (!data) {
+    // No subscription found - this is normal, not an error
     return null;
   }
 
@@ -591,9 +851,25 @@ export const createUserSubscription = async (
 ): Promise<UserSubscriptionWithDetails> => {
   const supabase = getAdminClient();
 
+  // Check if user already has a subscription (for idempotency)
   const existing = await getUserSubscription(input.user_id);
   if (existing) {
-    throw new AppError('CONFLICT', 'User already has an active subscription');
+    // If same plan, return existing subscription (idempotent - no error)
+    if (existing.subscription_type_id === input.subscription_type_id) {
+      logger.info('Subscription already exists with same plan - returning existing (idempotent)', {
+        userId: input.user_id,
+        subscriptionId: existing.id,
+        planId: input.subscription_type_id,
+      });
+      return existing;
+    }
+
+    // Different plan - throw error (caller should use atomic replacement or delete first)
+    logger.warn(
+      `Attempted to create subscription for user ${input.user_id} who already has a different subscription ${existing.id}. ` +
+      'Caller should delete existing subscriptions first or use atomic replacement.'
+    );
+    throw new AppError('CONFLICT', 'User already has an active subscription with a different plan. Delete existing subscription first or use atomic replacement.');
   }
 
   await getSubscriptionType(input.subscription_type_id);
@@ -601,40 +877,77 @@ export const createUserSubscription = async (
   // Use status field directly (per migration 020)
   const status = input.status || 'active';
 
-  const { data, error } = await supabase
-    .from('user_subscriptions')
-    .insert({
-      user_id: input.user_id,
-      subscription_type_id: input.subscription_type_id,
-      status,
-      started_at: new Date().toISOString(),
-      expires_at: input.expires_at || null,
-      trial_ends_at: input.trial_ends_at || null,
-      is_active: true,
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .insert({
+        user_id: input.user_id,
+        subscription_type_id: input.subscription_type_id,
+        status,
+        started_at: new Date().toISOString(),
+        expires_at: input.expires_at || null,
+        trial_ends_at: input.trial_ends_at || null,
+        is_active: true,
+      })
+      .select()
+      .single();
 
-  if (error || !data) {
+    if (error) {
+      // Check if it's a unique constraint violation (race condition)
+      if (error.code === '23505' && error.message?.includes('user_subscriptions_user_id_key')) {
+        logger.warn('Caught duplicate key error - fetching existing subscription (race condition)', {
+          userId: input.user_id,
+          error: error.message,
+        });
+
+        // Fetch and return existing subscription instead of failing
+        const existingAfterRace = await getUserSubscription(input.user_id);
+        if (existingAfterRace) {
+          logger.info('Returning existing subscription after race condition', {
+            userId: input.user_id,
+            subscriptionId: existingAfterRace.id,
+          });
+          return existingAfterRace;
+        }
+
+        // If we still can't find it, something is very wrong
+        throw new AppError('INTERNAL_ERROR', 'Duplicate key error but subscription not found');
+      }
+
+      // Other errors
+      throw error;
+    }
+
+    if (!data) {
+      throw new AppError('INTERNAL_ERROR', 'Subscription insert returned no data');
+    }
+
+    await createAuditLog({
+      actor_id: actorId,
+      action: 'user.updated' as any,
+      entity_type: 'user',
+      entity_id: input.user_id,
+      new_data: { type: 'user_subscription', ...input },
+    });
+
+    const result = await getUserSubscription(input.user_id);
+    if (!result) {
+      throw new AppError('INTERNAL_ERROR', 'Failed to fetch created subscription');
+    }
+    return result;
+  } catch (err: any) {
     console.error('=== CREATE SUBSCRIPTION ERROR ===');
-    console.error('Error:', error);
+    console.error('Error:', err);
     console.error('Input:', JSON.stringify(input, null, 2));
-    throw new AppError('INTERNAL_ERROR', `Failed to create user subscription: ${error?.message || 'Unknown error'}`);
-  }
 
-  await createAuditLog({
-    actor_id: actorId,
-    action: 'user.updated' as any,
-    entity_type: 'user',
-    entity_id: input.user_id,
-    new_data: { type: 'user_subscription', ...input },
-  });
+    // Re-throw AppError as-is
+    if (err instanceof AppError) {
+      throw err;
+    }
 
-  const result = await getUserSubscription(input.user_id);
-  if (!result) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to fetch created subscription');
+    // Wrap other errors
+    throw new AppError('INTERNAL_ERROR', `Failed to create user subscription: ${err?.message || 'Unknown error'}`);
   }
-  return result;
 };
 
 /**
@@ -726,6 +1039,367 @@ export const cancelUserSubscription = async (
     old_data: { type: 'user_subscription', ...current },
     new_data: { type: 'user_subscription_cancelled', reason },
   });
+};
+
+/**
+ * Pause a user's subscription
+ */
+export const pauseUserSubscription = async (
+  userId: string,
+  actorId: string
+): Promise<void> => {
+  const supabase = getAdminClient();
+
+  const current = await getUserSubscription(userId);
+  if (!current) {
+    throw new AppError('NOT_FOUND', 'User subscription not found');
+  }
+
+  if (current.status === 'paused') {
+    throw new AppError('BAD_REQUEST', 'Subscription is already paused');
+  }
+
+  if (current.status === 'cancelled') {
+    throw new AppError('BAD_REQUEST', 'Cannot pause a cancelled subscription');
+  }
+
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      is_active: false,
+      status: 'paused' as SubscriptionStatus,
+      paused_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', current.id);
+
+  if (error) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to pause subscription');
+  }
+
+  await createAuditLog({
+    actor_id: actorId,
+    action: 'user.updated' as any,
+    entity_type: 'user',
+    entity_id: userId,
+    old_data: { type: 'user_subscription', status: current.status },
+    new_data: { type: 'user_subscription_paused' },
+  });
+};
+
+/**
+ * Resume a paused user subscription
+ */
+export const resumeUserSubscription = async (
+  userId: string,
+  actorId: string
+): Promise<void> => {
+  const supabase = getAdminClient();
+
+  const current = await getUserSubscription(userId);
+  if (!current) {
+    throw new AppError('NOT_FOUND', 'User subscription not found');
+  }
+
+  if (current.status !== 'paused') {
+    throw new AppError('BAD_REQUEST', 'Subscription is not paused');
+  }
+
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      is_active: true,
+      status: 'active' as SubscriptionStatus,
+      paused_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', current.id);
+
+  if (error) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to resume subscription');
+  }
+
+  await createAuditLog({
+    actor_id: actorId,
+    action: 'user.updated' as any,
+    entity_type: 'user',
+    entity_id: userId,
+    old_data: { type: 'user_subscription', status: 'paused' },
+    new_data: { type: 'user_subscription_resumed', status: 'active' },
+  });
+};
+
+// ============================================================================
+// ADMIN-INITIATED SUBSCRIPTION MANAGEMENT
+// ============================================================================
+
+/**
+ * Admin pauses a user's subscription with reason tracking
+ * Billing stops immediately, user gets read-only access
+ */
+export const adminPauseSubscription = async (
+  userId: string,
+  adminId: string,
+  reason: string
+): Promise<void> => {
+  const supabase = getAdminClient();
+
+  const current = await getUserSubscription(userId);
+  if (!current) {
+    throw new AppError('NOT_FOUND', 'User subscription not found');
+  }
+
+  if (current.status === 'paused') {
+    throw new AppError('BAD_REQUEST', 'Subscription is already paused');
+  }
+
+  if (current.status === 'cancelled') {
+    throw new AppError('BAD_REQUEST', 'Cannot pause a cancelled subscription');
+  }
+
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      is_active: false,
+      status: 'paused' as SubscriptionStatus,
+      paused_at: new Date().toISOString(),
+      paused_reason: reason,
+      paused_by_admin_id: adminId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', current.id);
+
+  if (error) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to pause subscription');
+  }
+
+  await createAuditLog({
+    actor_id: adminId,
+    action: 'subscription.paused' as any,
+    entity_type: 'user_subscription',
+    entity_id: current.id,
+    old_data: { status: current.status, is_active: current.is_active },
+    new_data: { status: 'paused', is_active: false, reason, paused_by_admin_id: adminId },
+  });
+};
+
+/**
+ * Admin cancels a user's subscription with reason tracking
+ * Billing stops immediately, user keeps access until end of billing period
+ */
+export const adminCancelSubscription = async (
+  userId: string,
+  adminId: string,
+  reason: string
+): Promise<void> => {
+  const supabase = getAdminClient();
+
+  const current = await getUserSubscription(userId);
+  if (!current) {
+    throw new AppError('NOT_FOUND', 'User subscription not found');
+  }
+
+  if (current.status === 'cancelled') {
+    throw new AppError('BAD_REQUEST', 'Subscription is already cancelled');
+  }
+
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      is_active: false,
+      status: 'cancelled' as SubscriptionStatus,
+      cancelled_at: new Date().toISOString(),
+      cancellation_reason: reason,
+      cancelled_by_admin_id: adminId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', current.id);
+
+  if (error) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to cancel subscription');
+  }
+
+  await createAuditLog({
+    actor_id: adminId,
+    action: 'subscription.cancelled' as any,
+    entity_type: 'user_subscription',
+    entity_id: current.id,
+    old_data: { status: current.status, is_active: current.is_active },
+    new_data: { status: 'cancelled', is_active: false, reason, cancelled_by_admin_id: adminId },
+  });
+};
+
+/**
+ * Admin reactivates a paused subscription
+ * Billing resumes, user gets full access
+ */
+export const adminReactivateSubscription = async (
+  userId: string,
+  adminId: string
+): Promise<void> => {
+  const supabase = getAdminClient();
+
+  const current = await getUserSubscription(userId);
+  if (!current) {
+    throw new AppError('NOT_FOUND', 'User subscription not found');
+  }
+
+  if (current.status !== 'paused') {
+    throw new AppError('BAD_REQUEST', 'Can only reactivate paused subscriptions');
+  }
+
+  const { error } = await supabase
+    .from('user_subscriptions')
+    .update({
+      is_active: true,
+      status: 'active' as SubscriptionStatus,
+      paused_at: null,
+      paused_reason: null,
+      paused_by_admin_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', current.id);
+
+  if (error) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to reactivate subscription');
+  }
+
+  await createAuditLog({
+    actor_id: adminId,
+    action: 'subscription.reactivated' as any,
+    entity_type: 'user_subscription',
+    entity_id: current.id,
+    old_data: { status: 'paused', is_active: false },
+    new_data: { status: 'active', is_active: true },
+  });
+};
+
+// ============================================================================
+// SUBSCRIPTION DISPLAY INFO (for Admin UI)
+// ============================================================================
+
+/**
+ * Get formatted subscription information for admin display
+ * Returns all necessary data to display subscription details in admin UI
+ */
+export const getSubscriptionDisplayInfo = async (
+  userId: string
+): Promise<SubscriptionDisplayInfo> => {
+  const supabase = getAdminClient();
+
+  // Get subscription with details
+  const subscription = await getUserSubscription(userId);
+  const plan = subscription.subscription_type;
+
+  // Determine billing interval (from subscription data or default to monthly)
+  const billingInterval = (subscription as any).billing_interval || 'monthly';
+
+  // Get current price based on billing interval
+  let currentPriceCents = 0;
+  if (billingInterval === 'monthly') {
+    currentPriceCents = plan.pricing_tiers?.monthly?.price_cents || plan.price_cents || 0;
+  } else if (billingInterval === 'annual') {
+    currentPriceCents = plan.pricing_tiers?.annual?.price_cents || plan.price_cents || 0;
+  } else if (billingInterval === 'one_off') {
+    currentPriceCents = plan.pricing_tiers?.one_off?.price_cents || plan.price_cents || 0;
+  }
+
+  // Format price
+  const currency = plan.currency || 'USD';
+  const priceFormatted = `${currency} ${(currentPriceCents / 100).toFixed(2)}`;
+
+  // Get billing interval label
+  const intervalLabels: Record<string, string> = {
+    monthly: 'Monthly',
+    annual: 'Annual',
+    one_off: 'One-time',
+  };
+  const billingIntervalLabel = intervalLabels[billingInterval] || 'Unknown';
+
+  // Calculate next billing date
+  let nextBillingDate: string | null = null;
+  if (subscription.expires_at && subscription.status !== 'cancelled') {
+    nextBillingDate = subscription.expires_at;
+  }
+
+  // Calculate days remaining
+  let daysRemaining: number | null = null;
+  if (subscription.expires_at) {
+    const expiryDate = new Date(subscription.expires_at);
+    const now = new Date();
+    const diffTime = expiryDate.getTime() - now.getTime();
+    daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  // Status labels and colors
+  const statusLabel = SUBSCRIPTION_STATUS_LABELS[subscription.status];
+  const statusColor = SUBSCRIPTION_STATUS_COLORS[subscription.status];
+
+  // Action eligibility flags
+  const isPaused = subscription.status === 'paused';
+  const isCancelled = subscription.status === 'cancelled';
+  const isActive = subscription.status === 'active' || subscription.status === 'trial';
+
+  const canPause = isActive && !isCancelled;
+  const canCancel = (isActive || isPaused) && !isCancelled;
+  const canResume = isPaused;
+  const canUpgrade = isActive || subscription.status === 'trial';
+
+  // Get admin info if paused or cancelled by admin
+  let pausedByAdmin: { id: string; full_name: string } | null = null;
+  let cancelledByAdmin: { id: string; full_name: string } | null = null;
+
+  if ((subscription as any).paused_by_admin_id) {
+    const { data: adminData } = await supabase
+      .from('users')
+      .select('id, full_name')
+      .eq('id', (subscription as any).paused_by_admin_id)
+      .single();
+    if (adminData) {
+      pausedByAdmin = adminData;
+    }
+  }
+
+  if ((subscription as any).cancelled_by_admin_id) {
+    const { data: adminData } = await supabase
+      .from('users')
+      .select('id, full_name')
+      .eq('id', (subscription as any).cancelled_by_admin_id)
+      .single();
+    if (adminData) {
+      cancelledByAdmin = adminData;
+    }
+  }
+
+  // Access end date (for cancelled subscriptions)
+  const accessEndDate = isCancelled ? subscription.expires_at : null;
+
+  return {
+    subscription,
+    plan_name: plan.name,
+    plan_display_name: plan.display_name,
+    current_price_cents: currentPriceCents,
+    current_price_formatted: priceFormatted,
+    billing_interval: billingInterval as 'monthly' | 'annual' | 'one_off',
+    billing_interval_label: billingIntervalLabel,
+    next_billing_date: nextBillingDate,
+    status: subscription.status,
+    status_label: statusLabel,
+    status_color: statusColor,
+    days_remaining: daysRemaining,
+    is_paused: isPaused,
+    is_cancelled: isCancelled,
+    is_active: isActive,
+    can_pause: canPause,
+    can_cancel: canCancel,
+    can_resume: canResume,
+    can_upgrade: canUpgrade,
+    paused_reason: (subscription as any).paused_reason || null,
+    paused_by_admin: pausedByAdmin,
+    cancelled_reason: subscription.cancellation_reason,
+    cancelled_by_admin: cancelledByAdmin,
+    access_end_date: accessEndDate,
+  };
 };
 
 // ============================================================================
@@ -1619,26 +2293,38 @@ export const getPermissionTemplateWithPermissions = async (id: string): Promise<
 export const getSubscriptionTypePermissions = async (subscriptionTypeId: string): Promise<Permission[]> => {
   const supabase = getAdminClient();
 
-  const { data, error } = await supabase
+  // First, get the permission IDs
+  const { data: junctionData, error: junctionError } = await supabase
     .from('subscription_type_permissions')
-    .select(`
-      permission:permissions (
-        id,
-        resource,
-        action,
-        description,
-        category
-      )
-    `)
+    .select('permission_id')
     .eq('subscription_type_id', subscriptionTypeId);
 
-  if (error) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to fetch subscription type permissions');
+  if (junctionError) {
+    console.error('Error fetching subscription type permission IDs:', junctionError);
+    // Return empty array instead of throwing - permissions are optional
+    return [];
   }
 
-  return (data || [])
-    .map((item: any) => item.permission)
-    .filter(Boolean) as Permission[];
+  if (!junctionData || junctionData.length === 0) {
+    return [];
+  }
+
+  // Get the permission IDs
+  const permissionIds = junctionData.map((item: any) => item.permission_id);
+
+  // Now fetch the actual permissions
+  const { data: permissions, error: permissionsError } = await supabase
+    .from('permissions')
+    .select('id, resource, action, description, category')
+    .in('id', permissionIds);
+
+  if (permissionsError) {
+    console.error('Error fetching permissions:', permissionsError);
+    // Return empty array instead of throwing
+    return [];
+  }
+
+  return permissions || [];
 };
 
 /**
